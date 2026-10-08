@@ -8,7 +8,7 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, 
 export const withBase = (path: string) => `${BASE_PATH}${path}`;
 /** Absolute URL of an app route on the current origin, e.g. for Supabase auth redirects. */
 export const appUrl = (path = "/") => `${window.location.origin}${BASE_PATH}${path}`;
-export const BMC_USERNAME = (process.env.NEXT_PUBLIC_BMC_USERNAME || "").trim().replace(/^@/, "");
+export const BMC_USERNAME = (process.env.NEXT_PUBLIC_BMC_USERNAME || "abilash2001").trim().replace(/^@/, "");
 export const BMC_URL = BMC_USERNAME ? `https://buymeacoffee.com/${encodeURIComponent(BMC_USERNAME)}` : "";
 export const BMC_FLOATING = process.env.NEXT_PUBLIC_BMC_WIDGET === "true";
 export const GOOGLE_AUTH = process.env.NEXT_PUBLIC_AUTH_GOOGLE === "true";

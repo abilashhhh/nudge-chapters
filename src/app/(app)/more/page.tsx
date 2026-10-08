@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, CalendarDays, Coffee, FileUp, Settings, Sparkles, Target, Users } from "lucide-react";
+import { BarChart3, CalendarDays, Coffee, FileUp, Heart, Landmark, Settings, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 import { Money } from "@/components/money";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -9,9 +9,12 @@ import { useFinance } from "@/lib/finance";
 import { useUI } from "@/lib/ui";
 
 export default function MorePage() {
-  const { goals, positions, month } = useFinance();
+  const { positions, month } = useFinance();
   const tiles = [
-    { href: "/goals", label: "Goals", icon: Target, hint: `${goals.length} goal${goals.length === 1 ? "" : "s"}` },
+    { href: "/cash-flow", label: "Cash flow", icon: Wallet, hint: "Bills, budgets, transactions" },
+    { href: "/assets", label: "Assets", icon: TrendingUp, hint: "Accounts and investments" },
+    { href: "/liabilities", label: "Liabilities", icon: Landmark, hint: "Cards, loans, chits" },
+    { href: "/plan?tab=wishlist", label: "Wishlist", icon: Heart, hint: "Buy, wait or save first" },
     { href: "/projection", label: "Future", icon: Sparkles, hint: "Project any date" },
     { href: "/calendar", label: "Calendar", icon: CalendarDays, hint: `${month.unpaid.length} bills left this month` },
     { href: "/reports", label: "Reports", icon: BarChart3, hint: "Spending, net worth, health" },

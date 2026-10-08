@@ -40,17 +40,7 @@ export default function SupportPage() {
             <span className="text-[13px] text-ink-3">Opens Buy Me a Coffee in a new tab. One-off or monthly — your choice.</span>
           </div>
         ) : (
-          <div className="mt-8 rounded-2xl border border-dashed border-line-strong p-4 text-[14px] text-ink-2">
-            <p className="font-semibold text-ink">Buy Me a Coffee isn&apos;t connected yet.</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-                <li>Create a free page at buymeacoffee.com.</li>
-                <li>
-                  Put your username in <code className="rounded bg-surface-3 px-1">.env.local</code> as <code className="rounded bg-surface-3 px-1">NEXT_PUBLIC_BMC_USERNAME=yourname</code>.
-                </li>
-                <li>Optionally set <code className="rounded bg-surface-3 px-1">NEXT_PUBLIC_BMC_WIDGET=true</code> for a floating Support button on desktop.</li>
-                <li>Restart the app (or redeploy).</li>
-              </ol>
-          </div>
+          <p className="mt-8 text-[14px] text-ink-2">Thank you for using {APP_NAME}.</p>
         )}
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">

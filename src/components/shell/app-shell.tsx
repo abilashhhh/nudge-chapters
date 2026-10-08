@@ -2,7 +2,7 @@
 
 import {
   BarChart3, Bell, CalendarDays, Eye, EyeOff, Home, Landmark, LayoutGrid, LogOut, Moon, Plus, Search, Settings, Sparkles, Sun, Target,
-  TrendingUp, Wallet,
+  TrendingUp, Wallet, ListChecks, PieChart,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { Editors } from "../editors";
 import { ChitInstallmentsSheet } from "../chits";
+import { LifeEditorSheet } from "../life";
 import { EventSheet } from "../event-sheet";
 import { ExplainSheet } from "../explain";
 import { BmcFloating, SupportNavLink } from "../support";
@@ -24,11 +25,13 @@ import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
 
 export const NAV = [
-  { href: "/", label: "Dashboard", icon: Home },
+  { href: "/", label: "Today", icon: Home },
+  { href: "/plan", label: "Plan", icon: ListChecks },
+  { href: "/goals", label: "Chapters", icon: Target },
+  { href: "/money", label: "Money", icon: PieChart },
   { href: "/cash-flow", label: "Cash flow", icon: Wallet },
   { href: "/assets", label: "Assets", icon: TrendingUp },
   { href: "/liabilities", label: "Liabilities", icon: Landmark },
-  { href: "/goals", label: "Goals", icon: Target },
   { href: "/projection", label: "Future", icon: Sparkles },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/reports", label: "Reports", icon: BarChart3 },
@@ -235,6 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <TransactionSheet />
       <EventSheet />
       <ChitInstallmentsSheet />
+      <LifeEditorSheet />
       <Editors />
       <CommandPalette />
       <AlertsPanel />

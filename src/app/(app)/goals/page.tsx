@@ -2,6 +2,7 @@
 
 import { Plus, Target } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
+import { TaskRow } from "@/components/life";
 import { Money } from "@/components/money";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Button, LinkButton } from "@/components/ui/button";
@@ -32,11 +33,11 @@ function Goals() {
   return (
     <>
       <PageHeader
-        title="Goals"
-        description="What you're saving for, whether you're on track, and what it would take."
+        title="Chapters"
+        description="What you're working towards — the savings goal, and the tasks, lists, notes and wishlist that go with it."
         actions={
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openEditor("goal")}>
-            New goal
+            New chapter
           </Button>
         }
       />
@@ -46,7 +47,7 @@ function Goals() {
         onChange={setTab}
         hide={advanced ? [] : ["retirement", "independence"]}
         tabs={[
-          { id: "goals", label: "Goals" },
+          { id: "goals", label: "Chapters" },
           { id: "emergency", label: "Emergency fund" },
           { id: "retirement", label: "Retirement" },
           { id: "independence", label: "Financial independence" },
@@ -137,6 +138,7 @@ function GoalCard({ g }: { g: GoalProgress }) {
         {g.projectedDate && g.status !== "done" && <KV k="At this pace you'll get there" v={<span className="projected">{formatDate(g.projectedDate)}</span>} />}
         {linked.length > 0 && <KV k="Linked" v={<span className="text-[12.5px]">{linked.join(", ")}</span>} />}
       </div>
+      <ChapterItems goalId={g.goal.id} />
       <button type="button" className="mt-3 text-[13px] font-medium text-future-ink hover:underline" onClick={() => setWhatIf(!whatIf)} aria-expanded={whatIf}>
         {whatIf ? "Hide what-if" : "What if…"}
       </button>
@@ -324,3 +326,36 @@ function Fire() {
   );
 }
 
+
+/** Tasks, checklists, notes and wishlist items that belong to this chapter. */
+function ChapterItems({ goalId }: { goalId: string }) {
+  const { ds } = useFinance();
+  const items = ds.life_items.filter((i) => i.goal_id === goalId && i.status === "open");
+  const ui = useUI.getState();
+  const tasks = items.filter((i) => i.kind === "task" || i.kind === "reminder");
+  const others = items.filter((i) => i.kind !== "task" && i.kind !== "reminder");
+  return (
+    <div className="mt-3 rounded-xl bg-surface-2 p-2">
+      {tasks.slice(0, 3).map((t) => (
+        <TaskRow key={t.id} item={t} />
+      ))}
+      {others.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-2 py-1.5">
+          {others.map((o) => (
+            <button key={o.id} type="button" onClick={() => ui.openLife(o.kind, o.id)} className="rounded-full border border-line bg-surface px-2.5 py-1 text-[12.5px] text-ink-2 hover:border-line-strong">
+              {o.kind === "checklist" ? "☑ " : o.kind === "wishlist" ? "♡ " : "✎ "}
+              {o.title}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-1 px-1 pt-1">
+        {(["task", "checklist", "note", "wishlist"] as const).map((k) => (
+          <Button key={k} size="sm" variant="ghost" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => ui.openLife(k, undefined, { goal_id: goalId })}>
+            {k === "wishlist" ? "Wish" : k[0].toUpperCase() + k.slice(1)}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}

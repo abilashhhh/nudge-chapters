@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { Transaction } from "./types";
+import type { LifeItem, LifeKind, Transaction } from "./types";
 
 export type EditorKind =
   | "account"
@@ -30,6 +30,8 @@ interface UIState {
   eventKey: string | null;
   /** Open the event sheet straight on its "mark paid" form. */
   eventMode: "view" | "settle";
+  /** Task / checklist / note / reminder / wishlist editor. */
+  life: { kind: LifeKind; id?: string; preset?: Partial<LifeItem> } | null;
   /** Chit whose installment table is open. */
   chitSheet: string | null;
   editor: EditorState | null;
@@ -41,6 +43,8 @@ interface UIState {
   closeQuick(): void;
   openEvent(key: string | null, mode?: "view" | "settle"): void;
   openChitSheet(chitId: string | null): void;
+  openLife(kind: LifeKind, id?: string, preset?: Partial<LifeItem>): void;
+  closeLife(): void;
   openEditor(kind: EditorKind, id?: string, preset?: Record<string, unknown>): void;
   closeEditor(): void;
   setPalette(v: boolean): void;
@@ -57,6 +61,7 @@ export const useUI = create<UIState>((set) => ({
   eventKey: null,
   eventMode: "view",
   chitSheet: null,
+  life: null,
   editor: null,
   palette: false,
   alerts: false,
@@ -65,11 +70,13 @@ export const useUI = create<UIState>((set) => ({
   openQuick: () => set({ quickOpen: true }),
   closeQuick: () => set({ quickOpen: false }),
   openEvent: (key, mode = "view") => set(key ? { eventKey: key, eventMode: mode, palette: false } : { eventKey: null, eventMode: "view" }),
+  openLife: (kind, id, preset) => set({ life: { kind, id, preset }, palette: false, quickOpen: false }),
+  closeLife: () => set({ life: null }),
   openChitSheet: (chitId) => set(chitId ? { chitSheet: chitId, palette: false } : { chitSheet: null }),
   openEditor: (kind, id, preset) => set({ editor: { kind, id, preset }, quickOpen: false, palette: false }),
   closeEditor: () => set({ editor: null }),
   setPalette: (v) => set({ palette: v }),
   setAlerts: (v) => set(v ? { alerts: true, palette: false } : { alerts: false }),
   closeAll: () =>
-    set({ txOpen: false, txPreset: null, txEditing: null, quickOpen: false, eventKey: null, eventMode: "view", chitSheet: null, editor: null, palette: false, alerts: false }),
+    set({ txOpen: false, txPreset: null, txEditing: null, quickOpen: false, eventKey: null, eventMode: "view", chitSheet: null, life: null, editor: null, palette: false, alerts: false }),
 }));

@@ -51,14 +51,15 @@ export function CommandPalette() {
   const pathname = usePathname();
   const f = useFinance();
   const updatePrefs = useStore((s) => s.updatePrefs);
-  // Set once a result is chosen, so a double click / repeated Enter can't run it twice.
-  const selecting = useRef(false);
+  // Time of the last selection: a double click / repeated Enter within 400 ms runs only once.
+  // (A time window can't get stuck the way an on/off flag can.)
+  const lastSelect = useRef(0);
 
   // Fresh state every time the palette opens or closes: empty query, first result highlighted.
   useEffect(() => {
     setQ("");
     setIdx(0);
-    selecting.current = false;
+    lastSelect.current = 0;
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     // The input also has autoFocus, so keys typed straight after Ctrl+K aren't lost; this is a fallback.
@@ -78,20 +79,24 @@ export function CommandPalette() {
       clearTimeout(t);
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("popstate", onPop);
-      // Hand focus back unless the selected result moved it into a new sheet.
-      if (prev && document.activeElement === document.body) prev.focus?.();
+      // Don't push focus back onto the search button: that left a highlight ring around the icon.
+      void prev;
     };
   }, [open, setOpen]);
 
-  // Any navigation (link, back/forward) closes the palette.
+  // Any navigation (link, back/forward) closes the palette — only when the page really changed.
+  const lastPath = useRef(pathname);
   useEffect(() => {
+    if (lastPath.current === pathname) return;
+    lastPath.current = pathname;
     setOpen(false);
   }, [pathname, setOpen]);
 
   /** Close the palette (and anything under it), reset it, then run the result once the overlay is gone. */
   const select = (it: Item | undefined) => {
-    if (!it || selecting.current) return;
-    selecting.current = true;
+    const now = Date.now();
+    if (!it || now - lastSelect.current < 400) return;
+    lastSelect.current = now;
     useUI.getState().closeAll();
     setQ("");
     setIdx(0);
@@ -120,12 +125,45 @@ export function CommandPalette() {
     if (/net ?worth/.test(query)) out.push({ id: "nw", group: "Ask", label: `Net worth: ${m(f.positions.totals.netWorth)}`, run: go("/reports?tab=networth") });
     if (/owe me|lent|receivable/.test(query)) out.push({ id: "owed", group: "Ask", label: `People owe you ${m(f.positions.totals.receivables)}`, run: go("/assets?tab=lending") });
     if (/how much do i owe|debt|liabilit/.test(query)) out.push({ id: "debt", group: "Ask", label: `You owe ${m(f.positions.totals.totalLiabilities)}`, run: go("/liabilities") });
+    // Personal command centre: route plain-language requests to the right screen or form.
+    const spendQ = query.match(/spen[dt]\s+(?:on\s+)?([a-z& ]+?)(?:\s+(last|this)\s+month)?\??$/);
+    if (spendQ) {
+      const word = spendQ[1].trim();
+      const last = spendQ[2] === "last";
+      const ref = last ? addMonths(f.today, -1) : f.today;
+      const from = ref.slice(0, 8) + "01";
+      const to = last ? endOfMonth(ref) : f.today;
+      const cats = new Set(f.ds.transactions.map((t) => t.category).filter((c): c is string => !!c && c.toLowerCase().includes(word.split(" ")[0])));
+      if (cats.size) {
+        const total = f.ds.transactions.filter((t) => t.category && cats.has(t.category) && t.date >= from && t.date <= to && (t.type === "expense" || t.type === "card_spend")).reduce((s, t) => s + t.amount, 0);
+        out.push({ id: "spent", group: "Ask", label: `${[...cats].join(", ")}: ${m(total)} ${last ? "last month" : "this month so far"}`, hint: "From your transactions", run: go("/reports?tab=spending") });
+      }
+    }
+    if (/upcoming payments|payments due|what.*due|my bills/.test(query)) out.push({ id: "pay", group: "Ask", label: "Show upcoming payments", run: go("/calendar?view=agenda") });
+    if (/focus|what should i do|next step|what now/.test(query)) {
+      const top = f.nudges[0];
+      out.push({ id: "focus", group: "Ask", label: top ? `Focus: ${top.title}` : "Nothing urgent — see Today", run: go("/") });
+    }
+    const goalQ = query.match(/^(?:create|start|new)\s+(?:an?\s+)?(.+?)\s+(?:goal|chapter)$/);
+    if (goalQ) out.push({ id: "mkgoal", group: "Ask", label: `Start a chapter: “${goalQ[1]}”`, run: () => ui.openEditor("goal", undefined, { name: goalQ[1].replace(/^\w/, (c) => c.toUpperCase()) }) });
+    const wishQ = query.match(/^add\s+(.+?)\s+to\s+(?:my\s+)?wishlist$/);
+    if (wishQ) out.push({ id: "mkwish", group: "Ask", label: `Add “${wishQ[1]}” to wishlist`, run: () => ui.openLife("wishlist", undefined, { title: wishQ[1] }) });
+    const remQ = query.match(/^remind me\s+(?:to\s+)?(.+)$/);
+    if (remQ) out.push({ id: "mkrem", group: "Ask", label: `Set a reminder: “${remQ[1]}”`, run: () => ui.openLife("reminder", undefined, { title: remQ[1] }) });
+    const taskQ = query.match(/^(?:add\s+)?(?:a\s+)?task:?\s+(.+)$/);
+    if (taskQ) out.push({ id: "mktask", group: "Ask", label: `Add task: “${taskQ[1]}”`, run: () => ui.openLife("task", undefined, { title: taskQ[1] }) });
     if (/subscri/.test(query)) out.push({ id: "subs", group: "Ask", label: `Subscriptions: ${m(f.norms.subscriptions)}/month`, run: go("/cash-flow?tab=subscriptions") });
     if (/salary.*(increase|hike|raise)|what if/.test(query)) out.push({ id: "whatif", group: "Ask", label: "Open the what-if simulator", run: go("/projection?tab=whatif") });
 
     const actions: Item[] = [
       { id: "a-exp", group: "Actions", label: "Add expense", hint: "N", run: () => ui.openTx({ type: "expense" }) },
+      { id: "a-task", group: "Actions", label: "Add task", run: () => ui.openLife("task") },
       { id: "a-inc", group: "Actions", label: "Add income", run: () => ui.openTx({ type: "income", category: "Salary" }) },
+      { id: "a-note", group: "Actions", label: "Write a note", run: () => ui.openLife("note") },
+      { id: "a-chap", group: "Actions", label: "Start a chapter", run: () => ui.openEditor("goal") },
+      { id: "a-wish", group: "Actions", label: "Add to wishlist", run: () => ui.openLife("wishlist") },
+      { id: "a-list", group: "Actions", label: "New checklist", run: () => ui.openLife("checklist") },
+      { id: "a-rem", group: "Actions", label: "Set a reminder", run: () => ui.openLife("reminder") },
       { id: "a-tr", group: "Actions", label: "Transfer between accounts", run: () => ui.openTx({ type: "transfer" }) },
       { id: "a-card", group: "Actions", label: "Pay a credit card bill", run: () => ui.openTx({ type: "card_payment" }) },
       { id: "a-rule", group: "Actions", label: "Add recurring income, bill or budget", run: () => ui.openEditor("rule") },
@@ -141,7 +179,7 @@ export function CommandPalette() {
     ];
     const pages: Item[] = [
       ...NAV.map((n) => ({ id: `p-${n.href}`, group: "Go to", label: n.label, run: go(n.href) })),
-      { id: "p-support", group: "Go to", label: "Support the developer", run: go("/support") },
+      { id: "p-support", group: "Go to", label: "Buy me a coffee", run: go("/support") },
     ];
 
     if (!query) return [...actions.slice(0, 6), ...pages];
@@ -153,7 +191,13 @@ export function CommandPalette() {
     for (const c of f.ds.credit_cards) if (match(c.name) || match(c.issuer)) out.push({ id: `cc-${c.id}`, group: "Cards", label: c.name, hint: `${m(f.positions.cards.get(c.id)?.outstanding ?? 0)} owed`, run: go("/liabilities?tab=cards") });
     for (const l of f.ds.loans) if (match(l.name) || match(l.lender)) out.push({ id: `loan-${l.id}`, group: "Loans", label: l.name, hint: `${m(f.positions.loans.get(l.id)?.state.outstanding ?? 0)} left`, run: go(`/liabilities?tab=loans&loan=${l.id}`) });
     for (const i of f.ds.investments) if (match(i.name) || match(i.identifier) || match(INVESTMENT_TYPE_LABEL[i.type])) out.push({ id: `inv-${i.id}`, group: "Investments", label: i.name, hint: m(f.positions.investments.get(i.id)?.value ?? 0), run: () => ui.openEditor("investment", i.id) });
-    for (const g of f.ds.goals) if (match(g.name)) out.push({ id: `goal-${g.id}`, group: "Goals", label: g.name, hint: m(g.target_amount), run: go("/goals") });
+    for (const g of f.ds.goals) if (match(g.name)) out.push({ id: `goal-${g.id}`, group: "Chapters", label: g.name, hint: m(g.target_amount), run: go("/goals") });
+    const KIND_GROUP = { task: "Tasks", checklist: "Checklists", note: "Notes", reminder: "Reminders", wishlist: "Wishlist" } as const;
+    for (const li of f.ds.life_items) {
+      const chapter = li.goal_id ? f.ds.goals.find((g) => g.id === li.goal_id)?.name : undefined;
+      if (match(li.title) || match(li.body) || li.tags.some((t) => match(t)) || (li.data?.items ?? []).some((e) => match(e.text)) || match(chapter))
+        out.push({ id: `li-${li.id}`, group: KIND_GROUP[li.kind], label: li.title, hint: li.status !== "open" ? "done" : li.due_date ? formatDate(li.due_date, "short") : chapter, run: () => ui.openLife(li.kind, li.id) });
+    }
     for (const r of f.ds.recurring_rules) if (match(r.name) || match(r.category)) out.push({ id: `rule-${r.id}`, group: "Recurring", label: r.name, hint: m(r.amount), run: () => ui.openEditor("rule", r.id) });
     for (const l of f.ds.lendings) if (match(l.person)) out.push({ id: `lend-${l.id}`, group: "Lending", label: l.person, hint: m(f.positions.lendings.get(l.id)?.outstanding ?? 0), run: () => ui.openEditor("lending", l.id) });
     for (const c of f.ds.chits) if (match(c.name)) out.push({ id: `chit-${c.id}`, group: "Chits", label: c.name, run: go("/liabilities?tab=chits") });
@@ -206,7 +250,7 @@ export function CommandPalette() {
               }
             }}
             placeholder='Search, or ask "how much will I have by Dec 2027?"'
-            className="h-14 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
+            className="no-focus-ring h-14 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
             aria-label="Search records and actions"
             role="combobox"
             aria-expanded="true"

@@ -286,7 +286,6 @@ function Notifications() {
             </div>
           </>
         )}
-        <p className="mt-3 text-[12.5px] text-ink-3">Email reminders need a scheduled server job — see the README for the Supabase setup.</p>
       </Panel>
     </div>
   );
@@ -584,9 +583,8 @@ function CloudSecurity() {
       <Panel title="How your data is protected" className="lg:col-span-2">
         <ul className="list-disc space-y-1 pl-5 text-[13.5px] text-ink-2">
           <li>Nudge Chapters never asks for or stores bank passwords. Everything is entered by you or imported from files you choose.</li>
-          <li>Data is stored in your Supabase Postgres database, encrypted in transit (HTTPS) and at rest.</li>
-          <li>Row-level security means each signed-in person can only read and change their own rows.</li>
-          <li>Every change to your financial records is written to an activity log you can review.</li>
+          <li>Your data is encrypted in transit (HTTPS) and at rest.</li>
+          <li>Only you can read and change your records.</li>
           <li>Use the eye icon in the top bar to hide amounts on screen in public.</li>
         </ul>
       </Panel>

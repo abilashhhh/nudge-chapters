@@ -34,6 +34,7 @@ export const INSERT_ORDER: TableName[] = [
   "event_overrides",
   "transactions",
   "net_worth_snapshots",
+  "life_items",
 ];
 
 export function newId(): string {

@@ -36,7 +36,7 @@ jobs:
       NEXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://mzmcvnqmdyvlzzppzfyo.supabase.co' }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_kFWLbt5j1ytiB452nX_JlA_5bX9ChPE' }}
-      NEXT_PUBLIC_BMC_USERNAME: ${{ vars.NEXT_PUBLIC_BMC_USERNAME }}
+      NEXT_PUBLIC_BMC_USERNAME: ${{ vars.NEXT_PUBLIC_BMC_USERNAME || 'abilash2001' }}
       NEXT_PUBLIC_BMC_WIDGET: ${{ vars.NEXT_PUBLIC_BMC_WIDGET || 'false' }}
       NEXT_PUBLIC_AUTH_GOOGLE: ${{ vars.NEXT_PUBLIC_AUTH_GOOGLE || 'false' }}
     steps:

@@ -11,6 +11,7 @@ import { emergencyFund, goalProgress, type EmergencyFund, type GoalProgress } fr
 import { computePositions, moneyCtx, type Positions } from "./engine/ledger";
 import { monthlyBurn, monthlyNorms, monthMetrics, runwayMonths, type MonthMetrics, type MonthlyNorms } from "./engine/metrics";
 import { project, type ProjectionResult } from "./engine/projection";
+import { buildNudges, type Nudge } from "./engine/life";
 import type { MoneyContext } from "./money";
 import { useStore } from "./store";
 import type { Assumptions, Dataset, ISODate } from "./types";
@@ -31,6 +32,8 @@ export interface Finance {
   ef: EmergencyFund;
   near: ProjectionResult;
   alerts: Alert[];
+  /** Small, explained next steps across money, chapters, tasks and wishlist. */
+  nudges: Nudge[];
   advanced: boolean;
 }
 
@@ -56,6 +59,7 @@ export function computeFinance(ds: Dataset): Finance {
   const ef = emergencyFund(ds, positions, norms, today, ds.profile.preferences?.emergencyMonths ?? 6);
   const near = project(ds, { today, to: addDays(today, 60), positions, assumptions, scenario: "base" });
   const alerts = buildAlerts({ ds, positions, events, projection60: near, goals, today, ctx });
+  const nudges = buildNudges({ ds, today, ctx, alerts, goals, ef, month, norms });
   return {
     ds,
     today,
@@ -71,6 +75,7 @@ export function computeFinance(ds: Dataset): Finance {
     ef,
     near,
     alerts,
+    nudges,
     advanced: ds.profile.mode === "advanced",
   };
 }

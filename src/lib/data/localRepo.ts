@@ -97,10 +97,14 @@ export class LocalRepo implements Repo {
   }
 
   private rows<T extends TableName>(t: T): RowOf<T>[] {
-    return (this.ds as unknown as Record<string, RowOf<T>[]>)[t];
+    const all = this.ds as unknown as Record<string, RowOf<T>[]>;
+    // Device data saved before this table existed has no list for it yet.
+    if (!Array.isArray(all[t])) all[t] = [];
+    return all[t];
   }
 
   async load(): Promise<Dataset> {
+    for (const t of TABLES) this.rows(t);
     return structuredClone(this.ds);
   }
 

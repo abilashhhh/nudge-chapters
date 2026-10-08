@@ -8,7 +8,7 @@ import { DEFAULT_CATEGORIES } from "../engine/defaults";
 import { amortize } from "../engine/loans";
 import { occurrences } from "../engine/schedule";
 import type {
-  Account, CardStatement, Category, Chit, CreditCard, Dataset, Goal, Investment, Lending, Loan, NetWorthSnapshot,
+  Account, CardStatement, Category, Chit, LifeItem, CreditCard, Dataset, Goal, Investment, Lending, Loan, NetWorthSnapshot,
   RecurringRule, Reserve, Transaction,
 } from "../types";
 import { computePositions } from "../engine/ledger";
@@ -261,6 +261,30 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     { id: id(), name: "Diwali gifts", target_amount: 10_000, current_amount: 6_000, monthly_funding: 2_000, color: "#c2410c" },
   ];
 
+  // ---------------------------------------------------------------- Personal system (tasks, lists, notes, reminders, wishlist)
+  const [, bikeGoal, goa] = goals;
+  const li = (p: Partial<LifeItem> & Pick<LifeItem, "kind" | "title">): LifeItem => ({
+    id: id(), status: "open", repeat: "none", priority: 2, tags: [], pinned: false, data: {}, source: "user", ...p,
+  });
+  const entries = (...t: string[]) => t.map((text, i) => ({ id: id(), text, done: i < 2 }));
+  const life_items: LifeItem[] = [
+    li({ kind: "task", title: "Book Goa train tickets", due_date: addDays(today, 3), priority: 1, goal_id: goa.id, tags: ["travel"] }),
+    li({ kind: "task", title: "Compare bike insurance quotes", due_date: addDays(today, 10), goal_id: bikeGoal.id, tags: ["bike"] }),
+    li({ kind: "task", title: "Pay electricity bill", due_date: addDays(today, 1), repeat: "monthly", priority: 1, tags: ["home"] }),
+    li({ kind: "task", title: "Renew gym membership", status: "done", completed_at: new Date().toISOString(), due_date: addDays(today, -2) }),
+    li({ kind: "checklist", title: "Goa trip packing", goal_id: goa.id, data: { items: entries("Tickets", "Hotel booking", "ID card", "Clothes", "Charger", "Power bank") } }),
+    li({ kind: "checklist", title: "Bike monthly check", goal_id: bikeGoal.id, repeat: "monthly", data: { items: entries("Engine oil", "Tyres", "Brakes", "Chain", "Fuel", "Documents") } }),
+    li({ kind: "note", title: "Bike shortlist", body: "Hunter 350 Metro vs Rebel. On-road Bangalore ≈ ₹1.8L. Test ride at the Indiranagar showroom on a weekday.", pinned: true, goal_id: bikeGoal.id, tags: ["bike"] }),
+    li({ kind: "note", title: "Goa stay ideas", body: "North Goa for 3 nights, South for 2. Budget ₹2,500/night.", goal_id: goa.id, tags: ["travel"] }),
+    li({ kind: "reminder", title: "Bike insurance expires", due_date: addDays(today, 45), due_time: "09:00", repeat: "yearly", tags: ["bike"] }),
+    li({ kind: "reminder", title: "Review this month's spending", due_date: endOfMonth(today), due_time: "20:00", repeat: "monthly" }),
+    li({
+      kind: "wishlist", title: "Samsung 1TB portable SSD", priority: 2, tags: ["tech"],
+      data: { url: "https://www.samsung.com/in/", target_price: 8_000, current_price: 9_499, price_history: [{ date: addDays(today, -30), price: 10_299 }, { date: addDays(today, -10), price: 9_799 }, { date: today, price: 9_499 }] },
+    }),
+    li({ kind: "wishlist", title: "Riding jacket", goal_id: bikeGoal.id, priority: 3, data: { target_price: 6_000, current_price: 5_800 } }),
+  ];
+
   const categories: Category[] = DEFAULT_CATEGORIES.map((c) => ({ ...c, id: id(), archived: false }));
 
   const ds: Dataset = {
@@ -299,6 +323,7 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     event_overrides: [],
     transactions: tx.sort((a, b) => (a.date < b.date ? 1 : -1)),
     net_worth_snapshots: [],
+    life_items,
   };
 
   // Synthetic month-end net-worth history so the trend chart has something to show.

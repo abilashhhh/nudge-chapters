@@ -236,6 +236,15 @@ Each installment keeps its own record (base, auction date, discount, dividend, f
 - Audit trail / account deletion need `finish-setup.sql` (one-time, manual).
 - Offline: the app shell opens offline; financial data is never cached by the service worker.
 
+## Personal system (Phase 2)
+
+- **Today** (`/`): money at a glance, your chapters, explained nudges, tasks, and one thing to consider.
+- **Chapters** (`/goals`): each savings goal with its linked tasks, checklists, notes and wishlist.
+- **Plan** (`/plan`): tasks (repeating, steps, priority), checklists, notes (pin, archive, tags, links), reminders, wishlist with a buy / wait / save-first check.
+- **Nudges** (`src/lib/engine/life.ts`): bills, chapter steps, spending above your usual pace, due tasks, wishlist at target price, safety net — each with reason, source, impact and an estimate label.
+- **Search / command centre** (Ctrl+K): searches everything; understands "how much did I spend on food last month", "create an Ooty chapter", "add SSD to wishlist", "remind me to…", "add task …", "what should I focus on".
+- Stored in `life_items` (migration 0004).
+
 ## Remaining work (next phase)
 
-Life chapters, goals → nudges → actions model, notifications, native app wrappers, custom domain.
+Bank/email/EPFO integrations, live market & price data, AI assistant (needs a server-side API key), image uploads (Supabase Storage), push notifications, native app wrappers, custom domain.

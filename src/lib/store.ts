@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { Dataset, Preferences, Profile, RowOf, TableName } from "./types";
+import { TABLES } from "./types";
 import { newId, type Repo } from "./data/repo";
 import { friendlyError } from "./errors";
 
@@ -53,6 +54,8 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ status: get().ds ? "ready" : "loading", error: null });
     try {
       const ds = await repo.load();
+      // Data saved before a table existed (older device data or backups) gets an empty list.
+      for (const t of TABLES) if (!Array.isArray(ds[t])) (ds as unknown as Record<string, unknown[]>)[t] = [];
       // Newest first, whatever order the storage returned them in (lists page from the top).
       ds.transactions.sort(byDateDesc);
       set({ ds, status: "ready" });

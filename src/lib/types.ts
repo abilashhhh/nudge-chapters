@@ -402,6 +402,51 @@ export interface Profile {
 export type AlertModule = "bills" | "cards" | "loans" | "chits" | "sip" | "income" | "lending" | "goals" | "balance" | "spending";
 
 // ---------------------------------------------------------------------------
+// Personal system: tasks, checklists, notes, reminders, wishlist
+// ---------------------------------------------------------------------------
+
+export type LifeKind = "task" | "checklist" | "note" | "reminder" | "wishlist";
+export type Repeat = "none" | "daily" | "weekly" | "monthly" | "yearly";
+
+export interface ChecklistEntry {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+/** Kind-specific fields. Prices and URLs belong to wishlist items; `items` to checklists and task subtasks. */
+export interface LifeItemData {
+  items?: ChecklistEntry[];
+  url?: string | null;
+  image_url?: string | null;
+  target_price?: number | null;
+  current_price?: number | null;
+  /** Prices you've recorded over time, for the buy/wait check (facts you entered, not fetched). */
+  price_history?: { date: ISODate; price: number }[];
+  category?: string | null;
+}
+
+export interface LifeItem extends Owned {
+  kind: LifeKind;
+  title: string;
+  body?: string | null;
+  status: "open" | "done" | "archived";
+  due_date?: ISODate | null;
+  /** "HH:MM", local time — reminders only. */
+  due_time?: string | null;
+  repeat: Repeat;
+  priority: 1 | 2 | 3;
+  tags: string[];
+  pinned: boolean;
+  /** The chapter (goal) this belongs to. */
+  goal_id?: UUID | null;
+  data: LifeItemData;
+  /** Where it came from: "user" for now; integrations will set their own. */
+  source: string;
+  completed_at?: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // The full in-memory dataset for a user
 // ---------------------------------------------------------------------------
 
@@ -422,6 +467,7 @@ export interface Dataset {
   event_overrides: EventOverride[];
   transactions: Transaction[];
   net_worth_snapshots: NetWorthSnapshot[];
+  life_items: LifeItem[];
 }
 
 export type TableName = Exclude<keyof Dataset, "profile">;
@@ -442,6 +488,7 @@ export const TABLES: TableName[] = [
   "event_overrides",
   "transactions",
   "net_worth_snapshots",
+  "life_items",
 ];
 
 export type RowOf<T extends TableName> = Dataset[T][number];

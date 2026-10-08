@@ -49,6 +49,7 @@ const COLUMNS: Record<TableName, string[]> = {
   event_overrides: ["id", "source_type", "source_id", "occurrence_date", "action", "new_date", "new_amount", "note"],
   transactions: ["id", "date", "type", "amount", "account_id", "to_account_id", "card_id", "statement_id", "loan_id", "chit_id", "investment_id", "lending_id", "rule_id", "occurrence_date", "is_partial", "category", "description", "notes", "units", "price", "principal_part", "interest_part", "reconciled", "import_hash", "tags"],
   net_worth_snapshots: ["id", "date", "cash", "investments", "other_assets", "liabilities", "net_worth", "breakdown"],
+  life_items: ["id", "kind", "title", "body", "status", "due_date", "due_time", "repeat", "priority", "tags", "pinned", "goal_id", "data", "source", "completed_at"],
 };
 
 /** Fields that must be present for a row to be saved. */

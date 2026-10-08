@@ -23,7 +23,7 @@ function emptyDs(): Dataset {
     },
     accounts: [], categories: [], credit_cards: [], card_statements: [], loans: [], chits: [], goals: [],
     investments: [], investment_valuations: [], lendings: [], reserves: [], recurring_rules: [], event_overrides: [],
-    transactions: [], net_worth_snapshots: [],
+    transactions: [], net_worth_snapshots: [], life_items: [],
   };
 }
 
@@ -424,5 +424,50 @@ describe("backup restore", () => {
     await expect(restoreBackup(repo as never, structuredClone(file) as never)).rejects.toThrow(/Nothing from the backup was kept/);
     expect(repo.rows.accounts).toHaveLength(0);
     expect(repo.rows.credit_cards).toHaveLength(0);
+  });
+});
+
+import { agenda, buyOrWait, completionPatch, spendingPace } from "./life";
+import type { LifeItem } from "../types";
+
+describe("personal system", () => {
+  const item = (p: Partial<LifeItem>): LifeItem => ({ id: `l${++n}`, kind: "task", title: "x", status: "open", repeat: "none", priority: 2, tags: [], pinned: false, data: {}, source: "user", ...p });
+
+  it("completing a one-off task closes it; a repeating one rolls to its next date and resets its checklist", () => {
+    expect(completionPatch(item({ due_date: TODAY }), TODAY).status).toBe("done");
+    const p = completionPatch(item({ kind: "checklist", due_date: "2026-10-01", repeat: "monthly", data: { items: [{ id: "a", text: "Oil", done: true }] } }), TODAY);
+    expect(p.status).toBe("open");
+    expect(p.due_date).toBe("2026-11-01");
+    expect(p.data?.items?.[0].done).toBe(false);
+    // A daily task left for a week jumps to the next future date, not a past one.
+    expect(completionPatch(item({ due_date: "2026-10-01", repeat: "daily" }), TODAY).due_date).toBe("2026-10-09");
+  });
+
+  it("groups tasks and reminders into overdue / today / next 7 days", () => {
+    const a = agenda([item({ due_date: "2026-10-01" }), item({ due_date: TODAY }), item({ kind: "reminder", due_date: "2026-10-12" }), item({ due_date: "2026-12-01" }), item({ due_date: TODAY, status: "done" })], TODAY);
+    expect([a.overdue.length, a.today.length, a.upcoming.length]).toEqual([1, 1, 1]);
+  });
+
+  it("buy / wait / save first", () => {
+    const ctx = moneyCtx(emptyDs());
+    const base = { month: { spendable: 20_000 } as never, norms: { income: 50_000, outflow: 40_000 } as never, ef: { coverageMonths: 6 } as never, ctx };
+    expect(buyOrWait(item({ kind: "wishlist", data: { current_price: 9_000, target_price: 9_500 } }), base).verdict).toBe("buy");
+    expect(buyOrWait(item({ kind: "wishlist", data: { current_price: 12_000, target_price: 9_500 } }), base).verdict).toBe("wait");
+    const s = buyOrWait(item({ kind: "wishlist", data: { current_price: 45_000 } }), base);
+    expect(s.verdict).toBe("save_first");
+    expect(s.months).toBe(3); // 25,000 short ÷ 10,000 monthly surplus
+    expect(buyOrWait(item({ kind: "wishlist", data: { current_price: 5_000 } }), { ...base, ef: { coverageMonths: 1 } as never }).verdict).toBe("consider");
+    expect(buyOrWait(item({ kind: "wishlist" }), base).verdict).toBe("unknown");
+  });
+
+  it("flags a category running ahead of its 3-month average", () => {
+    const ds = emptyDs();
+    const a = acc();
+    ds.accounts = [a];
+    for (const d of ["2026-07-05", "2026-08-05", "2026-09-05"]) ds.transactions.push(tx({ type: "expense", amount: 3_000, category: "Food & dining", date: d, account_id: a.id }));
+    ds.transactions.push(tx({ type: "expense", amount: 4_000, category: "Food & dining", date: "2026-10-03", account_id: a.id }));
+    const food = spendingPace(ds, TODAY).find((p) => p.category === "Food & dining")!;
+    expect(food.average).toBe(3_000);
+    expect(food.over).toBeGreaterThan(3_000); // 4,000 vs ~774 expected by the 8th
   });
 });

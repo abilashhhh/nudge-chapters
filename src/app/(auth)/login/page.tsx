@@ -239,7 +239,7 @@ function Login() {
             </form>
           ) : (
             <div className="rounded-2xl border border-line bg-surface p-4 text-[13.5px] text-ink-2">
-              Cloud sync isn&apos;t set up for this copy of {APP_NAME}. Add your Supabase URL and key to <code>.env.local</code> to enable accounts — or use it on this device below.
+              Sign-in isn&apos;t available right now. You can still use {APP_NAME} on this device below.
             </div>
           )}
 
@@ -257,7 +257,7 @@ function Login() {
             </Button>
           </div>
           <p className="mt-6 text-[12px] leading-relaxed text-ink-3">
-            Nudge Chapters never asks for bank passwords. Signed-in data is stored in your own Supabase database with row-level security; device-only data never leaves this browser.
+            Nudge Chapters never asks for bank passwords. Your data is private to your account, and device-only data never leaves this browser.
           </p>
         </div>
       </main>
