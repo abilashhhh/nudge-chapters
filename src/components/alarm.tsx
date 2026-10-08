@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { completionPatch } from "@/lib/engine/life";
 import { useFinance } from "@/lib/finance";
+import { enableAlarmPush } from "@/lib/push";
 import { useStore } from "@/lib/store";
 import type { LifeItem } from "@/lib/types";
 import { BrandMark } from "./brand";
@@ -33,6 +34,11 @@ export function AlarmWatcher() {
   const patch = useStore((s) => s.patch);
   const [now, setNow] = useState(() => Date.now());
   const notified = useRef(new Set<string>());
+
+  // Keep this phone registered for alarm pushes if permission was already given.
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") void enableAlarmPush().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 10_000);
@@ -70,7 +76,6 @@ export function AlarmWatcher() {
 }
 
 function AlarmScreen({ item, more, onOff, onDone }: { item: LifeItem; more: number; onOff: () => void; onDone: () => void }) {
-  const track = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState(0); // 0..1 of the way to the top
   const start = useRef<number | null>(null);
 
@@ -107,19 +112,51 @@ function AlarmScreen({ item, more, onOff, onDone }: { item: LifeItem; more: numb
     };
   }, []);
 
-  const travel = () => (track.current ? track.current.clientHeight - 72 : 1);
+  // n-shaped track: up the left side, over the top, down the right side.
+  const W = 220, H = 300, PAD = 40, R = (W - 2 * PAD) / 2;
+  const D = `M ${PAD} ${H - PAD} L ${PAD} ${PAD + R} A ${R} ${R} 0 0 1 ${W - PAD} ${PAD + R} L ${W - PAD} ${H - PAD}`;
+  const pathRef = useRef<SVGPathElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const samples = useRef<{ x: number; y: number }[]>([]);
+  const [pt, setPt] = useState({ x: PAD, y: H - PAD });
+  useEffect(() => {
+    const el = pathRef.current;
+    if (!el) return;
+    const len = el.getTotalLength();
+    samples.current = Array.from({ length: 201 }, (_, i) => {
+      const q = el.getPointAtLength((len * i) / 200);
+      return { x: q.x, y: q.y };
+    });
+  }, [D]);
+  const setProgress = (p: number) => {
+    const sm = samples.current;
+    const q = sm[Math.round(Math.max(0, Math.min(1, p)) * 200)] ?? { x: PAD, y: H - PAD };
+    setDrag(p);
+    setPt(q);
+  };
   const onDown = (e: React.PointerEvent) => {
-    start.current = e.clientY;
+    start.current = 1;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onMove = (e: React.PointerEvent) => {
-    if (start.current == null) return;
-    setDrag(Math.max(0, Math.min(1, (start.current - e.clientY) / travel())));
+    if (start.current == null || !boxRef.current) return;
+    const r = boxRef.current.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    // Follow the finger, but only along the track and only a little at a time (no jumping across the gap).
+    const cur = Math.round(drag * 200);
+    let best = cur, bestD = Infinity;
+    for (let i = Math.max(0, cur - 25); i <= Math.min(200, cur + 25); i++) {
+      const q = samples.current[i];
+      if (!q) continue;
+      const d = (q.x - x) ** 2 + (q.y - y) ** 2;
+      if (d < bestD) (bestD = d), (best = i);
+    }
+    setProgress(best / 200);
   };
   const onUp = () => {
     start.current = null;
-    if (drag > 0.85) onOff();
-    else setDrag(0);
+    if (drag > 0.95) onOff();
+    else setProgress(0);
   };
   const time = item.due_time;
   const steps = item.data?.items ?? [];
@@ -132,14 +169,18 @@ function AlarmScreen({ item, more, onOff, onDone }: { item: LifeItem; more: numb
       {steps.length > 0 && <p className="mt-2 text-[14px] text-[#b8c6bf]">{steps.filter((s) => !s.done).length} of {steps.length} items left</p>}
       {more > 0 && <p className="mt-1 text-[13px] text-[#9fb2a9]">+{more} more after this</p>}
 
-      <div ref={track} className="relative mt-auto h-[42vh] max-h-80 w-20 rounded-full bg-white/10">
-        <div aria-hidden className="absolute inset-x-0 top-3 text-center text-[12px] text-[#9fb2a9]" style={{ opacity: 1 - drag }}>
-          ↑
-        </div>
+      <div ref={boxRef} className="relative mt-auto" style={{ width: W, height: H }}>
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden className="absolute inset-0">
+          <path ref={pathRef} d={D} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={76} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={D} fill="none" stroke="#4cbf8e" strokeOpacity={0.35} strokeWidth={76} strokeLinecap="round" pathLength={1} strokeDasharray={`${drag} 1`} />
+          <text x={W / 2} y={PAD + R + 6} textAnchor="middle" fill="#9fb2a9" fontSize="13">
+            ↑ ⌒ ↓
+          </text>
+        </svg>
         <div
           role="slider"
           tabIndex={0}
-          aria-label="Slide up to turn off the alarm"
+          aria-label="Slide up, over and down to turn off the alarm"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(drag * 100)}
@@ -148,15 +189,19 @@ function AlarmScreen({ item, more, onOff, onDone }: { item: LifeItem; more: numb
           onPointerUp={onUp}
           onPointerCancel={onUp}
           onKeyDown={(e) => {
-            if (e.key === "ArrowUp" || e.key === "Enter") onOff();
+            if (e.key === "ArrowUp" || e.key === "ArrowRight") {
+              const n = Math.min(1, drag + 0.1);
+              if (n >= 1) onOff();
+              else setProgress(n);
+            }
           }}
-          className="absolute left-1 h-[72px] w-[72px] cursor-grab touch-none rounded-full bg-[#eef1ec] p-2 shadow-lg active:cursor-grabbing"
-          style={{ bottom: 4 + drag * travel(), transition: start.current == null ? "bottom 200ms" : "none" }}
+          className="absolute h-[68px] w-[68px] cursor-grab touch-none rounded-full bg-[#eef1ec] p-2 shadow-lg active:cursor-grabbing"
+          style={{ left: pt.x - 34, top: pt.y - 34, transition: start.current == null ? "left 200ms, top 200ms" : "none" }}
         >
           <BrandMark className="h-full w-full" />
         </div>
       </div>
-      <p className="mt-4 text-[14px] text-[#b8c6bf]">Slide up to turn off</p>
+      <p className="mt-4 text-[14px] text-[#b8c6bf]">Slide up, over and down to turn off</p>
       <button type="button" onClick={onDone} className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-[14px]">
         <Check className="h-4 w-4" aria-hidden /> Turn off and mark done
       </button>

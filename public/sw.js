@@ -8,7 +8,7 @@
 //
 // Works at the domain root or under a sub-path (e.g. GitHub Pages /nudge-chapters/): every URL is
 // resolved against this worker's scope.
-const VERSION = "nudge-v3";
+const VERSION = "nudge-v4";
 const BASE = new URL(self.registration.scope).pathname; // always ends with "/"
 const SHELL = [BASE, `${BASE}login/`, `${BASE}manifest.webmanifest`, `${BASE}icon.svg`, `${BASE}icon-192.png`];
 
@@ -72,6 +72,31 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => (list[0] ? list[0].focus() : self.clients.openWindow(BASE))),
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const url = (event.notification.data && event.notification.data.url) || BASE;
+      return list[0] ? list[0].focus() : self.clients.openWindow(url);
+    }),
+  );
+});
+
+// Alarm pushes from the server: shown on the lock screen, even when the app is closed.
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = { title: event.data ? event.data.text() : "Nudge Chapters" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(d.title || "Nudge Chapters", {
+      body: d.body ? `${d.body} · tap to turn off` : "Tap to turn off",
+      tag: d.tag || "alarm",
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [500, 250, 500, 250, 500, 250, 800],
+      icon: `${BASE}icon-192.png`,
+      badge: `${BASE}icon-192.png`,
+      data: { url: new URL(d.url || "./", self.registration.scope).href },
+    }),
   );
 });

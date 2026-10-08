@@ -11,6 +11,7 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import type { ChecklistEntry, LifeItem, LifeKind, Repeat } from "@/lib/types";
+import { enableAlarmPush } from "@/lib/push";
 import { useUI } from "@/lib/ui";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Input, Select, Switch, Textarea } from "./ui/form";
@@ -304,7 +305,8 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
       };
       delete (body as { id?: string }).id;
       // A new alarm time: ask once for notification permission so it can alert you when the app is in the background.
-      if (body.due_time && typeof Notification !== "undefined" && Notification.permission === "default") void Notification.requestPermission().catch(() => undefined);
+      // A new alarm time: register this phone for alarm pushes (asks for notification permission once).
+      if (body.due_time) void enableAlarmPush().catch(() => undefined);
       if (body.due_time && existing && (existing.due_time !== body.due_time || existing.due_date !== body.due_date)) body.data = { ...body.data, alarm_ack: null };
       if (existing) await patch("life_items", existing.id, body);
       else await add("life_items", body);
