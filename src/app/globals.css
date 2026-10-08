@@ -1,0 +1,333 @@
+@import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/hanken-grotesk";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+  Kosh design tokens
+  - paper: a cool, slightly green banknote-paper background (not cream)
+  - ink: deep green-black text
+  - brand: ledger green for actual money
+  - future: violet, reserved for projected / estimated values (PRD rule: projections
+    must never look guaranteed)
+*/
+:root {
+  color-scheme: light;
+  --paper: #eef1ec;
+  --surface: #ffffff;
+  --surface-2: #f6f8f5;
+  --surface-3: #e7ebe6;
+  --ink: #15201c;
+  --ink-2: #4a5852;
+  --ink-3: #6f7c76;
+  --line: #d8dfd9;
+  --line-strong: #c2cbc4;
+  --brand: #1f6b4f;
+  --brand-strong: #164f3a;
+  --brand-soft: #e1efe8;
+  --on-brand: #ffffff;
+  --future: #6a4fd8;
+  --future-soft: #eeeafc;
+  --future-ink: #4b33b0;
+  --warn: #b5470f;
+  --warn-soft: #fbeee5;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+  --ok: #1f7a5a;
+  --ok-soft: #e3f2ea;
+  --chart-in: #1f7fa8;
+  --chart-out: #e0662b;
+  --chart-future: #6a4fd8;
+  --chart-actual: #1f6b4f;
+  --chart-grid: #e6eae6;
+  --sc-cons: #e0662b;
+  --sc-base: #6a4fd8;
+  --sc-opt: #1a9a6c;
+  --alloc-equity: #2a78d6;
+  --alloc-debt: #eb6834;
+  --alloc-cash: #1baf7a;
+  --alloc-gold: #eda100;
+  --alloc-real_estate: #e87ba4;
+  --alloc-hybrid: #008300;
+  --alloc-other: #4a3aa7;
+  --focus: #6a4fd8;
+  --shadow: 0 1px 2px rgba(21, 32, 28, 0.06), 0 8px 24px -12px rgba(21, 32, 28, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0d1210;
+    --surface: #141b18;
+    --surface-2: #19221e;
+    --surface-3: #212c27;
+    --ink: #e6ede9;
+    --ink-2: #a9b6b0;
+    --ink-3: #82908a;
+    --line: #253029;
+    --line-strong: #34423b;
+    --brand: #4cbf8e;
+    --brand-strong: #6fd3a8;
+    --brand-soft: #173328;
+    --on-brand: #06120d;
+    --future: #a593ff;
+    --future-soft: #231d3d;
+    --future-ink: #c4b8ff;
+    --warn: #f08a4b;
+    --warn-soft: #34200f;
+    --danger: #f2685c;
+    --danger-soft: #3a1714;
+    --ok: #4cbf8e;
+    --ok-soft: #173328;
+    --chart-in: #2f8fbf;
+    --chart-out: #d95926;
+    --chart-future: #9085e9;
+    --chart-actual: #4cbf8e;
+    --chart-grid: #222c27;
+  --sc-cons: #d95926;
+  --sc-base: #9085e9;
+  --sc-opt: #199e70;
+  --alloc-equity: #3987e5;
+  --alloc-debt: #d95926;
+  --alloc-cash: #199e70;
+  --alloc-gold: #c98500;
+  --alloc-real_estate: #d55181;
+  --alloc-hybrid: #008300;
+  --alloc-other: #9085e9;
+    --sc-cons: #d95926;
+    --sc-base: #9085e9;
+    --sc-opt: #199e70;
+    --alloc-equity: #3987e5;
+    --alloc-debt: #d95926;
+    --alloc-cash: #199e70;
+    --alloc-gold: #c98500;
+    --alloc-real_estate: #d55181;
+    --alloc-hybrid: #008300;
+    --alloc-other: #9085e9;
+    --focus: #a593ff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0d1210;
+  --surface: #141b18;
+  --surface-2: #19221e;
+  --surface-3: #212c27;
+  --ink: #e6ede9;
+  --ink-2: #a9b6b0;
+  --ink-3: #82908a;
+  --line: #253029;
+  --line-strong: #34423b;
+  --brand: #4cbf8e;
+  --brand-strong: #6fd3a8;
+  --brand-soft: #173328;
+  --on-brand: #06120d;
+  --future: #a593ff;
+  --future-soft: #231d3d;
+  --future-ink: #c4b8ff;
+  --warn: #f08a4b;
+  --warn-soft: #34200f;
+  --danger: #f2685c;
+  --danger-soft: #3a1714;
+  --ok: #4cbf8e;
+  --ok-soft: #173328;
+  --chart-in: #2f8fbf;
+  --chart-out: #d95926;
+  --chart-future: #9085e9;
+  --chart-actual: #4cbf8e;
+  --chart-grid: #222c27;
+  --focus: #a593ff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+}
+
+@theme inline {
+  --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Hanken Grotesk Variable", ui-sans-serif, sans-serif;
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-future: var(--future);
+  --color-future-soft: var(--future-soft);
+  --color-future-ink: var(--future-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --shadow-panel: var(--shadow);
+  --breakpoint-xs: 26rem;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01";
+}
+
+/* Figures: tabular in lists and tables so columns align */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.display {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 90;
+  letter-spacing: -0.02em;
+}
+
+/* Projected / estimated values: violet with a dotted underline, never solid */
+.projected {
+  color: var(--future-ink);
+  text-decoration: underline dotted color-mix(in oklab, var(--future) 55%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.22em;
+}
+
+/* Masked values */
+.masked {
+  filter: blur(7px);
+  user-select: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--future) 30%, transparent);
+}
+
+/* Scrollbars that don't shout */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe-area padding for the mobile bottom bar */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/* The projection ribbon thumb */
+input[type="range"].ribbon {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 44px;
+}
+input[type="range"].ribbon::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--future) 100%);
+  opacity: 0.85;
+}
+input[type="range"].ribbon::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--future) 100%);
+  opacity: 0.85;
+}
+input[type="range"].ribbon::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 3px solid var(--future);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  cursor: grab;
+}
+input[type="range"].ribbon::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 3px solid var(--future);
+  cursor: grab;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-sheet {
+  animation: sheet-up 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.animate-fade {
+  animation: fade-in 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .masked {
+    filter: none;
+  }
+}
+.print-only {
+  display: none;
+}
