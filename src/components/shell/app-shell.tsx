@@ -15,6 +15,7 @@ import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { Editors } from "../editors";
 import { ChitInstallmentsSheet } from "../chits";
+import { AlarmWatcher } from "../alarm";
 import { LifeEditorSheet } from "../life";
 import { EventSheet } from "../event-sheet";
 import { ExplainSheet } from "../explain";
@@ -239,6 +240,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <EventSheet />
       <ChitInstallmentsSheet />
       <LifeEditorSheet />
+      <AlarmWatcher />
       <Editors />
       <CommandPalette />
       <AlertsPanel />

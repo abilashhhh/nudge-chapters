@@ -424,6 +424,8 @@ export interface LifeItemData {
   /** Prices you've recorded over time, for the buy/wait check (facts you entered, not fetched). */
   price_history?: { date: ISODate; price: number }[];
   category?: string | null;
+  /** "YYYY-MM-DD HH:MM" of the alarm you last turned off, so it doesn't ring again. */
+  alarm_ack?: string | null;
 }
 
 export interface LifeItem extends Owned {

@@ -8,7 +8,7 @@
 //
 // Works at the domain root or under a sub-path (e.g. GitHub Pages /nudge-chapters/): every URL is
 // resolved against this worker's scope.
-const VERSION = "nudge-v2";
+const VERSION = "nudge-v3";
 const BASE = new URL(self.registration.scope).pathname; // always ends with "/"
 const SHELL = [BASE, `${BASE}login/`, `${BASE}manifest.webmanifest`, `${BASE}icon.svg`, `${BASE}icon-192.png`];
 
@@ -66,4 +66,12 @@ self.addEventListener("fetch", (event) => {
         ),
     );
   }
+});
+
+// Tapping an alarm notification brings the app forward so you can turn the alarm off.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => (list[0] ? list[0].focus() : self.clients.openWindow(BASE))),
+  );
 });

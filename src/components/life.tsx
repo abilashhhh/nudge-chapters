@@ -303,6 +303,9 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
         data,
       };
       delete (body as { id?: string }).id;
+      // A new alarm time: ask once for notification permission so it can alert you when the app is in the background.
+      if (body.due_time && typeof Notification !== "undefined" && Notification.permission === "default") void Notification.requestPermission().catch(() => undefined);
+      if (body.due_time && existing && (existing.due_time !== body.due_time || existing.due_date !== body.due_date)) body.data = { ...body.data, alarm_ack: null };
       if (existing) await patch("life_items", existing.id, body);
       else await add("life_items", body);
       toast.success(existing ? "Saved" : `${KIND_LABEL[kind]} added`);
@@ -426,8 +429,8 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
               <Field label={kind === "reminder" ? "Remind me on" : "Due"} htmlFor="li-due" optional={kind !== "reminder"}>
                 <DateInput id="li-due" value={v.due_date ?? ""} onChange={(e) => set({ due_date: e.target.value || null })} />
               </Field>
-              {kind === "reminder" && (
-                <Field label="At" htmlFor="li-time" optional>
+              {(kind === "reminder" || kind === "task" || kind === "checklist") && (
+                <Field label="At (alarm)" htmlFor="li-time" optional>
                   <Input id="li-time" type="time" value={v.due_time ?? ""} onChange={(e) => set({ due_time: e.target.value || null })} />
                 </Field>
               )}
