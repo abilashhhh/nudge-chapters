@@ -165,15 +165,15 @@ export function project(ds: Dataset, opts: ProjectionOptions): ProjectionResult 
   const loans = new Map<string, { name: string; owed: number }>();
   for (const [id, l] of positions.loans) if (l.loan.status === "active") loans.set(id, { name: l.loan.name, owed: l.state.outstanding });
 
-  const chits = new Map<string, { name: string; asset: number; liability: number; contribution: number; remaining: number; received: boolean }>();
+  // `planned`: amounts of the installments still to pay, in order (confirmed, else estimated from past auctions).
+  const chits = new Map<string, { name: string; asset: number; liability: number; planned: number[]; received: boolean }>();
   for (const [id, c] of positions.chits) {
     if (c.chit.status !== "active") continue;
     chits.set(id, {
       name: c.chit.name,
       asset: c.asset,
       liability: c.liability,
-      contribution: c.chit.monthly_contribution,
-      remaining: c.remainingCount,
+      planned: c.summary.rows.filter((r) => r.status !== "paid" && r.status !== "unrecorded").map((r) => r.planned),
       received: c.liability > 0 || c.chit.payout_status === "received",
     });
   }
@@ -436,7 +436,7 @@ export function project(ds: Dataset, opts: ProjectionOptions): ProjectionResult 
           if (c) {
             if (c.received) c.liability = Math.max(0, c.liability - amt);
             else c.asset += amt;
-            c.remaining = Math.max(0, c.remaining - 1);
+            c.planned.shift();
           }
           totals.invested += amt;
           break;
@@ -447,7 +447,7 @@ export function project(ds: Dataset, opts: ProjectionOptions): ProjectionResult 
           if (c) {
             c.asset = 0;
             c.received = true;
-            c.liability = c.remaining * c.contribution;
+            c.liability = c.planned.reduce((s, x) => s + x, 0);
           }
           break;
         }

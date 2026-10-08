@@ -8,6 +8,7 @@ import { Money } from "@/components/money";
 import { Button } from "@/components/ui/button";
 import { Field, Input, NumberInput, Select } from "@/components/ui/form";
 import { cn } from "@/lib/cn";
+import { Brand } from "@/components/brand";
 import { APP_NAME } from "@/lib/config";
 import { buildDemoDataset } from "@/lib/data/demo";
 import { makeBackup, restoreBackup } from "@/lib/data/io";
@@ -31,13 +32,13 @@ const STEPS: Step[] = [
   { id: "income", title: "Income", why: "Salary and other regular income — the start of every projection." },
   { id: "accounts", title: "Bank accounts & cash", why: "Today's balances. Everything else is calculated forward from here." },
   { id: "recurring", title: "Monthly expenses", why: "Rent, family support, bills, subscriptions and spending budgets. Enter them once; they repeat automatically." },
-  { id: "cards", title: "Credit cards", why: "Statement and due dates let Kosh predict every card bill." },
-  { id: "loans", title: "Loans & EMIs", why: "Kosh builds the full repayment schedule and plans each EMI." },
+  { id: "cards", title: "Credit cards", why: "Statement and due dates let Nudge Chapters predict every card bill." },
+  { id: "loans", title: "Loans & EMIs", why: "Nudge Chapters builds the full repayment schedule and plans each EMI." },
   { id: "chits", title: "Chits", why: "Installments, payout and what you owe afterwards." },
   { id: "investments", title: "Investments", why: "Mutual funds, stocks, FDs, gold. SIPs are planned every month." },
   { id: "retirement", title: "EPF & retirement", why: "Your EPF passbook balance and monthly contributions, plus PPF or NPS." },
   { id: "lending", title: "Money lent or borrowed", why: "Money someone owes you is an asset; money you owe is a debt." },
-  { id: "goals", title: "Goals", why: "What you're saving for, so Kosh can tell you if you're on track." },
+  { id: "goals", title: "Goals", why: "What you're saving for, so Nudge Chapters can tell you if you're on track." },
   { id: "assumptions", title: "Assumptions", why: "How fast your salary, expenses and investments are likely to grow." },
   { id: "review", title: "Your first projection", why: "Here's where you stand and where you're heading." },
 ];
@@ -74,7 +75,7 @@ export default function OnboardingPage() {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-10 border-b border-line bg-paper/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <span className="display text-[22px] font-bold">{APP_NAME}</span>
+          <Brand size="sm" />
           <button type="button" className="text-[13.5px] text-ink-2 hover:text-ink" onClick={finish}>
             Skip setup
           </button>
@@ -240,7 +241,7 @@ function StepBody({ id, onFinish }: { id: string; onFinish: () => void }) {
             { label: "PPF", preset: { type: "ppf", asset_class: "debt", name: "PPF", interest_rate: 7.1 } },
             { label: "NPS", preset: { type: "nps", asset_class: "hybrid", name: "NPS" } },
           ]}
-          note="Find your EPF balance in the EPFO passbook or UMANG app. Kosh never fetches it automatically."
+          note="Find your EPF balance in the EPFO passbook or UMANG app. Nudge Chapters never fetches it automatically."
         />
       );
     case "lending":

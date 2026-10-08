@@ -8,8 +8,11 @@ import type { Dataset, ISODate, Profile, TableName, Transaction } from "../types
 import { TABLES } from "../types";
 import { INSERT_ORDER, newId, type Repo } from "./repo";
 
+/** Backups written before the rebrand say "kosh"; both restore. */
+const BACKUP_APPS = ["nudge-chapters", "kosh"];
+
 export interface Backup {
-  app: "kosh";
+  app: "nudge-chapters" | "kosh";
   version: 1;
   exported_at: string;
   profile: Partial<Profile>;
@@ -20,7 +23,7 @@ export function makeBackup(ds: Dataset): Backup {
   const tables: Backup["tables"] = {};
   for (const t of TABLES) tables[t] = (ds[t] as unknown as Record<string, unknown>[]).map(({ user_id: _u, ...r }) => r);
   const { id: _id, ...profile } = ds.profile;
-  return { app: "kosh", version: 1, exported_at: new Date().toISOString(), profile, tables };
+  return { app: "nudge-chapters", version: 1, exported_at: new Date().toISOString(), profile, tables };
 }
 
 const FK_FIELDS = [
@@ -29,36 +32,133 @@ const FK_FIELDS = [
 ];
 const FK_ARRAYS = ["linked_account_ids", "linked_investment_ids"];
 
-/** Restore a backup into the current repo. Every id is remapped, so a backup can be restored into any account. */
-export async function restoreBackup(repo: Repo, backup: Backup, onProgress?: (msg: string) => void, existing?: Dataset): Promise<void> {
-  if (backup?.app !== "kosh" || !backup.tables) throw new Error("This file isn't a Kosh backup.");
+/** Columns each table actually has (mirrors supabase/migrations). Anything else in a backup is dropped. */
+const COLUMNS: Record<TableName, string[]> = {
+  accounts: ["id", "name", "type", "institution", "currency", "opening_balance", "opening_date", "min_balance", "include_in_cash", "is_emergency_fund", "last_verified_at", "archived", "color", "notes"],
+  categories: ["id", "name", "kind", "is_fixed", "is_essential", "color", "archived"],
+  credit_cards: ["id", "name", "issuer", "last4", "network", "credit_limit", "statement_day", "due_day", "payment_account_id", "opening_outstanding", "opening_date", "expected_monthly_spend", "annual_fee", "interest_rate_apr", "reward_points", "color", "archived", "notes"],
+  card_statements: ["id", "card_id", "statement_date", "due_date", "total_due", "min_due", "notes"],
+  loans: ["id", "name", "lender", "type", "principal", "interest_rate", "interest_type", "tenure_months", "emi_amount", "first_emi_date", "emis_paid_offset", "payment_account_id", "card_id", "processing_fee", "status", "notes"],
+  chits: ["id", "name", "provider", "chit_value", "monthly_contribution", "installments", "start_date", "installments_paid_offset", "payout_status", "payout_amount", "payout_date", "commission_pct", "auction_notes", "account_id", "installment_records", "status", "notes"],
+  goals: ["id", "name", "kind", "target_amount", "target_date", "current_amount", "monthly_contribution", "linked_account_ids", "linked_investment_ids", "priority", "expected_return", "color", "archived", "notes"],
+  investments: ["id", "type", "name", "institution", "identifier", "asset_class", "units", "avg_cost", "current_price", "invested_amount", "current_value", "value_as_of", "expected_return", "interest_rate", "start_date", "maturity_date", "sip_amount", "sip_day", "sip_account_id", "sip_active", "track_from", "employee_contribution", "employer_contribution", "pension_contribution", "is_international", "currency", "goal_id", "archived", "notes"],
+  investment_valuations: ["id", "investment_id", "date", "value", "price", "note"],
+  lendings: ["id", "direction", "person", "amount", "date", "expected_date", "interest_rate", "account_id", "include_in_projection", "written_off", "notes"],
+  reserves: ["id", "name", "target_amount", "current_amount", "monthly_funding", "due_date", "color", "notes"],
+  recurring_rules: ["id", "name", "kind", "amount", "frequency", "interval_days", "day_of_month", "start_date", "end_date", "track_from", "account_id", "to_account_id", "card_id", "category", "is_fixed", "is_essential", "is_subscription", "certainty", "growth_pct", "tax_deducted", "active", "notes"],
+  event_overrides: ["id", "source_type", "source_id", "occurrence_date", "action", "new_date", "new_amount", "note"],
+  transactions: ["id", "date", "type", "amount", "account_id", "to_account_id", "card_id", "statement_id", "loan_id", "chit_id", "investment_id", "lending_id", "rule_id", "occurrence_date", "is_partial", "category", "description", "notes", "units", "price", "principal_part", "interest_part", "reconciled", "import_hash", "tags"],
+  net_worth_snapshots: ["id", "date", "cash", "investments", "other_assets", "liabilities", "net_worth", "breakdown"],
+};
+
+/** Fields that must be present for a row to be saved. */
+const REQUIRED: Partial<Record<TableName, string[]>> = {
+  accounts: ["name"],
+  categories: ["name", "kind"],
+  credit_cards: ["name", "statement_day", "due_day"],
+  card_statements: ["card_id", "statement_date", "due_date", "total_due"],
+  loans: ["name", "principal", "tenure_months", "first_emi_date"],
+  chits: ["name", "chit_value", "monthly_contribution", "installments", "start_date"],
+  goals: ["name", "target_amount"],
+  investments: ["type", "name"],
+  investment_valuations: ["investment_id", "date", "value"],
+  lendings: ["person", "amount", "date"],
+  reserves: ["name"],
+  recurring_rules: ["name", "kind", "amount", "start_date"],
+  event_overrides: ["source_type", "source_id", "occurrence_date", "action"],
+  transactions: ["date", "type", "amount"],
+  net_worth_snapshots: ["date"],
+};
+
+/** Other names some files use for the same field (older exports, spreadsheets, hand-edited files). */
+const ALIASES: Partial<Record<TableName, Record<string, string>>> = {
+  card_statements: { amount_due: "total_due", total_amount_due: "total_due", statement_amount: "total_due", minimum_due: "min_due", min_amount_due: "min_due", minimum_amount_due: "min_due" },
+  credit_cards: { limit: "credit_limit", outstanding: "opening_outstanding", apr: "interest_rate_apr" },
+  loans: { emi: "emi_amount", tenure: "tenure_months", rate: "interest_rate" },
+  chits: { monthly_installment: "monthly_contribution", installment_amount: "monthly_contribution", value: "chit_value" },
+  transactions: { note: "notes" },
+};
+
+const PROFILE_FIELDS = ["name", "country", "currency", "locale", "timezone", "birth_year", "retirement_age", "life_expectancy", "mode", "assumptions", "preferences", "fx_rates"];
+
+export interface RestoreReport {
+  restored: Partial<Record<TableName, number>>;
+  /** Fields in the file the app doesn't use, per table (ignored). */
+  ignored: Partial<Record<TableName, string[]>>;
+}
+
+/**
+ * Restore a backup into the current repo. Every id is remapped, so a backup can be restored into any account.
+ * The whole file is cleaned and checked before anything is written; if saving fails part-way, everything this
+ * restore added is removed again, so you never end up with half a backup.
+ */
+export async function restoreBackup(repo: Repo, backup: Backup, onProgress?: (msg: string) => void, existing?: Dataset): Promise<RestoreReport> {
+  if (!backup || !BACKUP_APPS.includes(backup.app) || !backup.tables || typeof backup.tables !== "object")
+    throw new Error("This file isn't a Nudge Chapters backup.");
   const map = new Map<string, string>();
-  for (const t of INSERT_ORDER) for (const r of backup.tables[t] ?? []) if (typeof r.id === "string") map.set(r.id, newId());
-  const remap = (v: unknown) => (typeof v === "string" && map.has(v) ? map.get(v)! : v);
   for (const t of INSERT_ORDER) {
-    const rows = (backup.tables[t] ?? []).map((r) => {
-      const out: Record<string, unknown> = { ...r, id: map.get(r.id as string) ?? newId() };
-      delete out.created_at;
-      delete out.updated_at;
-      delete out.user_id;
+    const list = backup.tables[t];
+    if (list != null && !Array.isArray(list)) throw new Error(`The backup's "${t}" section is not a list.`);
+    for (const r of list ?? []) if (r && typeof r.id === "string") map.set(r.id, newId());
+  }
+  const remap = (v: unknown) => (typeof v === "string" && map.has(v) ? map.get(v)! : v);
+
+  // 1. Clean and validate everything first.
+  const report: RestoreReport = { restored: {}, ignored: {} };
+  const prepared: [TableName, Record<string, unknown>[]][] = [];
+  const problems: string[] = [];
+  for (const t of INSERT_ORDER) {
+    const allowed = new Set(COLUMNS[t]);
+    const aliases = ALIASES[t] ?? {};
+    const ignored = new Set<string>();
+    const rows = (backup.tables[t] ?? []).filter((r) => r && typeof r === "object").map((r, i) => {
+      const out: Record<string, unknown> = {};
+      for (const [k0, v] of Object.entries(r)) {
+        const k = aliases[k0] && !(aliases[k0] in r) ? aliases[k0] : k0;
+        if (k === "user_id" || k === "created_at" || k === "updated_at") continue;
+        if (!allowed.has(k)) {
+          ignored.add(k0);
+          continue;
+        }
+        out[k] = v;
+      }
+      out.id = map.get(r.id as string) ?? newId();
       for (const f of FK_FIELDS) if (f in out) out[f] = remap(out[f]);
       for (const f of FK_ARRAYS) if (Array.isArray(out[f])) out[f] = (out[f] as unknown[]).map(remap);
+      const missing = (REQUIRED[t] ?? []).filter((f) => out[f] === undefined || out[f] === null || out[f] === "");
+      if (missing.length && problems.length < 5) problems.push(`${t.replace(/_/g, " ")} #${i + 1} is missing ${missing.join(", ")}`);
       return out;
     });
+    if (ignored.size) report.ignored[t] = [...ignored];
     const filtered =
       t === "categories" && existing
         ? rows.filter((r) => !existing.categories.some((c) => c.kind === r.kind && c.name.toLowerCase() === String(r.name).toLowerCase()))
         : rows;
-    if (!filtered.length) continue;
-    onProgress?.(`Restoring ${t.replace(/_/g, " ")} (${filtered.length})`);
-    if (t === "net_worth_snapshots") {
-      for (const r of filtered) await repo.upsertSnapshot(r as never);
-    } else {
-      await repo.insertMany(t, filtered as never);
-    }
+    if (filtered.length) prepared.push([t, filtered]);
   }
-  const { id: _i, created_at: _c, updated_at: _u, ...profile } = backup.profile as Profile;
-  await repo.updateProfile({ ...profile, onboarding_done: true });
+  if (problems.length) throw new Error(`Nothing was restored — the file has incomplete records: ${problems.join("; ")}.`);
+
+  // 2. Write, undoing on failure.
+  const inserted: [TableName, string][] = [];
+  try {
+    for (const [t, rows] of prepared) {
+      onProgress?.(`Restoring ${t.replace(/_/g, " ")} (${rows.length})`);
+      if (t === "net_worth_snapshots") {
+        for (const r of rows) await repo.upsertSnapshot(r as never);
+      } else {
+        const saved = await repo.insertMany(t, rows as never);
+        for (const r of saved as { id: string }[]) inserted.push([t, r.id]);
+      }
+      report.restored[t] = rows.length;
+    }
+    const profile = Object.fromEntries(Object.entries(backup.profile ?? {}).filter(([k]) => PROFILE_FIELDS.includes(k))) as Partial<Profile>;
+    await repo.updateProfile({ ...profile, onboarding_done: true });
+  } catch (e) {
+    onProgress?.("Something failed — removing what this restore added…");
+    for (const [t, id] of inserted.reverse()) await repo.remove(t, id).catch(() => undefined);
+    throw new Error(`${e instanceof Error ? e.message : String(e)} Nothing from the backup was kept.`);
+  }
+  return report;
 }
 
 export function downloadBlob(blob: Blob, filename: string) {

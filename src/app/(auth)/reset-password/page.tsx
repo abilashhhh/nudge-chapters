@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form";
-import { APP_NAME } from "@/lib/config";
+import { Brand } from "@/components/brand";
 import { getSupabase, supabaseConfigured } from "@/lib/data/supabase";
 
 export default function ResetPasswordPage() {
@@ -29,7 +29,7 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-4 px-5">
-      <div className="display text-[30px] font-bold">{APP_NAME}</div>
+      <Brand size="lg" />
       <h1 className="display text-[24px] font-semibold">Choose a new password</h1>
       {!supabaseConfigured ? (
         <p className="text-ink-2">Accounts aren&apos;t enabled for this copy of the app.</p>

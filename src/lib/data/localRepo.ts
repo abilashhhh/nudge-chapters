@@ -6,8 +6,8 @@ import { TABLES } from "../types";
 import { buildDemoDataset, DEMO_USER_ID } from "./demo";
 import { newId, type Repo } from "./repo";
 
-const KEY = "kosh:local:dataset:v1";
-const AUDIT_KEY = "kosh:local:audit:v1";
+const KEY = "nudge:local:dataset:v1";
+const AUDIT_KEY = "nudge:local:audit:v1";
 
 function emptyDataset(): Dataset {
   const ds = {

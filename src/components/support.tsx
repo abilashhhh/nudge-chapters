@@ -3,7 +3,7 @@
 import { Coffee } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { BMC_FLOATING, BMC_URL } from "@/lib/config";
+import { APP_NAME, BMC_FLOATING, BMC_URL } from "@/lib/config";
 
 /** Buy Me a Coffee button, styled to sit comfortably in the app (links to your BMC page). */
 export function BmcButton({ className, size = "md", label = "Buy me a coffee" }: { className?: string; size?: "sm" | "md" | "lg"; label?: string }) {
@@ -47,7 +47,7 @@ export function SupportNavLink({ onClick }: { onClick?: () => void }) {
   return (
     <Link href="/support" onClick={onClick} className="flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] text-ink-2 hover:bg-surface-3/70 hover:text-ink">
       <Coffee className="h-[18px] w-[18px]" aria-hidden />
-      Support Kosh
+      Support {APP_NAME}
     </Link>
   );
 }

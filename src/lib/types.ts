@@ -88,10 +88,43 @@ export interface Loan extends Owned {
   notes?: string | null;
 }
 
+/** Where a chit installment's figures came from (the "source / confirmation" of the record). */
+export type ChitRecordSource = "foreman_slip" | "foreman_message" | "passbook" | "own_estimate" | "other";
+
+/**
+ * One installment of a chit. Chit payments depend on each month's auction, so every installment
+ * keeps its own figures instead of assuming the first month's amount repeats.
+ * Cash actually paid is a `chit_installment` transaction; `paid_amount` is only for installments
+ * paid before you started tracking (their cash is already in your balances).
+ */
+export interface ChitInstallmentRecord {
+  /** 1-based installment number. */
+  no: number;
+  /** Override of the scheduled due date. */
+  due_date?: ISODate | null;
+  /** Override of the chit's base installment for this month. */
+  base_amount?: number | null;
+  auction_date?: ISODate | null;
+  /** Discount the winning bidder accepted for the whole group (for reference). */
+  auction_discount?: number | null;
+  /** Your share of that discount (dividend / benefit), which reduces this installment. */
+  dividend?: number | null;
+  /** Other charges added to this installment. */
+  fees?: number | null;
+  /** Confirmed amount due, when the slip states it directly. Otherwise base − dividend + fees. */
+  payable?: number | null;
+  /** Amount paid, only for installments paid before tracking began. */
+  paid_amount?: number | null;
+  paid_date?: ISODate | null;
+  source?: ChitRecordSource | null;
+  note?: string | null;
+}
+
 export interface Chit extends Owned {
   name: string;
   provider?: string | null;
   chit_value: number;
+  /** Base (full) installment before any auction dividend — usually chit value ÷ number of months. */
   monthly_contribution: number;
   installments: number;
   start_date: ISODate;
@@ -102,6 +135,8 @@ export interface Chit extends Owned {
   commission_pct: number;
   auction_notes?: string | null;
   account_id?: UUID | null;
+  /** Per-installment auction results and older payments. Missing on rows saved before this existed. */
+  installment_records?: ChitInstallmentRecord[] | null;
   status: "active" | "completed" | "closed";
   notes?: string | null;
 }

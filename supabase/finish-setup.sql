@@ -1,30 +1,13 @@
--- Kosh — finish Supabase setup
+-- Nudge Chapters — finish Supabase setup
 --
--- Run this once in Supabase → SQL Editor for the kosh-finance project.
--- It adds the parts of the schema that involve deleting data, which the
--- connector could not apply without a confirmation:
---   1. "delete own rows" policies (so you can delete your own records)
---   2. the audit-log trigger (records every change, including deletions)
+-- Run this once in Supabase → SQL Editor for the Nudge Chapters project (ref mzmcvnqmdyvlzzppzfyo).
+-- Optional. It adds two things that need your confirmation to apply:
+--   2. the audit-log trigger (Settings → Activity shows every change, including removals)
 --   3. delete_my_account() for the "Delete my account" button in Settings
+-- (Step 1, the "delete own rows" policies, is already applied — see migrations/0003.)
+-- Safe to run more than once.
 --
 -- (Fresh projects can instead run migrations/0001_init.sql, which contains everything.)
-
--- 1. Allow each signed-in user to delete only their own rows
-do $$
-declare
-  t text;
-  owned text[] := array[
-    'accounts', 'categories', 'credit_cards', 'card_statements', 'loans', 'chits',
-    'goals', 'investments', 'investment_valuations', 'lendings', 'reserves',
-    'recurring_rules', 'event_overrides', 'transactions', 'net_worth_snapshots'];
-begin
-  foreach t in array owned loop
-    execute format(
-      'create policy %I on public.%I for delete to authenticated using ((select auth.uid()) = user_id)',
-      t || '_delete_own', t);
-  end loop;
-end;
-$$;
 
 -- 2. Audit trail for every financial table
 create or replace function public.audit_row()

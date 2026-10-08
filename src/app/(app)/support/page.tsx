@@ -5,14 +5,14 @@ import { toast } from "sonner";
 import { BmcButton } from "@/components/support";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/misc";
-import { APP_NAME, BMC_URL } from "@/lib/config";
+import { APP_NAME, BMC_URL, appUrl } from "@/lib/config";
 import { useFinance } from "@/lib/finance";
 
 export default function SupportPage() {
   const { ds } = useFinance();
   const months = Math.max(1, new Set(ds.transactions.map((t) => t.date.slice(0, 7))).size);
   const share = async () => {
-    const data = { title: APP_NAME, text: "I use Kosh to see where my money is heading — try it:", url: window.location.origin };
+    const data = { title: APP_NAME, text: `I use ${APP_NAME} to see where my money is heading — try it:`, url: appUrl("/") };
     try {
       if (navigator.share) await navigator.share(data);
       else {

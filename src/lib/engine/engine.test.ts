@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { addMonths } from "../dates";
 import { buildDemoDataset } from "../data/demo";
-import type { Account, CreditCard, Dataset, RecurringRule, Transaction } from "../types";
+import type { Account, Chit, CreditCard, Dataset, RecurringRule, Transaction } from "../types";
+import { chitSummary } from "./chits";
 import { buildAlerts } from "./alerts";
 import { dueDateFor, buildEvents, settlementDraft, statementDateOnOrAfter } from "./events";
 import { goalProgress, requiredMonthly } from "./goals";
@@ -277,5 +278,151 @@ describe("demo dataset", () => {
   it("checks affordability of a large purchase", () => {
     const res = affordability(ds, today, { name: "Laptop", price: 2_00_000, date: addMonths(today, 1), financing: "cash" });
     expect(res.cashImpactAtHorizon).toBeLessThan(0);
+  });
+});
+
+describe("chits with auction-dependent installments", () => {
+  // ₹10 lakh chit over 40 months, ₹25,000 base. Started Sep 2026; today is 8 Oct 2026.
+  const chit = (p: Partial<Chit> = {}): Chit => ({
+    id: "ch1", name: "Test chit", chit_value: 10_00_000, monthly_contribution: 25_000, installments: 40, start_date: "2026-09-05",
+    installments_paid_offset: 0, payout_status: "pending", commission_pct: 5, status: "active", installment_records: [], ...p,
+  });
+  const pay = (amount: number, occurrence: string) => tx({ type: "chit_installment", amount, chit_id: "ch1", occurrence_date: occurrence, date: occurrence });
+
+  it("never assumes the first installment repeats: later months are TBD until the auction is known", () => {
+    const s = chitSummary(chit(), [pay(25_000, "2026-09-05")], TODAY);
+    expect(s.rows[0]).toMatchObject({ status: "paid", paid: 25_000, amountState: "actual", adjustment: 0 });
+    expect(s.rows[1]).toMatchObject({ status: "overdue", payable: null, amountState: "projected" }); // due 5 Oct, auction result not entered
+    expect(s.rows[2]).toMatchObject({ payable: null, amountState: "projected", status: "upcoming" });
+    expect(s.actualPaid).toBe(25_000);
+    expect(s.tbdCount).toBe(39);
+    // Actual figures only: nothing received yet, ₹25,000 paid.
+    expect(s.currentNet).toBe(-25_000);
+    // No auction history yet → the estimate is the base and the range is "up to" 39 × base.
+    expect(s.estimateFromHistory).toBe(false);
+    expect(s.tbdHigh).toBe(39 * 25_000);
+  });
+
+  it("uses each installment's actual auction-adjusted amount for totals", () => {
+    const c = chit({
+      installment_records: [
+        { no: 2, auction_date: "2026-10-04", dividend: 5_000, source: "foreman_slip" },
+        { no: 3, payable: 22_000 },
+      ],
+    });
+    const s = chitSummary(c, [pay(25_000, "2026-09-05"), pay(20_000, "2026-10-05")], TODAY);
+    expect(s.rows[1]).toMatchObject({ payable: 20_000, paid: 20_000, adjustment: -5_000, status: "paid", amountState: "actual" });
+    expect(s.rows[2]).toMatchObject({ payable: 22_000, adjustment: -3_000, status: "payable", amountState: "confirmed" });
+    expect(s.rows[3]).toMatchObject({ payable: null, amountState: "projected" });
+    expect(s.actualPaid).toBe(45_000); // 25,000 + 20,000 — not 2 × 25,000
+    expect(s.auctionSavings).toBe(5_000);
+    expect(s.remainingConfirmed).toBe(22_000);
+    expect(s.tbdCount).toBe(37);
+    // Estimate from history: savings of 5,000 and 3,000 → average 4,000 → ₹21,000 per future installment.
+    expect(s.estimatePerInstallment).toBe(21_000);
+    expect(s.tbdEstimate).toBe(37 * 21_000);
+    expect(s.tbdLow).toBe(37 * 20_000);
+    expect(s.tbdHigh).toBe(37 * 25_000);
+    expect(s.currentNet).toBe(-45_000);
+    expect(s.projectedOverallNet).toBe(9_50_000 - (45_000 + 22_000 + 37 * 21_000));
+  });
+
+  it("feeds confirmed amounts and flagged estimates into the plan, and recalculates when a result is entered", () => {
+    const ds = emptyDs();
+    const a = acc();
+    ds.accounts = [a];
+    ds.chits = [chit({ account_id: a.id, installment_records: [{ no: 2, dividend: 5_000 }] })];
+    ds.transactions = [pay(25_000, "2026-09-05")];
+    const ev = (d: Dataset) => buildEvents(d, { from: "2026-10-01", to: "2026-12-31", today: TODAY }).filter((e) => e.kind === "chit");
+    const before = ev(ds);
+    expect(before.map((e) => [e.installment, e.amount, e.estimated])).toEqual([
+      [2, 20_000, false],
+      [3, 20_000, true],
+      [4, 20_000, true],
+    ]);
+    ds.chits = [{ ...ds.chits[0], installment_records: [{ no: 2, dividend: 5_000 }, { no: 3, payable: 23_500, source: "foreman_message" }] }];
+    const after = ev(ds);
+    expect(after[1]).toMatchObject({ installment: 3, amount: 23_500, estimated: false });
+  });
+
+  it("values installments paid before tracking at the base but keeps them out of actual totals", () => {
+    const c = chit({ installments_paid_offset: 2, installment_records: [{ no: 2, paid_amount: 19_000 }] });
+    const s = chitSummary(c, [], TODAY);
+    expect(s.rows[0].status).toBe("unrecorded");
+    expect(s.rows[1]).toMatchObject({ status: "paid", paid: 19_000, tracked: false });
+    expect(s.actualPaid).toBe(19_000);
+    expect(s.unrecordedCount).toBe(1);
+    expect(s.unrecordedEstimate).toBe(25_000);
+    const p = computePositions({ ...emptyDs(), chits: [c] }, TODAY);
+    expect(p.chits.get("ch1")!.paidAmount).toBe(44_000);
+  });
+
+  it("after the payout, the remaining debt uses confirmed amounts and estimates, not base × months", () => {
+    const c = chit({ payout_status: "received", payout_amount: 8_00_000, installment_records: [{ no: 2, dividend: 6_000 }] });
+    const s = chitSummary(c, [pay(25_000, "2026-09-05"), pay(19_000, "2026-10-05")], TODAY);
+    expect(s.payoutReceived).toBe(8_00_000);
+    expect(s.currentNet).toBe(8_00_000 - 44_000);
+    const p = computePositions({ ...emptyDs(), chits: [c], transactions: [pay(25_000, "2026-09-05"), pay(19_000, "2026-10-05")] }, TODAY);
+    expect(p.chits.get("ch1")!.liability).toBe(38 * 19_000);
+  });
+});
+
+describe("backup restore", () => {
+  const fakeRepo = (failOn?: string) => {
+    const rows: Record<string, Record<string, unknown>[]> = {};
+    return {
+      rows,
+      insertMany: async (t: string, list: Record<string, unknown>[]) => {
+        if (t === failOn) throw new Error(`insert into ${t} failed.`);
+        rows[t] = [...(rows[t] ?? []), ...list];
+        return list;
+      },
+      upsertSnapshot: async () => undefined,
+      updateProfile: async (p: unknown) => p,
+      remove: async (t: string, id: string) => {
+        rows[t] = (rows[t] ?? []).filter((r) => r.id !== id);
+      },
+    };
+  };
+  const file = {
+    app: "kosh",
+    version: 1,
+    profile: { currency: "INR", unknown_profile_thing: 1 },
+    tables: {
+      accounts: [{ id: "a1", name: "SBI", opening_balance: 1000, bank_branch: "MG Road" }],
+      credit_cards: [{ id: "c1", name: "Card", statement_day: 5, due_day: 25, payment_account_id: "a1" }],
+      card_statements: [{ id: "s1", card_id: "c1", statement_date: "2026-09-05", due_date: "2026-09-25", amount_due: 14280, minimum_due: 714 }],
+    },
+  };
+
+  it("maps known alternative field names, drops unknown ones and remaps links", async () => {
+    const { restoreBackup } = await import("../data/io");
+    const repo = fakeRepo();
+    const report = await restoreBackup(repo as never, structuredClone(file) as never);
+    const st = repo.rows.card_statements[0];
+    expect(st.total_due).toBe(14280);
+    expect(st.min_due).toBe(714);
+    expect("amount_due" in st).toBe(false);
+    expect(st.card_id).toBe(repo.rows.credit_cards[0].id);
+    expect(repo.rows.credit_cards[0].payment_account_id).toBe(repo.rows.accounts[0].id);
+    expect(report.ignored.accounts).toEqual(["bank_branch"]);
+    expect(report.restored).toMatchObject({ accounts: 1, credit_cards: 1, card_statements: 1 });
+  });
+
+  it("refuses incomplete files before writing anything", async () => {
+    const { restoreBackup } = await import("../data/io");
+    const repo = fakeRepo();
+    const bad = structuredClone(file);
+    delete (bad.tables.card_statements[0] as Record<string, unknown>).amount_due;
+    await expect(restoreBackup(repo as never, bad as never)).rejects.toThrow(/missing total_due/);
+    expect(Object.keys(repo.rows)).toHaveLength(0);
+  });
+
+  it("removes everything it added when saving fails part-way", async () => {
+    const { restoreBackup } = await import("../data/io");
+    const repo = fakeRepo("card_statements");
+    await expect(restoreBackup(repo as never, structuredClone(file) as never)).rejects.toThrow(/Nothing from the backup was kept/);
+    expect(repo.rows.accounts).toHaveLength(0);
+    expect(repo.rows.credit_cards).toHaveLength(0);
   });
 });

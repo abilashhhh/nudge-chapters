@@ -13,6 +13,7 @@ import { round2, toBase, type MoneyContext } from "../money";
 import type {
   Account, CardStatement, Chit, CreditCard, Dataset, Investment, ISODate, Lending, Loan, Transaction,
 } from "../types";
+import { chitSummary, type ChitSummary } from "./chits";
 import { RETIREMENT_TYPES } from "./defaults";
 import { loanState, type LoanState } from "./loans";
 import { xirr } from "./xirr";
@@ -117,6 +118,8 @@ export interface CardPosition {
 
 export interface ChitPosition {
   chit: Chit;
+  /** Installment-by-installment view: actual, confirmed and projected amounts kept apart. */
+  summary: ChitSummary;
   paidCount: number;
   paidAmount: number;
   remainingCount: number;
@@ -240,26 +243,23 @@ export function statementStates(card: CreditCard, statements: CardStatement[], t
   });
 }
 
-export function chitPosition(chit: Chit, txs: Transaction[]): ChitPosition {
-  const own = txs.filter((t) => t.chit_id === chit.id);
-  const inst = own.filter((t) => t.type === "chit_installment");
-  const paidCount = Math.min(chit.installments, chit.installments_paid_offset + inst.length);
-  const paidAmount = round2(chit.installments_paid_offset * chit.monthly_contribution + inst.reduce((s, t) => s + t.amount, 0));
-  const remainingCount = Math.max(0, chit.installments - paidCount);
-  const payoutTx = own.find((t) => t.type === "chit_payout");
-  const expectedPayout = round2(payoutTx?.amount ?? chit.payout_amount ?? chit.chit_value * (1 - chit.commission_pct / 100));
-  const received = chit.payout_status === "received" || !!payoutTx;
+export function chitPosition(chit: Chit, txs: Transaction[], asOf: ISODate): ChitPosition {
+  const summary = chitSummary(chit, txs, asOf);
+  const received = summary.payoutReceived != null || chit.payout_status === "received";
   const closed = chit.status !== "active";
+  // Paid in so far: actual payments, plus older installments with no amount entered valued at the base.
+  const paidAmount = round2(summary.actualPaid + summary.unrecordedEstimate);
   return {
     chit,
-    paidCount,
+    summary,
+    paidCount: summary.paidCount,
     paidAmount,
-    remainingCount,
+    remainingCount: summary.remainingCount,
     // Before you take the payout, what you've paid in is money owed back to you.
     asset: closed || received ? 0 : paidAmount,
-    // After taking the payout, the remaining installments are a debt.
-    liability: closed || !received ? 0 : round2(remainingCount * chit.monthly_contribution),
-    expectedPayout,
+    // After taking the payout, the remaining installments are a debt: confirmed amounts plus estimates for auctions still to come.
+    liability: closed || !received ? 0 : summary.projectedRemainingEstimate,
+    expectedPayout: summary.payoutExpected,
     endDate: chit.start_date ? addMonthsSafe(chit.start_date, chit.installments - 1) : chit.start_date,
   };
 }
@@ -405,7 +405,7 @@ export function computePositions(ds: Dataset, asOf: ISODate): Positions {
   let chitAssets = 0;
   let chitLiability = 0;
   for (const c of ds.chits) {
-    const p = chitPosition(c, txs);
+    const p = chitPosition(c, txs, asOf);
     chits.set(c.id, p);
     chitAssets += p.asset;
     chitLiability += p.liability;

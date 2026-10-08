@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, CornerDownLeft, Search, Sparkles } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
@@ -48,25 +48,60 @@ export function CommandPalette() {
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const f = useFinance();
   const updatePrefs = useStore((s) => s.updatePrefs);
+  // Set once a result is chosen, so a double click / repeated Enter can't run it twice.
+  const selecting = useRef(false);
 
+  // Fresh state every time the palette opens or closes: empty query, first result highlighted.
   useEffect(() => {
-    if (open) {
-      setQ("");
-      setIdx(0);
-      setTimeout(() => input.current?.focus(), 20);
-    }
-  }, [open]);
+    setQ("");
+    setIdx(0);
+    selecting.current = false;
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    // The input also has autoFocus, so keys typed straight after Ctrl+K aren't lost; this is a fallback.
+    const t = setTimeout(() => input.current?.focus(), 20);
+    // Escape closes only the palette, even when a sheet is open underneath it (capture phase runs first).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+    };
+    // Browser back while searching just closes the search.
+    const onPop = () => setOpen(false);
+    document.addEventListener("keydown", onKey, true);
+    window.addEventListener("popstate", onPop);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("popstate", onPop);
+      // Hand focus back unless the selected result moved it into a new sheet.
+      if (prev && document.activeElement === document.body) prev.focus?.();
+    };
+  }, [open, setOpen]);
+
+  // Any navigation (link, back/forward) closes the palette.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname, setOpen]);
+
+  /** Close the palette (and anything under it), reset it, then run the result once the overlay is gone. */
+  const select = (it: Item | undefined) => {
+    if (!it || selecting.current) return;
+    selecting.current = true;
+    useUI.getState().closeAll();
+    setQ("");
+    setIdx(0);
+    setTimeout(it.run, 0);
+  };
 
   const items = useMemo<Item[]>(() => {
     if (!open) return [];
     const ui = useUI.getState();
-    const close = () => setOpen(false);
-    const go = (href: string) => () => {
-      close();
-      router.push(href);
-    };
+    const go = (href: string) => () => router.push(href);
     const m = (n: number) => formatMoney(n, f.ctx);
     const query = q.trim().toLowerCase();
     const out: Item[] = [];
@@ -114,13 +149,13 @@ export function CommandPalette() {
     const match = (s: string | null | undefined) => !!s && s.toLowerCase().includes(query);
     out.push(...actions.filter((a) => match(a.label)), ...pages.filter((p) => match(p.label)));
 
-    for (const a of f.ds.accounts) if (match(a.name) || match(a.institution)) out.push({ id: `acc-${a.id}`, group: "Accounts", label: a.name, hint: m(f.positions.accounts.get(a.id)?.balance ?? 0), run: () => { close(); ui.openEditor("account", a.id); } });
+    for (const a of f.ds.accounts) if (match(a.name) || match(a.institution)) out.push({ id: `acc-${a.id}`, group: "Accounts", label: a.name, hint: m(f.positions.accounts.get(a.id)?.balance ?? 0), run: () => ui.openEditor("account", a.id) });
     for (const c of f.ds.credit_cards) if (match(c.name) || match(c.issuer)) out.push({ id: `cc-${c.id}`, group: "Cards", label: c.name, hint: `${m(f.positions.cards.get(c.id)?.outstanding ?? 0)} owed`, run: go("/liabilities?tab=cards") });
     for (const l of f.ds.loans) if (match(l.name) || match(l.lender)) out.push({ id: `loan-${l.id}`, group: "Loans", label: l.name, hint: `${m(f.positions.loans.get(l.id)?.state.outstanding ?? 0)} left`, run: go(`/liabilities?tab=loans&loan=${l.id}`) });
-    for (const i of f.ds.investments) if (match(i.name) || match(i.identifier) || match(INVESTMENT_TYPE_LABEL[i.type])) out.push({ id: `inv-${i.id}`, group: "Investments", label: i.name, hint: m(f.positions.investments.get(i.id)?.value ?? 0), run: () => { close(); ui.openEditor("investment", i.id); } });
+    for (const i of f.ds.investments) if (match(i.name) || match(i.identifier) || match(INVESTMENT_TYPE_LABEL[i.type])) out.push({ id: `inv-${i.id}`, group: "Investments", label: i.name, hint: m(f.positions.investments.get(i.id)?.value ?? 0), run: () => ui.openEditor("investment", i.id) });
     for (const g of f.ds.goals) if (match(g.name)) out.push({ id: `goal-${g.id}`, group: "Goals", label: g.name, hint: m(g.target_amount), run: go("/goals") });
-    for (const r of f.ds.recurring_rules) if (match(r.name) || match(r.category)) out.push({ id: `rule-${r.id}`, group: "Recurring", label: r.name, hint: m(r.amount), run: () => { close(); ui.openEditor("rule", r.id); } });
-    for (const l of f.ds.lendings) if (match(l.person)) out.push({ id: `lend-${l.id}`, group: "Lending", label: l.person, hint: m(f.positions.lendings.get(l.id)?.outstanding ?? 0), run: () => { close(); ui.openEditor("lending", l.id); } });
+    for (const r of f.ds.recurring_rules) if (match(r.name) || match(r.category)) out.push({ id: `rule-${r.id}`, group: "Recurring", label: r.name, hint: m(r.amount), run: () => ui.openEditor("rule", r.id) });
+    for (const l of f.ds.lendings) if (match(l.person)) out.push({ id: `lend-${l.id}`, group: "Lending", label: l.person, hint: m(f.positions.lendings.get(l.id)?.outstanding ?? 0), run: () => ui.openEditor("lending", l.id) });
     for (const c of f.ds.chits) if (match(c.name)) out.push({ id: `chit-${c.id}`, group: "Chits", label: c.name, run: go("/liabilities?tab=chits") });
     const amt = parseAmount(query);
     let n = 0;
@@ -133,15 +168,12 @@ export function CommandPalette() {
           group: "Transactions",
           label: t.description || t.category || TX_TYPE_LABEL[t.type],
           hint: `${formatDate(t.date, "short")} · ${m(t.amount)}`,
-          run: () => {
-            close();
-            ui.openTx(null, t);
-          },
+          run: () => ui.openTx(null, t),
         });
       }
     }
     return out;
-  }, [open, q, f, router, setOpen, updatePrefs]);
+  }, [open, q, f, router, updatePrefs]);
 
   useEffect(() => setIdx(0), [q]);
   useEffect(() => {
@@ -158,11 +190,11 @@ export function CommandPalette() {
           <Search className="h-5 w-5 text-ink-3" aria-hidden />
           <input
             ref={input}
+            autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") setOpen(false);
-              else if (e.key === "ArrowDown") {
+              if (e.key === "ArrowDown") {
                 e.preventDefault();
                 setIdx((i) => Math.min(items.length - 1, i + 1));
               } else if (e.key === "ArrowUp") {
@@ -170,7 +202,7 @@ export function CommandPalette() {
                 setIdx((i) => Math.max(0, i - 1));
               } else if (e.key === "Enter") {
                 e.preventDefault();
-                items[idx]?.run();
+                select(items[idx]);
               }
             }}
             placeholder='Search, or ask "how much will I have by Dec 2027?"'
@@ -182,7 +214,11 @@ export function CommandPalette() {
           />
         </div>
         <div ref={list} id="palette-list" role="listbox" className="overflow-y-auto p-2">
-          {items.length === 0 && <p className="px-3 py-6 text-center text-[14px] text-ink-3">No matches. Try a name, amount or a date.</p>}
+          {items.length === 0 && (
+            <p className="px-3 py-6 text-center text-[14px] text-ink-3" role="status">
+              Nothing matches &ldquo;{q.trim()}&rdquo;. Try a name, an amount or a date.
+            </p>
+          )}
           {items.map((it, i) => {
             const header = it.group !== lastGroup ? it.group : null;
             lastGroup = it.group;
@@ -195,7 +231,7 @@ export function CommandPalette() {
                   aria-selected={i === idx}
                   data-idx={i}
                   onMouseEnter={() => setIdx(i)}
-                  onClick={it.run}
+                  onClick={() => select(it)}
                   className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px]", i === idx ? "bg-surface-3" : "")}
                 >
                   {it.group === "Ask" ? <Sparkles className="h-4 w-4 shrink-0 text-future" aria-hidden /> : <ArrowRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />}

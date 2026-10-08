@@ -4,7 +4,7 @@ import { BarChart3, CalendarDays, Coffee, FileUp, Settings, Sparkles, Target, Us
 import Link from "next/link";
 import { Money } from "@/components/money";
 import { PageHeader } from "@/components/shell/app-shell";
-import { BMC_URL } from "@/lib/config";
+import { APP_NAME, BMC_URL } from "@/lib/config";
 import { useFinance } from "@/lib/finance";
 import { useUI } from "@/lib/ui";
 
@@ -18,7 +18,7 @@ export default function MorePage() {
     { href: "/assets?tab=lending", label: "Lending", icon: Users, hint: <Money value={positions.totals.receivables} /> },
     { href: "/settings?tab=data", label: "Import & export", icon: FileUp, hint: "CSV, Excel, backup" },
     { href: "/settings", label: "Settings", icon: Settings, hint: "Profile, alerts, security" },
-    ...(BMC_URL ? [{ href: "/support", label: "Support Kosh", icon: Coffee, hint: "Buy the developer a coffee" }] : []),
+    ...(BMC_URL ? [{ href: "/support", label: `Support ${APP_NAME}`, icon: Coffee, hint: "Buy the developer a coffee" }] : []),
   ];
   return (
     <>

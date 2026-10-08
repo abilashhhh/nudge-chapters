@@ -135,7 +135,7 @@ export function Importer({ open, onClose }: { open: boolean; onClose: () => void
         map && (
           <div className="flex flex-col gap-4">
             <p className="text-[13.5px] text-ink-2">
-              <strong>{fileName}</strong> · {table.rows.length} rows. Tell Kosh which column is which:
+              <strong>{fileName}</strong> · {table.rows.length} rows. Tell Nudge Chapters which column is which:
             </p>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <Field label="Into account" htmlFor="imp-acct">

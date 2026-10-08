@@ -50,6 +50,11 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
       ? { ...editing }
       : { type: "expense", date: today, amount: undefined, account_id: primary, is_partial: false, reconciled: false, tags: [], ...preset };
     if (base.type === "card_spend") return { ...base, type: "expense", payWith: `card:${base.card_id}` };
+    // Card bills can be paid from any account: ask, unless there's only one.
+    if (!editing && base.type === "card_payment" && !preset?.account_id) {
+      const active = ds.accounts.filter((a) => !a.archived);
+      return { ...base, account_id: active.length === 1 ? active[0].id : null };
+    }
     if (base.type === "expense") return { ...base, payWith: base.account_id ? `acct:${base.account_id}` : primary ? `acct:${primary}` : "" };
     return base;
   };
@@ -82,7 +87,6 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
     const cp = positions.cards.get(d.card_id);
     const open = cp?.statements.find((s) => s.remaining > 0);
     set({
-      account_id: cp?.card.payment_account_id ?? d.account_id,
       statement_id: open?.statement.id ?? null,
       amount: d.amount ?? (open ? open.remaining : cp?.outstanding),
     });
@@ -93,7 +97,12 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
     if ((type !== "chit_installment" && type !== "chit_payout") || !d.chit_id || editing) return;
     const c = positions.chits.get(d.chit_id);
     if (!c) return;
-    set({ account_id: c.chit.account_id ?? d.account_id, amount: d.amount ?? (type === "chit_payout" ? c.expectedPayout : c.chit.monthly_contribution) });
+    const next = c.summary.nextUnpaid;
+    set({
+      account_id: c.chit.account_id ?? d.account_id,
+      amount: d.amount ?? (type === "chit_payout" ? c.expectedPayout : (next?.payable ?? next?.planned ?? c.chit.monthly_contribution)),
+      ...(type === "chit_installment" && next ? { occurrence_date: next.scheduledDate } : {}),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, d.chit_id]);
 

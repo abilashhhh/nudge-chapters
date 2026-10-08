@@ -5,7 +5,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /*
-  Kosh design tokens
+  Nudge Chapters design tokens
   - paper: a cool, slightly green banknote-paper background (not cream)
   - ink: deep green-black text
   - brand: ledger green for actual money

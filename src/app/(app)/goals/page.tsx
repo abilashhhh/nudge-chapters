@@ -77,7 +77,7 @@ function GoalList() {
       <EmptyState
         icon={Target}
         title="No goals yet"
-        body="Emergency fund, a bike, a house down payment, travel, education — set a target and date, and Kosh tells you what to save each month."
+        body="Emergency fund, a bike, a house down payment, travel, education — set a target and date, and Nudge Chapters tells you what to save each month."
         action={<Button variant="primary" onClick={() => useUI.getState().openEditor("goal", undefined, { kind: "emergency", name: "Emergency fund" })}>Start with an emergency fund</Button>}
       />
     );

@@ -6,6 +6,25 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { Button } from "./button";
 
+// Page scroll is locked while any sheet is open. A shared counter (instead of each sheet saving
+// and restoring the style) keeps stacked sheets that close together, in any order, from leaving
+// the page stuck unscrollable.
+let scrollLocks = 0;
+let savedOverflow = "";
+function lockScroll() {
+  if (scrollLocks++ === 0) {
+    savedOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+}
+// Open sheets, newest last: Escape and focus trapping belong to the top one only.
+const openStack: symbol[] = [];
+
+function unlockScroll() {
+  scrollLocks = Math.max(0, scrollLocks - 1);
+  if (scrollLocks === 0) document.body.style.overflow = savedOverflow;
+}
+
 /**
  * A responsive dialog: a bottom sheet on phones, a centred panel on larger screens.
  * Escape and the backdrop close it; focus moves in on open and returns on close.
@@ -30,20 +49,28 @@ export function Sheet({
   const panel = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  // Latest onClose without re-running the open/close effect (which would steal focus mid-typing).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    lockScroll();
+    const token = Symbol("sheet");
+    openStack.push(token);
+    const isTop = () => openStack[openStack.length - 1] === token;
     const t = setTimeout(() => {
       const el = panel.current?.querySelector<HTMLElement>("[autofocus], input, select, textarea, button:not([data-close])");
       el?.focus();
     }, 30);
     const onKey = (e: KeyboardEvent) => {
+      if (!isTop()) return;
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
       if (e.key === "Tab" && panel.current) {
         const f = panel.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
@@ -63,10 +90,11 @@ export function Sheet({
     return () => {
       clearTimeout(t);
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
+      unlockScroll();
+      openStack.splice(openStack.indexOf(token), 1);
       prev?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!mounted || !open) return null;
   const width = { sm: "sm:max-w-md", md: "sm:max-w-lg", lg: "sm:max-w-2xl", xl: "sm:max-w-4xl" }[size];

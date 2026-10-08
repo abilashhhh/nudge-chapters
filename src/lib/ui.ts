@@ -28,6 +28,10 @@ interface UIState {
   txEditing: Transaction | null;
   quickOpen: boolean;
   eventKey: string | null;
+  /** Open the event sheet straight on its "mark paid" form. */
+  eventMode: "view" | "settle";
+  /** Chit whose installment table is open. */
+  chitSheet: string | null;
   editor: EditorState | null;
   palette: boolean;
   alerts: boolean;
@@ -35,11 +39,14 @@ interface UIState {
   closeTx(): void;
   openQuick(): void;
   closeQuick(): void;
-  openEvent(key: string | null): void;
+  openEvent(key: string | null, mode?: "view" | "settle"): void;
+  openChitSheet(chitId: string | null): void;
   openEditor(kind: EditorKind, id?: string, preset?: Record<string, unknown>): void;
   closeEditor(): void;
   setPalette(v: boolean): void;
   setAlerts(v: boolean): void;
+  /** Close every sheet, panel and the search palette — used before jumping somewhere new. */
+  closeAll(): void;
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -48,16 +55,21 @@ export const useUI = create<UIState>((set) => ({
   txEditing: null,
   quickOpen: false,
   eventKey: null,
+  eventMode: "view",
+  chitSheet: null,
   editor: null,
   palette: false,
   alerts: false,
-  openTx: (preset = null, editing = null) => set({ txOpen: true, txPreset: preset, txEditing: editing, quickOpen: false }),
+  openTx: (preset = null, editing = null) => set({ txOpen: true, txPreset: preset, txEditing: editing, quickOpen: false, palette: false }),
   closeTx: () => set({ txOpen: false, txPreset: null, txEditing: null }),
   openQuick: () => set({ quickOpen: true }),
   closeQuick: () => set({ quickOpen: false }),
-  openEvent: (key) => set({ eventKey: key }),
+  openEvent: (key, mode = "view") => set(key ? { eventKey: key, eventMode: mode, palette: false } : { eventKey: null, eventMode: "view" }),
+  openChitSheet: (chitId) => set(chitId ? { chitSheet: chitId, palette: false } : { chitSheet: null }),
   openEditor: (kind, id, preset) => set({ editor: { kind, id, preset }, quickOpen: false, palette: false }),
   closeEditor: () => set({ editor: null }),
   setPalette: (v) => set({ palette: v }),
-  setAlerts: (v) => set({ alerts: v }),
+  setAlerts: (v) => set(v ? { alerts: true, palette: false } : { alerts: false }),
+  closeAll: () =>
+    set({ txOpen: false, txPreset: null, txEditing: null, quickOpen: false, eventKey: null, eventMode: "view", chitSheet: null, editor: null, palette: false, alerts: false }),
 }));

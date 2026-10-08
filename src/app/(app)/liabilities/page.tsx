@@ -13,7 +13,8 @@ import { cn } from "@/lib/cn";
 import { addMonths, formatDate, relativeDays } from "@/lib/dates";
 import { LOAN_TYPE_LABEL } from "@/lib/engine/defaults";
 import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
-import type { CardPosition, ChitPosition } from "@/lib/engine/ledger";
+import type { CardPosition } from "@/lib/engine/ledger";
+import { ChitCard } from "@/components/chits";
 import { debtPlan, simulatePrepayment, type DebtInput, type LoanState } from "@/lib/engine/loans";
 import { useFinance } from "@/lib/finance";
 import { formatMoney, formatPct } from "@/lib/money";
@@ -110,7 +111,7 @@ function Cards() {
       <EmptyState
         icon={CreditCard}
         title="No credit cards"
-        body="Add each card with its statement and due dates. Kosh then predicts every bill and when it hits your bank."
+        body="Add each card with its statement and due dates. Nudge Chapters then predicts every bill and when it hits your bank."
         action={<Button variant="primary" onClick={() => useUI.getState().openEditor("card")}>Add a card</Button>}
       />
     );
@@ -230,7 +231,7 @@ function CardTile({ cp }: { cp: CardPosition }) {
                     {s.status === "paid" ? "Paid" : s.status === "overdue" ? "Overdue" : s.status === "partially_paid" ? "Part paid" : "Generated"}
                   </Badge>
                   {s.remaining > 0 && (
-                    <Button size="sm" onClick={() => useUI.getState().openTx({ type: "card_payment", card_id: c.id, statement_id: s.statement.id, amount: s.remaining, account_id: c.payment_account_id })}>
+                    <Button size="sm" onClick={() => useUI.getState().openTx({ type: "card_payment", card_id: c.id, statement_id: s.statement.id, amount: s.remaining })}>
                       Pay
                     </Button>
                   )}
@@ -238,7 +239,7 @@ function CardTile({ cp }: { cp: CardPosition }) {
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-ink-3">No statements recorded. Kosh estimates bills from your spending until you add one.</p>
+            <p className="text-[13px] text-ink-3">No statements recorded. Nudge Chapters estimates bills from your spending until you add one.</p>
           )}
           {statements.length > 3 && (
             <button type="button" className="mt-1 text-[12.5px] text-ink-2 hover:text-ink" onClick={() => setShowAll(!showAll)}>
@@ -247,7 +248,7 @@ function CardTile({ cp }: { cp: CardPosition }) {
           )}
         </div>
         <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
-          <Button size="sm" variant="primary" onClick={() => useUI.getState().openTx({ type: "card_payment", card_id: c.id, account_id: c.payment_account_id })}>
+          <Button size="sm" variant="primary" onClick={() => useUI.getState().openTx({ type: "card_payment", card_id: c.id })}>
             Pay bill
           </Button>
           <Button size="sm" onClick={() => useUI.getState().openTx({ type: "card_spend", card_id: c.id })}>
@@ -281,7 +282,7 @@ function Loans() {
       <EmptyState
         icon={Landmark}
         title="No loans or EMIs"
-        body="Add home, vehicle, personal or education loans and card EMIs. Kosh builds the full schedule and plans each EMI."
+        body="Add home, vehicle, personal or education loans and card EMIs. Nudge Chapters builds the full schedule and plans each EMI."
         action={<Button variant="primary" onClick={() => useUI.getState().openEditor("loan")}>Add a loan</Button>}
       />
     );
@@ -443,7 +444,7 @@ function Chits() {
       <EmptyState
         icon={PiggyBank}
         title="No chits"
-        body="Track chit funds separately: monthly installments, auction or payout, and what you still owe afterwards."
+        body="Track chit funds month by month: each installment's auction result, what you actually paid, your payout, and what's still to come."
         action={<Button variant="primary" onClick={() => useUI.getState().openEditor("chit")}>Add a chit</Button>}
       />
     );
@@ -453,61 +454,6 @@ function Chits() {
       {chits.map((c) => (
         <ChitCard key={c.chit.id} cp={c} />
       ))}
-    </div>
-  );
-}
-
-function ChitCard({ cp }: { cp: ChitPosition }) {
-  const { events, ctx } = useFinance();
-  const c = cp.chit;
-  const received = c.payout_status === "received";
-  const totalContrib = c.installments * c.monthly_contribution;
-  const netImpact = cp.expectedPayout - totalContrib;
-  const next = events.find((e) => e.kind === "chit" && e.chitId === c.id && e.status !== "paid" && e.remaining > 0);
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[16px] font-semibold">{c.name}</p>
-          <p className="text-[12.5px] text-ink-3">
-            {c.provider ?? "Chit fund"} · {formatMoney(c.chit_value, ctx)} value · {c.installments} months
-          </p>
-        </div>
-        <Badge tone={received ? "warn" : "future"}>{received ? "Payout taken" : "Payout pending"}</Badge>
-      </div>
-      <div className="mt-3">
-        <div className="flex justify-between text-[12.5px] text-ink-3">
-          <span>
-            {cp.paidCount} of {c.installments} installments paid
-          </span>
-          <span>ends {formatDate(cp.endDate, "short")}</span>
-        </div>
-        <Progress className="mt-1" value={cp.paidCount / c.installments} tone="future" label={`${c.name} installments paid`} />
-      </div>
-      <div className="mt-3 divide-y divide-line">
-        <KV k="Monthly installment" v={formatMoney(c.monthly_contribution, ctx)} />
-        <KV k="Paid in so far" v={formatMoney(cp.paidAmount, ctx)} />
-        <KV k={received ? "Payout received" : "Expected payout"} v={<Money value={cp.expectedPayout} projected={!received} />} />
-        {c.payout_date && <KV k={received ? "Received on" : "Expected on"} v={formatDate(c.payout_date)} />}
-        <KV k={received ? "Still to pay (a debt)" : "Counted as owed to you"} v={formatMoney(received ? cp.liability : cp.asset, ctx)} />
-        <KV k="Net gain / cost overall" v={<span className={netImpact >= 0 ? "text-ok" : "text-danger"}>{formatMoney(netImpact, ctx, { sign: true })}</span>} />
-      </div>
-      {c.auction_notes && <p className="mt-2 text-[12.5px] text-ink-3">{c.auction_notes}</p>}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {next && (
-          <Button size="sm" variant="primary" onClick={() => useUI.getState().openEvent(next.key)}>
-            Pay installment {next.installment} · {formatDate(next.date, "short")}
-          </Button>
-        )}
-        {!received && (
-          <Button size="sm" onClick={() => useUI.getState().openTx({ type: "chit_payout", chit_id: c.id, account_id: c.account_id, amount: cp.expectedPayout })}>
-            Record payout
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" onClick={() => useUI.getState().openEditor("chit", c.id)}>
-          Edit
-        </Button>
-      </div>
     </div>
   );
 }

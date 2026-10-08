@@ -167,7 +167,8 @@ export function monthlyNorms(ds: Dataset, positions: Positions): MonthlyNorms {
   let sips = 0;
   for (const i of ds.investments) if (i.sip_active && !i.archived) sips += i.sip_amount;
   let chits = 0;
-  for (const c of positions.chits.values()) if (c.chit.status === "active" && c.remainingCount > 0) chits += c.chit.monthly_contribution;
+  // Chit amounts vary with each auction: use the next installment (confirmed, or estimated from past auctions).
+  for (const c of positions.chits.values()) if (c.chit.status === "active" && c.remainingCount > 0) chits += c.summary.nextUnpaid?.planned ?? c.summary.estimatePerInstallment;
   let cardSpend = 0;
   for (const c of ds.credit_cards) if (!c.archived) cardSpend += c.expected_monthly_spend;
   const outflow = fixed + budgets + emis + sips + chits + cardSpend;

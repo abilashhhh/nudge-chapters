@@ -8,7 +8,8 @@ import { setLocalMode } from "@/components/shell/bootstrap";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form";
 import { Segmented } from "@/components/ui/misc";
-import { APP_NAME, GOOGLE_AUTH } from "@/lib/config";
+import { Brand } from "@/components/brand";
+import { APP_NAME, GOOGLE_AUTH, appUrl } from "@/lib/config";
 import { LocalRepo } from "@/lib/data/localRepo";
 import { getSupabase, supabaseConfigured } from "@/lib/data/supabase";
 import { useStore } from "@/lib/store";
@@ -80,7 +81,7 @@ function Login() {
         const { data, error: e } = await sb.auth.signUp({
           email,
           password,
-          options: { data: { name: name.trim() || undefined }, emailRedirectTo: `${window.location.origin}/` },
+          options: { data: { name: name.trim() || undefined }, emailRedirectTo: appUrl("/") },
         });
         if (e) throw e;
         if (!data.session) {
@@ -105,7 +106,7 @@ function Login() {
     setError(null);
     if (!email.includes("@")) return setError("Enter your email address first.");
     setBusy("magic");
-    const { error: e } = await getSupabase().auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/` } });
+    const { error: e } = await getSupabase().auth.signInWithOtp({ email, options: { emailRedirectTo: appUrl("/") } });
     setBusy(null);
     if (e) setError(e.message);
     else setInfo(`We sent a sign-in link to ${email}.`);
@@ -115,7 +116,7 @@ function Login() {
     setError(null);
     if (!email.includes("@")) return setError("Enter your email address first.");
     setBusy("forgot");
-    const { error: e } = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
+    const { error: e } = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo: appUrl("/reset-password/") });
     setBusy(null);
     if (e) setError(e.message);
     else setInfo("If that email has an account, a reset link is on its way.");
@@ -123,7 +124,7 @@ function Login() {
 
   const google = async () => {
     setBusy("google");
-    const { error: e } = await getSupabase().auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/` } });
+    const { error: e } = await getSupabase().auth.signInWithOAuth({ provider: "google", options: { redirectTo: appUrl("/") } });
     if (e) {
       setError(e.message);
       setBusy(null);
@@ -153,13 +154,13 @@ function Login() {
   return (
     <div className="grid grid-cols-1 min-h-dvh lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
       <section className="relative hidden overflow-hidden bg-[#13241d] p-12 text-[#e6ede9] lg:flex lg:flex-col">
-        <div className="display text-[30px] font-bold">{APP_NAME}</div>
+        <Brand size="lg" tagline taglineClassName="text-[#b8c6bf]" />
         <div className="mt-auto max-w-lg">
           <h1 className="display text-[44px] font-semibold leading-[1.05]">
             What will you have on 31&nbsp;December&nbsp;2027?
           </h1>
           <p className="mt-4 text-[16px] leading-relaxed text-[#b8c6bf]">
-            Salary, rent, card bills, EMIs, SIPs, EPF, chits and money you&apos;ve lent — on one timeline. Kosh shows today&apos;s position and projects it forward,
+            Salary, rent, card bills, EMIs, SIPs, EPF, chits and money you&apos;ve lent — on one timeline. Nudge Chapters shows today&apos;s position and projects it forward,
             with every number explained.
           </p>
           <ProjectionSketch />
@@ -168,7 +169,7 @@ function Login() {
 
       <main className="flex items-center justify-center px-5 py-10">
         <div className="w-full max-w-sm">
-          <div className="display mb-8 text-[30px] font-bold lg:hidden">{APP_NAME}</div>
+          <Brand size="lg" tagline className="mb-8 lg:hidden" />
           {mfa ? (
             <div className="flex flex-col gap-4">
               <h2 className="display text-[26px] font-semibold">Two-step verification</h2>
@@ -256,7 +257,7 @@ function Login() {
             </Button>
           </div>
           <p className="mt-6 text-[12px] leading-relaxed text-ink-3">
-            Kosh never asks for bank passwords. Signed-in data is stored in your own Supabase database with row-level security; device-only data never leaves this browser.
+            Nudge Chapters never asks for bank passwords. Signed-in data is stored in your own Supabase database with row-level security; device-only data never leaves this browser.
           </p>
         </div>
       </main>

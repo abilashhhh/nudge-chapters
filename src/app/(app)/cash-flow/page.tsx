@@ -247,7 +247,7 @@ function Transactions() {
         if (!hay.includes(query)) return false;
       }
       return true;
-    });
+    }).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (b.created_at ?? "").localeCompare(a.created_at ?? "")));
   }, [ds.transactions, q, type, where, category, from, to]);
 
   const totals = useMemo(() => {

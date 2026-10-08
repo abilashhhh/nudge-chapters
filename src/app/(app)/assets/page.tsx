@@ -212,7 +212,7 @@ function Retirement() {
     return (
       <EmptyState
         title="No retirement accounts yet"
-        body="Add your EPF (from the EPFO passbook), PPF or NPS. Kosh never pretends to have live EPFO data — you update the balance when you check it."
+        body="Add your EPF (from the EPFO passbook), PPF or NPS. Nudge Chapters never pretends to have live EPFO data — you update the balance when you check it."
         action={<Button variant="primary" onClick={() => useUI.getState().openEditor("investment", undefined, { type: "epf", asset_class: "debt" })}>Add EPF</Button>}
       />
     );

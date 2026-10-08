@@ -43,7 +43,6 @@ export const cardFields: FieldDef<CreditCard>[] = [
   { name: "issuer", label: "Issuer", type: "text", optional: true, half: true },
   { name: "last4", label: "Last 4 digits", type: "text", optional: true, half: true, placeholder: "1234" },
   { name: "credit_limit", label: "Credit limit", type: "money", required: true, half: true },
-  { name: "payment_account_id", label: "Bill paid from", type: "account", half: true },
   { name: "statement_day", label: "Statement generated on day", type: "day", required: true, half: true },
   { name: "due_day", label: "Payment due on day", type: "day", required: true, half: true },
   { name: "opening_outstanding", label: "Current outstanding", type: "money", half: true, help: "Everything owed on the card today, excluding amounts converted to EMI (add those under Loans)." },
@@ -59,7 +58,8 @@ export const cardFields: FieldDef<CreditCard>[] = [
 
 export function newCard(ds: Dataset, today: ISODate): Partial<CreditCard> {
   return {
-    name: "", credit_limit: 0, statement_day: 5, due_day: 25, payment_account_id: primaryAccount(ds), opening_outstanding: 0,
+    // No fixed "bill paid from" account: you choose it each time you mark a card bill paid.
+    name: "", credit_limit: 0, statement_day: 5, due_day: 25, payment_account_id: null, opening_outstanding: 0,
     opening_date: today, expected_monthly_spend: 0, annual_fee: 0, interest_rate_apr: 42, reward_points: 0, archived: false,
   };
 }
@@ -116,16 +116,24 @@ export const chitFields: FieldDef<Chit>[] = [
   { name: "name", label: "Chit name", type: "text", required: true, placeholder: "e.g. Shriram 2L chit", autoFocus: true },
   { name: "provider", label: "Provider / foreman", type: "text", optional: true },
   { name: "chit_value", label: "Chit value", type: "money", required: true, half: true, min: 1 },
-  { name: "monthly_contribution", label: "Monthly installment", type: "money", required: true, half: true, min: 1 },
+  {
+    name: "monthly_contribution",
+    label: "Base installment",
+    type: "money",
+    required: true,
+    half: true,
+    min: 1,
+    help: "The full monthly amount before any auction dividend (usually chit value ÷ months). Each month's actual amount is entered from its auction result.",
+  },
   { name: "installments", label: "Number of installments", type: "int", required: true, half: true, min: 1, max: 240 },
   { name: "start_date", label: "First installment date", type: "date", required: true, half: true },
-  { name: "installments_paid_offset", label: "Installments already paid", type: "int", optional: true, half: true, help: "Leave blank to count those dated before today." },
-  { name: "account_id", label: "Paid from", type: "account", half: true },
+  { name: "installments_paid_offset", label: "Installments already paid", type: "int", optional: true, half: true, help: "Leave blank to count those dated before today. You can enter what each one cost under Installments & auctions." },
+  { name: "account_id", label: "Usually paid from", type: "account", half: true, help: "Suggested when you mark an installment paid; you can pick another each time." },
   { name: "commission_pct", label: "Foreman commission", type: "percent", half: true },
   { name: "payout_status", label: "Payout", type: "select", options: opts({ pending: "Not taken yet", received: "Already received" }), half: true, section: "Payout" },
   { name: "payout_date", label: "Payout date (expected or actual)", type: "date", optional: true, half: true },
   { name: "payout_amount", label: "Payout amount", type: "money", optional: true, half: true, help: "Leave blank to estimate it as chit value minus commission." },
-  { name: "auction_notes", label: "Auction / bid notes", type: "textarea", optional: true },
+  { name: "auction_notes", label: "General auction notes", type: "textarea", optional: true, help: "Per-month auction results go in Installments & auctions." },
   { name: "status", label: "Status", type: "select", options: opts({ active: "Active", completed: "Completed", closed: "Closed" }), half: true },
   { name: "notes", label: "Notes", type: "textarea", optional: true },
 ];
@@ -286,9 +294,18 @@ export const ruleFields: FieldDef<RecurringRule>[] = [
   { name: "start_date", label: "Starts on", type: "date", required: true, half: true },
   { name: "day_of_month", label: "On day", type: "day", showIf: monthly, noneLabel: "Same day as start", half: true },
   { name: "end_date", label: "Ends on", type: "date", optional: true, showIf: notOnce, half: true },
-  { name: "account_id", label: "Account", type: "account", showIf: (v) => !(v.kind === "expense" && v.card_id), half: true, help: "Received into / paid from / transfer from." },
+  // Bills have no fixed account: you choose where each payment came from when you mark it paid.
+  { name: "account_id", label: "Account", type: "account", showIf: (v) => v.kind !== "expense", half: true, help: "Income: the account it arrives in. Transfer: the account it leaves." },
   { name: "to_account_id", label: "Transfer to", type: "account", showIf: (v) => v.kind === "transfer", half: true },
-  { name: "card_id", label: "Paid by credit card", type: "card", noneLabel: "No — paid from the account", showIf: (v) => v.kind === "expense", half: true },
+  {
+    name: "card_id",
+    label: "Paid by credit card",
+    type: "card",
+    noneLabel: "No — from a bank account",
+    showIf: (v) => v.kind === "expense",
+    half: true,
+    help: "Bank-account bills ask which account you paid from each time you mark them paid.",
+  },
   { name: "category", label: "Category", type: "category", showIf: (v) => v.kind !== "transfer", categoryKind: (v) => (v.kind === "income" ? "income" : "expense"), half: true },
   {
     name: "is_fixed",
@@ -319,7 +336,7 @@ export const ruleFields: FieldDef<RecurringRule>[] = [
 
 export function newRule(ds: Dataset, today: ISODate, kind: RecurringRule["kind"] = "expense"): Partial<RecurringRule> {
   return {
-    kind, name: "", frequency: "monthly", start_date: today, track_from: today, account_id: primaryAccount(ds), is_fixed: true,
+    kind, name: "", frequency: "monthly", start_date: today, track_from: today, account_id: kind === "expense" ? null : primaryAccount(ds), is_fixed: true,
     is_essential: false, is_subscription: false, certainty: "known", tax_deducted: 0, active: true, category: kind === "income" ? "Salary" : null,
   };
 }
@@ -331,7 +348,7 @@ export function finalizeRule(v: Partial<RecurringRule>): Partial<RecurringRule> 
     out.card_id = null;
     out.is_fixed = true;
   }
-  if (out.card_id) out.account_id = null;
+  if (out.kind === "expense") out.account_id = null; // asked at payment time
   if (out.frequency === "once") {
     out.end_date = null;
     out.day_of_month = null;

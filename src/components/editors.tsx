@@ -69,11 +69,11 @@ function AccountEditor({ id, preset, onClose }: P) {
       fields={accountFields}
       title={existing ? `Edit ${existing.name}` : "Add an account"}
       onSaved={async (row, isNew) => {
-        // First account: attach anything added earlier without an account.
+        // First account: attach auto-debits added earlier without an account (income, EMIs, chits, SIPs).
+        // Bills and card bills stay unlinked — their account is chosen each time they're paid.
         if (!isNew || ds.accounts.some((a) => a.id !== row.id)) return;
         const id = (row as { id: string }).id;
-        for (const r of ds.recurring_rules) if (!r.account_id && !r.card_id) await patch("recurring_rules", r.id, { account_id: id });
-        for (const c of ds.credit_cards) if (!c.payment_account_id) await patch("credit_cards", c.id, { payment_account_id: id });
+        for (const r of ds.recurring_rules) if (!r.account_id && !r.card_id && r.kind !== "expense") await patch("recurring_rules", r.id, { account_id: id });
         for (const l of ds.loans) if (!l.payment_account_id && !l.card_id) await patch("loans", l.id, { payment_account_id: id });
         for (const c of ds.chits) if (!c.account_id) await patch("chits", c.id, { account_id: id });
         for (const i of ds.investments) if (i.sip_active && !i.sip_account_id) await patch("investments", i.id, { sip_account_id: id });

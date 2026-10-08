@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import type { Dataset, Preferences, Profile, RowOf, TableName } from "./types";
 import { newId, type Repo } from "./data/repo";
+import { friendlyError } from "./errors";
 
 type Status = "idle" | "loading" | "ready" | "error";
 
@@ -22,20 +23,17 @@ interface StoreState {
   updatePrefs(patch: Partial<Preferences>): Promise<void>;
 }
 
-function message(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  return String(e);
-}
+const message = friendlyError;
 
 function tableRows<T extends TableName>(ds: Dataset, t: T): RowOf<T>[] {
   return ds[t] as RowOf<T>[];
 }
 
+const byDateDesc = (a: { date: string }, b: { date: string }) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+
 function withTable<T extends TableName>(ds: Dataset, t: T, rows: RowOf<T>[]): Dataset {
   const next = { ...ds, [t]: rows } as Dataset;
-  if (t === "transactions") {
-    (next.transactions as RowOf<"transactions">[]).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }
+  if (t === "transactions") (next.transactions as RowOf<"transactions">[]).sort(byDateDesc);
   return next;
 }
 
@@ -55,9 +53,15 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ status: get().ds ? "ready" : "loading", error: null });
     try {
       const ds = await repo.load();
+      // Newest first, whatever order the storage returned them in (lists page from the top).
+      ds.transactions.sort(byDateDesc);
       set({ ds, status: "ready" });
     } catch (e) {
-      set({ status: "error", error: message(e) });
+      // A failed background refresh keeps what's on screen; only a failed first load shows the error screen.
+      if (get().ds) {
+        set({ status: "ready" });
+        toast.error(`Couldn't refresh: ${message(e)}`);
+      } else set({ status: "error", error: message(e) });
     }
   },
 

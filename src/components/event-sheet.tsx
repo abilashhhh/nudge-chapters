@@ -8,6 +8,7 @@ import { buildEvents, isPending, settlementDraft, SETTLED, type FinEvent } from 
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
+import { cn } from "@/lib/cn";
 import { useUI } from "@/lib/ui";
 import type { EventOverride } from "@/lib/types";
 import { Money } from "./money";
@@ -31,6 +32,7 @@ export function useEventLookup() {
 
 export function EventSheet() {
   const key = useUI((s) => s.eventKey);
+  const initialMode = useUI((s) => s.eventMode);
   const close = () => useUI.getState().openEvent(null);
   const lookup = useEventLookup();
   const e = useMemo(() => lookup(key), [key, lookup]);
@@ -42,22 +44,40 @@ export function EventSheet() {
       </Sheet>
     );
   }
-  return <EventDetail e={e} onClose={close} />;
+  return <EventDetail key={e.key} e={e} onClose={close} initialMode={isPending(e) ? initialMode : "view"} />;
 }
 
 type Mode = "view" | "settle" | "reschedule" | "amount";
 
-function EventDetail({ e, onClose }: { e: FinEvent; onClose: () => void }) {
+function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClose: () => void; initialMode?: "view" | "settle" }) {
   const { ds, today, positions, ctx } = useFinance();
   const add = useStore((s) => s.add);
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
-  const [mode, setMode] = useState<Mode>("view");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [amount, setAmount] = useState<number | null>(e.remaining || e.amount);
   // If you're marking it now, it happened today (editable for back-dating or scheduled payments).
   const [date, setDate] = useState(today);
-  const fallbackAccount = ds.accounts.find((x) => !x.archived && x.include_in_cash && x.type === "savings")?.id ?? ds.accounts.find((x) => !x.archived)?.id ?? "";
-  const [account, setAccount] = useState<string>(e.accountId ?? fallbackAccount);
+  const activeAccounts = useMemo(() => ds.accounts.filter((a) => !a.archived), [ds.accounts]);
+  // Bills and card bills have no fixed account, so you pick one each time (pre-filled only when there's a single account).
+  const [account, setAccount] = useState<string>(e.accountId ?? (activeAccounts.length === 1 ? activeAccounts[0].id : ""));
+  // Accounts this item was paid from / received into before, most recent first — offered as one-tap choices.
+  const recentAccounts = useMemo(() => {
+    const related = ds.transactions
+      .filter(
+        (t) =>
+          t.account_id &&
+          ((e.ruleId && t.rule_id === e.ruleId) ||
+            (e.kind === "card_bill" && e.cardId && t.type === "card_payment" && t.card_id === e.cardId) ||
+            (e.chitId && t.chit_id === e.chitId) ||
+            (e.loanId && t.loan_id === e.loanId) ||
+            (e.lendingId && t.lending_id === e.lendingId)),
+      )
+      .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1));
+    const out: string[] = [];
+    for (const t of related) if (!out.includes(t.account_id!) && activeAccounts.some((a) => a.id === t.account_id)) out.push(t.account_id!);
+    return out.slice(0, 3);
+  }, [ds.transactions, activeAccounts, e.ruleId, e.kind, e.cardId, e.chitId, e.loanId, e.lendingId]);
   const [partial, setPartial] = useState(false);
   const [newDate, setNewDate] = useState(e.date);
   const [newAmount, setNewAmount] = useState<number | null>(e.amount);
@@ -192,7 +212,7 @@ function EventDetail({ e, onClose }: { e: FinEvent; onClose: () => void }) {
             <div className="flex justify-end gap-2">
               <Button onClick={() => setMode("view")}>Back</Button>
               {mode === "settle" && (
-                <Button variant="primary" loading={busy} onClick={settle} disabled={!amount}>
+                <Button variant="primary" loading={busy} onClick={settle} disabled={!amount || (needsAccount && !isCardOnly && !account)}>
                   Save as {verb}
                 </Button>
               )}
@@ -283,29 +303,55 @@ function EventDetail({ e, onClose }: { e: FinEvent; onClose: () => void }) {
             <Field label="Amount" htmlFor="ev-amt">
               <AmountInput id="ev-amt" large autoFocus value={amount} onChange={setAmount} />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Date" htmlFor="ev-date">
-                <DateInput id="ev-date" value={date} onChange={(x) => setDate(x.target.value)} />
-              </Field>
-              {!isCardOnly && (
-                <Field label={flowIn ? "Received into" : "Paid from"} htmlFor="ev-acct">
+            {!isCardOnly && (
+              <div className="flex flex-col gap-2">
+                <Field
+                  label={flowIn ? "Received into" : "Paid from"}
+                  htmlFor="ev-acct"
+                  help={e.accountId ? undefined : `Which account did this ${flowIn ? "arrive in" : "come out of"} this time?`}
+                >
                   <Select id="ev-acct" value={account} onChange={(x) => setAccount(x.target.value)}>
                     <option value="">Choose an account</option>
-                    {ds.accounts
-                      .filter((a) => !a.archived)
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name} · {formatMoney(positions.accounts.get(a.id)?.balance ?? 0, ctx)}
-                        </option>
-                      ))}
+                    {activeAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} · {formatMoney(positions.accounts.get(a.id)?.balance ?? 0, ctx)}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
-              )}
-            </div>
+                {recentAccounts.length > 0 && activeAccounts.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Recently used accounts">
+                    <span className="text-[12.5px] text-ink-3">Recently used:</span>
+                    {recentAccounts.map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={account === id}
+                        onClick={() => setAccount(id)}
+                        className={cn(
+                          "h-8 rounded-full border px-3 text-[13px] transition-colors",
+                          account === id ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink-2 hover:border-line-strong",
+                        )}
+                      >
+                        {accountName(id)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <Field label="Date" htmlFor="ev-date">
+              <DateInput id="ev-date" value={date} onChange={(x) => setDate(x.target.value)} />
+            </Field>
             {!isCountBased && amount != null && amount < e.remaining - 0.5 && (
               <Switch checked={partial} onChange={setPartial} label="Part payment — more to come" help="Keeps the rest as still due. Leave off if this amount settles it in full." />
             )}
             {e.kind === "card_bill" && <p className="text-[12.5px] text-ink-3">Paying the bill reduces what you owe on the card. It isn&apos;t counted as a new expense.</p>}
+            {e.kind === "chit" && e.estimated && (
+              <p className="rounded-xl bg-future-soft px-3 py-2 text-[12.5px] text-future-ink">
+                This month&apos;s auction result isn&apos;t entered, so the amount above is an estimate. Enter what you actually paid — it becomes this installment&apos;s actual amount.
+              </p>
+            )}
           </div>
         )}
 

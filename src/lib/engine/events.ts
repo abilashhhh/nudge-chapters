@@ -197,7 +197,8 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
         title: rule.name,
         amount: rule.amount,
         flow,
-        accountId: rule.account_id,
+        // Bills aren't tied to an account: the account is chosen when each one is marked paid.
+        accountId: rule.kind === "expense" ? null : rule.account_id,
         toAccountId: rule.to_account_id,
         cardId: rule.card_id,
         category: rule.category,
@@ -356,15 +357,13 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
     if (chit.status !== "active") continue;
     const cp = positions.chits.get(chit.id);
     if (!cp) continue;
-    const instTxs = txs
-      .filter((t) => t.chit_id === chit.id && t.type === "chit_installment")
-      .sort((a, b) => ((a.occurrence_date ?? a.date) < (b.occurrence_date ?? b.date) ? -1 : 1));
-    const anchor = Number(chit.start_date.slice(8, 10));
-    const sd = parseISO(chit.start_date);
-    for (let i = chit.installments_paid_offset; i < chit.installments; i++) {
-      const date = clampDay(sd.getUTCFullYear(), sd.getUTCMonth() + i, anchor);
+    // Each installment's amount depends on that month's auction: confirmed amounts are used as-is,
+    // installments whose auction hasn't happened carry an estimate and are flagged as estimated.
+    const txById = new Map(txs.map((t) => [t.id, t]));
+    for (const row of cp.summary.rows) {
+      if (!row.tracked) continue;
+      const date = row.scheduledDate;
       if (date > to) break;
-      const tx = i < cp.paidCount ? instTxs[i - chit.installments_paid_offset] : undefined;
       const ov = ovs.get(`chit:${chit.id}:${date}`);
       const ev = resolve(
         {
@@ -375,27 +374,23 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
           occurrence: date,
           kind: "chit",
           title: `Chit · ${chit.name}`,
-          amount: chit.monthly_contribution,
+          amount: row.payable ?? row.planned,
           flow: "out",
           accountId: chit.account_id,
           category: "Chit",
-          isFixed: true,
+          isFixed: row.payable != null,
           isEssential: false,
-          certainty: "known",
-          estimated: false,
-          installment: i + 1,
+          certainty: row.payable != null ? "known" : "expected",
+          estimated: row.payable == null,
+          installment: row.no,
           installments: chit.installments,
         },
-        ov && ov.action !== "skip" ? ov : undefined,
-        tx ? [tx] : [],
+        ov && ov.action !== "skip" ? ov : row.dueDate !== date ? ({ action: "reschedule", new_date: row.dueDate } as EventOverride) : undefined,
+        row.txIds.map((id) => txById.get(id)!).filter(Boolean),
         today,
         (a) => a,
         true,
       );
-      if (i < cp.paidCount && !tx) {
-        ev.status = "paid";
-        ev.remaining = 0;
-      }
       if (keep(ev, from, to)) events.push(ev);
     }
     const payoutTx = txs.find((t) => t.chit_id === chit.id && t.type === "chit_payout");
@@ -510,7 +505,7 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
         title: `${card.name} bill`,
         amount: s.total_due,
         flow: "out" as const,
-        accountId: card.payment_account_id,
+        accountId: null, // chosen when the bill is marked paid
         category: "Credit card",
         isFixed: true,
         isEssential: true,
@@ -643,7 +638,7 @@ function projectCardCycles(
           title: `${card.name} bill`,
           amount: bill,
           flow: "out",
-          accountId: card.payment_account_id,
+          accountId: null, // chosen when the bill is marked paid
           category: "Credit card",
           isFixed: true,
           isEssential: true,

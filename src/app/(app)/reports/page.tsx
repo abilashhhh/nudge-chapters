@@ -45,7 +45,7 @@ function Reports() {
               onClick={() =>
                 downloadCSV(
                   ds.transactions.filter((t) => t.date >= `${today.slice(0, 4)}-01-01`) as unknown as Record<string, unknown>[],
-                  `kosh-transactions-${today.slice(0, 4)}.csv`,
+                  `nudge-chapters-transactions-${today.slice(0, 4)}.csv`,
                 )
               }
             >
@@ -73,7 +73,7 @@ function Reports() {
           { id: "health", label: "Health score" },
         ]}
       />
-      <div className="print-only mb-4 text-[13px] text-ink-3">Kosh report · generated {formatDate(today, "long")}</div>
+      <div className="print-only mb-4 text-[13px] text-ink-3">Nudge Chapters report · generated {formatDate(today, "long")}</div>
       {tab === "overview" && <Overview />}
       {tab === "spending" && <Spending />}
       {tab === "networth" && <NetWorth />}
@@ -267,7 +267,7 @@ function NetWorth() {
       </div>
       <Panel
         title="Net worth over time"
-        description="Recorded each day you open Kosh; projection for the next 2 years"
+        description="Recorded each day you open Nudge Chapters; projection for the next 2 years"
         action={
           <label className="flex items-center gap-2 text-[13px] text-ink-2">
             <input type="checkbox" className="h-4 w-4 accent-[var(--future)]" checked={real} onChange={(e) => setReal(e.target.checked)} />
@@ -323,7 +323,7 @@ function NetWorth() {
                 })}
             </ul>
           ) : (
-            <p className="text-[13.5px] text-ink-3">Kosh records your net worth each day you open it. Come back next month to see the change.</p>
+            <p className="text-[13.5px] text-ink-3">Nudge Chapters records your net worth each day you open it. Come back next month to see the change.</p>
           )}
         </Panel>
       </div>

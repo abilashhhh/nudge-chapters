@@ -83,8 +83,11 @@ export class SupabaseRepo implements Repo {
   }
 
   async remove(table: TableName, id: string): Promise<void> {
-    const { error } = await this.sb.from(table).delete().eq("id", id);
+    // Ask for the removed row back: if row-level security blocks the removal, Postgres reports
+    // success with zero rows, and the record would silently reappear on the next refresh.
+    const { data, error } = await this.sb.from(table).delete().eq("id", id).select("id");
     if (error) throw asError(error);
+    if (!data?.length) throw new Error("The server didn't remove it (it may already be gone, or removal isn't allowed). Refresh and try again.");
   }
 
   async updateProfile(patch: Partial<Profile>): Promise<Profile> {
@@ -120,7 +123,11 @@ export class SupabaseRepo implements Repo {
 
   async deleteAccount(): Promise<void> {
     const { error } = await this.sb.rpc("delete_my_account");
-    if (error) throw asError(error);
+    if (error) {
+      if (/delete_my_account/.test(error.message) && /(find|exist)/i.test(error.message))
+        throw new Error("Account deletion isn't switched on for this server yet. The site owner needs to run supabase/finish-setup.sql once.");
+      throw asError(error);
+    }
     await this.sb.auth.signOut();
   }
 

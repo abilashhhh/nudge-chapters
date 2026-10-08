@@ -258,7 +258,7 @@ function Notifications() {
           </Button>
         )}
       </Panel>
-      <Panel title="On this device" description="Browser notifications for urgent items, at most once a day when you open Kosh.">
+      <Panel title="On this device" description="Browser notifications for urgent items, at most once a day when you open Nudge Chapters.">
         {typeof Notification === "undefined" ? (
           <p className="text-[13.5px] text-ink-3">This browser doesn&apos;t support notifications.</p>
         ) : (
@@ -308,14 +308,14 @@ function Data() {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Panel title="Export" description="Your data is yours. Download all of it any time.">
         <div className="flex flex-col gap-2">
-          <Button icon={<FileJson className="h-4 w-4" />} onClick={() => downloadJSON(makeBackup(ds), `kosh-backup-${today}.json`)}>
+          <Button icon={<FileJson className="h-4 w-4" />} onClick={() => downloadJSON(makeBackup(ds), `nudge-chapters-backup-${today}.json`)}>
             Full backup (JSON — can be restored)
           </Button>
           <Button
             icon={<FileSpreadsheet className="h-4 w-4" />}
             onClick={async () => {
               try {
-                await downloadExcel(ds, `kosh-data-${today}.xlsx`);
+                await downloadExcel(ds, `nudge-chapters-data-${today}.xlsx`);
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : String(e));
               }
@@ -323,7 +323,7 @@ function Data() {
           >
             Everything in Excel (a sheet per table)
           </Button>
-          <Button icon={<Download className="h-4 w-4" />} onClick={() => downloadCSV(ds.transactions as unknown as Record<string, unknown>[], `kosh-transactions-${today}.csv`)}>
+          <Button icon={<Download className="h-4 w-4" />} onClick={() => downloadCSV(ds.transactions as unknown as Record<string, unknown>[], `nudge-chapters-transactions-${today}.csv`)}>
             Transactions (CSV)
           </Button>
           <LinkButton href="/reports" variant="ghost">
@@ -340,7 +340,7 @@ function Data() {
             Import transactions from CSV or Excel
           </Button>
           <Button icon={<Upload className="h-4 w-4" />} onClick={() => fileRef.current?.click()} loading={!!restoring}>
-            Restore a Kosh backup
+            Restore a Nudge Chapters backup
           </Button>
           <input
             ref={fileRef}
@@ -354,11 +354,13 @@ function Data() {
               try {
                 const backup = JSON.parse(await f.text()) as Backup;
                 setRestoring("Starting…");
-                await restoreBackup(repo, backup, setRestoring, ds);
+                const report = await restoreBackup(repo, backup, setRestoring, ds);
                 await load();
-                toast.success("Backup restored");
+                const count = Object.values(report.restored).reduce((a, n) => a + (n ?? 0), 0);
+                const skipped = Object.entries(report.ignored).map(([t, f]) => `${t.replace(/_/g, " ")}: ${f!.join(", ")}`);
+                toast.success(`Backup restored — ${count} records`, skipped.length ? { description: `Ignored fields this app doesn't use (${skipped.join("; ")}).` } : undefined);
               } catch (err) {
-                toast.error(`Couldn't restore: ${err instanceof Error ? err.message : String(err)}`);
+                toast.error(`Couldn't restore: ${err instanceof SyntaxError ? "the file isn't valid JSON." : err instanceof Error ? err.message : String(err)}`);
               } finally {
                 setRestoring(null);
               }
@@ -421,7 +423,7 @@ function Security() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="Stored on this device">
           <p className="text-[14px] text-ink-2">
-            You&apos;re using Kosh without an account, so your data lives only in this browser. Clearing site data removes it, and it won&apos;t sync to your phone or laptop.
+            You&apos;re using Nudge Chapters without an account, so your data lives only in this browser. Clearing site data removes it, and it won&apos;t sync to your phone or laptop.
           </p>
           <p className="mt-3 text-[13.5px] text-ink-2">To move to the cloud: download a backup (Import & export), sign in, then restore it.</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -444,7 +446,7 @@ function Security() {
           open={del}
           onClose={() => setDel(false)}
           title="Erase everything on this device?"
-          body="All Kosh data stored in this browser is deleted permanently."
+          body="All Nudge Chapters data stored in this browser is deleted permanently."
           confirmLabel="Erase"
           danger
           onConfirm={async () => {
@@ -569,7 +571,7 @@ function CloudSecurity() {
             onClick={async () => {
               setBusy("enroll");
               for (const f of factors.filter((x) => x.status !== "verified")) await getSupabase().auth.mfa.unenroll({ factorId: f.id });
-              const { data, error } = await getSupabase().auth.mfa.enroll({ factorType: "totp", friendlyName: `Kosh ${new Date().toISOString().slice(0, 10)}` });
+              const { data, error } = await getSupabase().auth.mfa.enroll({ factorType: "totp", friendlyName: `Nudge Chapters ${new Date().toISOString().slice(0, 10)}` });
               setBusy(null);
               if (error || !data) return toast.error(error?.message ?? "Couldn't start setup");
               setEnroll({ id: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
@@ -581,7 +583,7 @@ function CloudSecurity() {
       </Panel>
       <Panel title="How your data is protected" className="lg:col-span-2">
         <ul className="list-disc space-y-1 pl-5 text-[13.5px] text-ink-2">
-          <li>Kosh never asks for or stores bank passwords. Everything is entered by you or imported from files you choose.</li>
+          <li>Nudge Chapters never asks for or stores bank passwords. Everything is entered by you or imported from files you choose.</li>
           <li>Data is stored in your Supabase Postgres database, encrypted in transit (HTTPS) and at rest.</li>
           <li>Row-level security means each signed-in person can only read and change their own rows.</li>
           <li>Every change to your financial records is written to an activity log you can review.</li>
@@ -669,8 +671,8 @@ function Appearance() {
   const theme = ds.profile.preferences?.theme ?? "system";
   const setTheme = (t: "system" | "light" | "dark") => {
     try {
-      if (t === "system") localStorage.removeItem("kosh:theme");
-      else localStorage.setItem("kosh:theme", t);
+      if (t === "system") localStorage.removeItem("nudge:theme");
+      else localStorage.setItem("nudge:theme", t);
     } catch {
       /* ignore */
     }
@@ -714,9 +716,9 @@ function Appearance() {
         </Button>
       </Panel>
       {BMC_URL && (
-        <Panel title="Enjoying Kosh?" className="lg:col-span-2">
+        <Panel title="Enjoying Nudge Chapters?" className="lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[14px] text-ink-2">Kosh is free. If it helps you, you can support the developer.</p>
+            <p className="text-[14px] text-ink-2">Nudge Chapters is free. If it helps you, you can support the developer.</p>
             <div className="flex gap-2">
               <BmcButton />
               <LinkButton href="/support" variant="ghost">

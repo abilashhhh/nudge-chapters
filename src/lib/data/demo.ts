@@ -78,13 +78,13 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
   // ---------------------------------------------------------------- Cards
   const millennia: CreditCard = {
     id: id(), name: "HDFC Millennia", issuer: "HDFC Bank", last4: "4417", network: "Visa", credit_limit: 1_50_000,
-    statement_day: 5, due_day: 25, payment_account_id: sbi.id, opening_outstanding: 0, opening_date: today,
+    statement_day: 5, due_day: 25, payment_account_id: null, opening_outstanding: 0, opening_date: today,
     expected_monthly_spend: 3_500, annual_fee: 1_000, interest_rate_apr: 43.2, reward_points: 2_340,
     color: "#3b2f7a", archived: false,
   };
   const slice: CreditCard = {
     id: id(), name: "Slice", issuer: "Slice", last4: "0921", network: "Visa", credit_limit: 40_000,
-    statement_day: 20, due_day: 5, payment_account_id: hdfc.id, opening_outstanding: 0, opening_date: today,
+    statement_day: 20, due_day: 5, payment_account_id: null, opening_outstanding: 0, opening_date: today,
     expected_monthly_spend: 1_500, annual_fee: 0, interest_rate_apr: 36, reward_points: 0, color: "#5b4fc4", archived: false,
   };
   const cards = [millennia, slice];
@@ -191,13 +191,27 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     installments: 20, start_date: dom(-6, 10), installments_paid_offset: 0, payout_status: "pending",
     payout_amount: 1_82_000, payout_date: dom(8, 12), commission_pct: 5, account_id: sbi.id, status: "active",
     auction_notes: "Planning to bid around month 14",
+    installment_records: [],
   };
   {
+    // Each month's auction leaves a different dividend, so the installment changes month to month:
+    // ₹10,000 (no auction yet) → ₹8,200 → ₹8,500 → … Results are known a few days before each due date.
+    const dividends = [0, 1_800, 1_500, 1_650, 1_200, 1_350, 1_100, 950];
+    const sd = parseISO(chit.start_date);
     let paidBefore = 0;
     for (let i = 0; i < chit.installments; i++) {
-      const d = clampDay(parseISO(chit.start_date).getUTCFullYear(), parseISO(chit.start_date).getUTCMonth() + i, 10);
-      if (d < start) paidBefore++;
-      else if (d <= today) addTx({ date: d, type: "chit_installment", amount: i % 3 === 0 ? 9_400 : 10_000, account_id: sbi.id, chit_id: chit.id, occurrence_date: d, description: `Chit · ${chit.name}` });
+      const d = clampDay(sd.getUTCFullYear(), sd.getUTCMonth() + i, 10);
+      const auction = addDays(d, -3);
+      const dividend = dividends[i];
+      const known = i > 0 && dividend != null && auction <= today;
+      const paid = 10_000 - (dividend ?? 0);
+      if (d < start) {
+        paidBefore++;
+        chit.installment_records!.push({ no: i + 1, ...(known ? { auction_date: auction, dividend } : {}), paid_amount: paid, paid_date: d, source: "passbook" });
+        continue;
+      }
+      if (known) chit.installment_records!.push({ no: i + 1, auction_date: auction, dividend, source: "foreman_message" });
+      if (d <= today) addTx({ date: d, type: "chit_installment", amount: paid, account_id: sbi.id, chit_id: chit.id, occurrence_date: d, description: `Chit · ${chit.name}` });
     }
     chit.installments_paid_offset = paidBefore;
   }

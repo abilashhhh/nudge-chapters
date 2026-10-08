@@ -9,9 +9,11 @@ import { getSupabase, supabaseConfigured } from "@/lib/data/supabase";
 import { SupabaseRepo } from "@/lib/data/supabaseRepo";
 import { newId } from "@/lib/data/repo";
 import { useStore } from "@/lib/store";
+import { IS_DEV } from "@/lib/config";
+import { Brand } from "../brand";
 import { Button } from "../ui/button";
 
-export const MODE_KEY = "kosh:mode";
+export const MODE_KEY = "nudge:mode";
 
 export function getLocalMode(): string | null {
   try {
@@ -133,9 +135,9 @@ export function Bootstrap({ children, requireOnboarded = true }: { children: Rea
   if (status === "error") {
     return (
       <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
-        <h1 className="display text-2xl font-semibold">Couldn&apos;t load your data</h1>
+        <h1 className="display text-2xl font-semibold">Unable to load your information right now</h1>
         <p className="text-ink-2">{error}</p>
-        <p className="text-[13px] text-ink-3">Check your connection. If you just set up Supabase, make sure the database tables were created (see README).</p>
+        {IS_DEV && <p className="text-[13px] text-ink-3">Developer note: if you just set up Supabase, check the tables exist (see README).</p>}
         <div className="flex gap-2">
           <Button variant="primary" onClick={() => useStore.getState().load()}>
             Try again
@@ -165,7 +167,7 @@ export function LoadingScreen() {
   return (
     <div className="flex min-h-dvh items-center justify-center" aria-busy="true" aria-live="polite">
       <div className="flex flex-col items-center gap-3">
-        <div className="display text-3xl font-semibold tracking-tight text-ink">Kosh</div>
+        <Brand size="lg" />
         <div className="h-1 w-28 overflow-hidden rounded-full bg-surface-3">
           <div className="h-full w-1/3 animate-[loading_1.1s_ease-in-out_infinite] rounded-full bg-future" />
         </div>

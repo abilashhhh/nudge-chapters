@@ -9,10 +9,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { APP_NAME, BMC_URL } from "@/lib/config";
+import { Brand } from "../brand";
 import { useFinance } from "@/lib/finance";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { Editors } from "../editors";
+import { ChitInstallmentsSheet } from "../chits";
 import { EventSheet } from "../event-sheet";
 import { ExplainSheet } from "../explain";
 import { BmcFloating, SupportNavLink } from "../support";
@@ -75,7 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const setTheme = (t: "light" | "dark") => {
     try {
-      localStorage.setItem("kosh:theme", t);
+      localStorage.setItem("nudge:theme", t);
     } catch {
       /* ignore */
     }
@@ -97,8 +99,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh">
       {/* Desktop sidebar */}
       <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface px-3 py-5 lg:flex">
-        <Link href="/" className="mb-6 px-3">
-          <span className="display text-[26px] font-bold leading-none tracking-tight">{APP_NAME}</span>
+        <Link href="/" className="mb-6 px-3" aria-label={`${APP_NAME} home`}>
+          <Brand size="md" />
         </Link>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
           {NAV.map((n) => {
@@ -133,8 +135,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Top bar */}
         <header className="no-print sticky top-0 z-20 border-b border-line/70 bg-paper/85 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-[1240px] items-center gap-2 px-4 sm:px-6">
-            <Link href="/" className="display text-[22px] font-bold tracking-tight lg:hidden" aria-label={`${APP_NAME} home`}>
-              {APP_NAME}
+            <Link href="/" className="min-w-0 lg:hidden" aria-label={`${APP_NAME} home`}>
+              <Brand size="sm" />
             </Link>
             <span className="hidden text-[15px] font-semibold text-ink lg:inline">{title}</span>
             <button
@@ -232,6 +234,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <QuickAddSheet />
       <TransactionSheet />
       <EventSheet />
+      <ChitInstallmentsSheet />
       <Editors />
       <CommandPalette />
       <AlertsPanel />

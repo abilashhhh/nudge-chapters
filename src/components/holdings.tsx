@@ -89,7 +89,7 @@ function ReconcileSheet({ a, balance, onClose }: { a: Account; balance: number; 
       open
       onClose={onClose}
       title={`Match ${a.name}`}
-      description="Enter what your bank app shows right now. Any difference is recorded as an adjustment so Kosh matches reality."
+      description="Enter what your bank app shows right now. Any difference is recorded as an adjustment so Nudge Chapters matches reality."
       size="sm"
       footer={
         <div className="flex justify-end gap-2">
@@ -117,7 +117,7 @@ function ReconcileSheet({ a, balance, onClose }: { a: Account; balance: number; 
       }
     >
       <div className="flex flex-col gap-4">
-        <KV k="Kosh says" v={formatMoney(balance, { ...ctx, currency: a.currency }, { decimals: true })} />
+        <KV k="Nudge Chapters says" v={formatMoney(balance, { ...ctx, currency: a.currency }, { decimals: true })} />
         <Field label="Your bank shows" htmlFor="rec-actual">
           <AmountInput id="rec-actual" large value={actual} onChange={setActual} currency={a.currency} allowNegative />
         </Field>
@@ -187,7 +187,7 @@ export function UpdatePricesSheet({ open, onClose, positions: list }: { open: bo
       open={open}
       onClose={onClose}
       title="Update prices & values"
-      description="Kosh doesn't fetch live prices. Enter today's NAV, share price or balance from your app or statement."
+      description="Nudge Chapters doesn't fetch live prices. Enter today's NAV, share price or balance from your app or statement."
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Cancel</Button>

@@ -78,7 +78,7 @@ function useDeviceNotifications() {
     if (!urgent.length) return;
     try {
       if (n.digest !== false || urgent.length > 2) {
-        new Notification(`Kosh: ${urgent.length} item${urgent.length > 1 ? "s" : ""} need attention`, { body: urgent.slice(0, 3).map((a) => a.title).join("\n"), tag: `kosh-${today}` });
+        new Notification(`Nudge Chapters: ${urgent.length} item${urgent.length > 1 ? "s" : ""} need attention`, { body: urgent.slice(0, 3).map((a) => a.title).join("\n"), tag: `nudge-${today}` });
       } else {
         for (const a of urgent) new Notification(a.title, { body: a.body, tag: a.key });
       }

@@ -1,11 +1,12 @@
 {
-  "name": "kosh-finance",
+  "name": "nudge-chapters",
   "version": "1.0.0",
   "private": true,
-  "description": "Kosh — an all-in-one personal financial operating system: cash flow, bills, cards, EMIs, investments, EPFO, chits, lending, goals and future projections.",
+  "description": "Nudge Chapters \u2014 small nudges, bigger chapters. A personal command centre for cash flow, bills, cards, EMIs, investments, EPF, chits, lending, goals and future projections.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:static": "NEXT_OUTPUT=export next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

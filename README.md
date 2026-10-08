@@ -1,6 +1,10 @@
-# Kosh — personal finance on one timeline
+# Nudge Chapters
 
-Kosh (कोश, *treasury*) is an all-in-one personal financial operating system built from the
+**Small nudges. Bigger chapters.** A personal command centre for your money.
+
+**Live:** https://abilashhhh.github.io/nudge-chapters/
+
+Nudge Chapters is an all-in-one personal financial operating system built from the
 **All-in-One Personal Finance App PRD**. It combines cash flow, bills, bank balances,
 credit cards, EMIs, investments, EPFO, chits, lending and goals, and answers the PRD's
 central question:
@@ -19,7 +23,7 @@ central question:
 ## Quick start
 
 ```bash
-cd ~/Projects/kosh-finance
+cd ~/Projects/nudge-chapters
 cp .env.example .env.local   # already contains your Supabase project's URL and public key
 npm install
 npm run dev                  # http://localhost:3000
@@ -45,7 +49,7 @@ Requires Node.js 20.9 or newer.
 
 | | |
 |---|---|
-| Project | `kosh-finance` (ref `mzmcvnqmdyvlzzppzfyo`) |
+| Project | `nudge-chapters` (ref `mzmcvnqmdyvlzzppzfyo`) |
 | Region / plan | Mumbai (`ap-south-1`) · Free |
 | URL | `https://mzmcvnqmdyvlzzppzfyo.supabase.co` |
 | Config | `.env.example` → copy to `.env.local` (the URL and public key are already filled in) |
@@ -91,7 +95,7 @@ Optional:
 That turns on:
 
 - a **Support** page at `/support`,
-- a **Support Kosh** link in the sidebar and the mobile *More* screen,
+- a **Support Nudge Chapters** link in the sidebar and the mobile *More* screen,
 - a card in *Settings → Appearance*,
 - the optional floating button on desktop.
 
@@ -204,3 +208,34 @@ src/lib/engine        the financial engine (pure TypeScript, unit-tested)
 src/lib/data          Supabase and local repositories, demo data, import/export
 supabase/             migrations and finish-setup.sql
 ```
+
+
+## Deployment (GitHub Pages, free)
+
+Every push to `main` runs `.github/workflows/deploy.yml`: typecheck → tests → static export (`npm run build:static`, base path `/<repo>`) → published to the `gh-pages` branch. Pull requests run the same checks without deploying.
+
+One-time setup:
+1. Repo **Settings → Pages → Source: Deploy from a branch → `gh-pages` / root** (if not enabled automatically).
+2. **Supabase → Authentication → URL Configuration:** Site URL `https://abilashhhh.github.io/nudge-chapters/`, and add it to Redirect URLs (needed for magic links, sign-up confirmation and password reset).
+3. Optional: run `supabase/finish-setup.sql` in the Supabase SQL editor (audit trail + "Delete my account").
+
+Domain: `nudgechapters.com` availability couldn't be verified from here — check a registrar; if you buy it, add it under Settings → Pages → Custom domain and set `NEXT_PUBLIC_BASE_PATH` to empty in the workflow.
+
+## Environment variables
+
+See `.env.example`. Development: `.env.local`. Production: GitHub repository variables (defaults in the workflow are the public Supabase URL/publishable key). All are `NEXT_PUBLIC_*` and public by design — never add a service_role key.
+
+## Chits: auction-dependent installments
+
+Each installment keeps its own record (base, auction date, discount, dividend, fees, payable, paid, source). Actual, confirmed and projected (TBD) amounts are kept apart; "Current actual net" uses only actual payments, and pending auctions show as a projected range. Stored as `chits.installment_records` (jsonb, migration 0002).
+
+## Known limitations
+
+- GitHub Pages can't send security headers (they apply when self-hosting with `npm start`).
+- Supabase project is still named "kosh-finance" in the dashboard (rename under Project Settings → General; nothing depends on it).
+- Audit trail / account deletion need `finish-setup.sql` (one-time, manual).
+- Offline: the app shell opens offline; financial data is never cached by the service worker.
+
+## Remaining work (next phase)
+
+Life chapters, goals → nudges → actions model, notifications, native app wrappers, custom domain.

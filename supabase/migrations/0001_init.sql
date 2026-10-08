@@ -1,4 +1,4 @@
--- Kosh — personal financial operating system
+-- Nudge Chapters — personal command centre (finance module)
 -- Initial schema for Supabase (PostgreSQL).
 --
 -- Design notes

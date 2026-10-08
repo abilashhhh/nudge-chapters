@@ -1,0 +1,65 @@
+# Builds Nudge Chapters as a static site and publishes it to GitHub Pages.
+#
+#   push to main      → typecheck, test, build, deploy to the gh-pages branch
+#   pull request      → typecheck, test, build only (a staging check; nothing is deployed)
+#   manual run        → same as a push to main
+#
+# Live at https://<owner>.github.io/<repo>/ — the base path follows the repository name,
+# so renaming the repo keeps working.
+#
+# Configuration comes from repository variables (Settings → Secrets and variables → Actions →
+# Variables). Every value is PUBLIC — it ends up in the JavaScript sent to browsers — so the
+# Supabase URL and publishable key below are fine as defaults. Never add a service_role key here.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # publish the gh-pages branch
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_OUTPUT: export
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+      NEXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://mzmcvnqmdyvlzzppzfyo.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_kFWLbt5j1ytiB452nX_JlA_5bX9ChPE' }}
+      NEXT_PUBLIC_BMC_USERNAME: ${{ vars.NEXT_PUBLIC_BMC_USERNAME }}
+      NEXT_PUBLIC_BMC_WIDGET: ${{ vars.NEXT_PUBLIC_BMC_WIDGET || 'false' }}
+      NEXT_PUBLIC_AUTH_GOOGLE: ${{ vars.NEXT_PUBLIC_AUTH_GOOGLE || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # GitHub Pages runs Jekyll by default, which hides folders starting with "_" (like _next).
+      - run: touch out/.nojekyll
+
+      - name: Publish to gh-pages
+        if: github.event_name != 'pull_request'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
+          force_orphan: true
+          commit_message: "Deploy ${{ github.sha }}"

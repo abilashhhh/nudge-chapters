@@ -1,22 +1,23 @@
 {
-  "name": "Kosh — personal finance",
-  "short_name": "Kosh",
-  "description": "Your cash flow, bills, cards, EMIs, investments and future projection in one place.",
-  "start_url": "/",
-  "scope": "/",
+  "id": "./",
+  "name": "Nudge Chapters",
+  "short_name": "Nudge",
+  "description": "Small nudges. Bigger chapters. Your cash flow, bills, cards, EMIs, investments, chits and future projection in one place.",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#eef1ec",
   "theme_color": "#1f6b4f",
   "categories": ["finance", "productivity"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ],
   "shortcuts": [
-    { "name": "Add expense", "url": "/?add=expense" },
-    { "name": "Future projection", "url": "/projection" }
+    { "name": "Add expense", "url": "./?add=expense", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Future projection", "url": "./projection/", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }
