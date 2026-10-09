@@ -11,6 +11,7 @@ import { project } from "@/lib/engine/projection";
 import { allocation, monthlySeries } from "@/lib/engine/reports";
 import { useFinance, useMonthMetrics } from "@/lib/finance";
 import { MonthPicker } from "./ui/month-picker";
+import { SalaryPlanPanel } from "./salary-plan";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
@@ -91,6 +92,9 @@ export function Dashboard() {
         </Button>
       </div>
       <MonthPicker today={today} className="mb-3 md:hidden" />
+      <div className="mb-4 empty:hidden">
+        <SalaryPlanPanel />
+      </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {layout
           .filter((w) => !w.hidden && !(ds.profile.preferences?.hidden?.widgets ?? []).includes(w.id))

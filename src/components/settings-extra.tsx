@@ -231,10 +231,18 @@ export function VisualSettings() {
           <p className="text-[12px] text-ink-3">Your device&apos;s &ldquo;reduce motion&rdquo; setting is always respected.</p>
         </div>
       </Panel>
-      <Panel title="Goal planning" description="Kept aside before any money is suggested for goals.">
-        <Field label="Cash buffer to keep untouched" htmlFor="vs-buffer">
-          <AmountInput id="vs-buffer" value={ds.profile.preferences?.cashBuffer ?? null} onChange={(x) => void updatePrefs({ cashBuffer: x ?? 0 })} currency={ctx.currency} />
-        </Field>
+      <Panel title="Planning & alerts" description="Used by the goal plan, the balance forecast and the card planner.">
+        <div className="flex flex-col gap-3">
+          <Field label="Cash buffer to keep untouched" htmlFor="vs-buffer" help="Kept aside before any money is suggested for goals.">
+            <AmountInput id="vs-buffer" value={ds.profile.preferences?.cashBuffer ?? null} onChange={(x) => void updatePrefs({ cashBuffer: x ?? 0 })} currency={ctx.currency} />
+          </Field>
+          <Field label="Low-balance alert" htmlFor="vs-low" help="The balance forecast warns before your available cash would drop below this.">
+            <AmountInput id="vs-low" value={ds.profile.preferences?.lowBalance ?? null} onChange={(x) => void updatePrefs({ lowBalance: x ?? 0 })} currency={ctx.currency} />
+          </Field>
+          <Field label="Card utilisation alert (%)" htmlFor="vs-util">
+            <Input id="vs-util" type="number" min={1} max={100} value={ds.profile.preferences?.utilAlert ?? 30} onChange={(e) => void updatePrefs({ utilAlert: Number(e.target.value) || 30 })} />
+          </Field>
+        </div>
       </Panel>
     </>
   );

@@ -17,6 +17,8 @@ import type { CardPosition } from "@/lib/engine/ledger";
 import { ChitCard } from "@/components/chits";
 import { debtPlan, simulatePrepayment, type DebtInput, type LoanState } from "@/lib/engine/loans";
 import { useFinance } from "@/lib/finance";
+import type { FinEvent } from "@/lib/engine/events";
+import type { ProjectionResult } from "@/lib/engine/projection";
 import { formatMoney, formatPct } from "@/lib/money";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
@@ -135,7 +137,7 @@ function Cards() {
 }
 
 function CardTile({ cp }: { cp: CardPosition }) {
-  const { positions, ds, today, events, ctx } = useFinance();
+  const { positions, ds, today, events, ctx, near } = useFinance();
   const c = cp.card;
   const util = cp.utilization;
   const nextS = statementDateOnOrAfter(c, today);
@@ -202,6 +204,7 @@ function CardTile({ cp }: { cp: CardPosition }) {
             </p>
           </div>
         </div>
+        <CardPlanner cp={cp} nextBill={nextBill} near={near} />
         {emis.length > 0 && (
           <div className="mt-3 rounded-xl bg-surface-2 p-3 text-[13px]">
             <p className="mb-1 font-medium">EMIs on this card</p>
@@ -568,6 +571,34 @@ function DebtPlanner() {
               : "Investing may earn more than this debt costs, but returns aren't guaranteed while the interest is."}
         </p>
       </Panel>
+    </div>
+  );
+}
+
+
+/** §3.1 — statement vs outstanding, minimum due, what's reserved for the next payment, and whether it's funded. */
+function CardPlanner({ cp, nextBill, near }: { cp: CardPosition; nextBill?: FinEvent; near: ProjectionResult }) {
+  const { ds, ctx } = useFinance();
+  const alertPct = ds.profile.preferences?.utilAlert ?? 30;
+  const open = cp.statements.filter((s) => s.remaining > 0.5).at(-1);
+  const after = nextBill ? near.timeline.find((t) => t.event.key === nextBill.key) : undefined;
+  const funded = !after || after.cashAfter >= 0;
+  const m = (n: number) => formatMoney(n, ctx);
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-x-4 rounded-xl border border-line p-3 text-[13px]">
+      <KV k="Statement balance" v={open ? m(open.remaining) : "—"} />
+      <KV k="Total outstanding" v={m(cp.outstanding)} />
+      <KV k="Minimum due" v={open ? m(open.statement.min_due) : "—"} />
+      <KV k="Reserved for next payment" v={nextBill ? m(nextBill.remaining) : "—"} />
+      {nextBill && (nextBill.reimbursablePart ?? 0) > 0.5 && <KV k="Of which others repay you" v={<span className="text-future-ink">{m(nextBill.reimbursablePart!)}</span>} />}
+      <KV k="Utilisation" v={<span className={cp.utilization * 100 > alertPct ? "font-semibold text-warn" : ""}>{formatPct(cp.utilization * 100, 0)}{cp.utilization * 100 > alertPct ? ` · above your ${alertPct}% alert` : ""}</span>} />
+      {nextBill && after && (
+        <p className={cn("col-span-2 mt-1 text-[12.5px]", funded ? "text-ok" : "text-danger")}>
+          {funded
+            ? `✓ Funded — your cash covers the ${formatDate(nextBill.date, "short")} payment.`
+            : `⚠️ Not fully funded — paying on ${formatDate(nextBill.date, "short")} would leave ${m(after!.cashAfter)}. Paying late adds interest (${formatPct(cp.card.interest_rate_apr, 0)} a year) and a late fee.`}
+        </p>
+      )}
     </div>
   );
 }

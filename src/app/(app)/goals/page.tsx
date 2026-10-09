@@ -3,6 +3,7 @@
 import { Plus, Target } from "lucide-react";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { celebrate } from "@/lib/celebrate";
+import { SalaryPlanPanel } from "@/components/salary-plan";
 import { useVisual } from "@/lib/visual";
 import { TaskRow } from "@/components/life";
 import { Money } from "@/components/money";
@@ -105,7 +106,14 @@ function GoalPlan() {
   const plan = useMemo(() => planMonth(ds, positions, today, month, (n) => formatMoney(n, ctx)), [ds, positions, today, month, ctx]);
   const [busy, setBusy] = useState(false);
   const [showMath, setShowMath] = useState(false);
+  const [checklist, setChecklist] = useState(false);
   const vis = useVisual();
+  const applyAction = async (a: NonNullable<(typeof plan.recommendations)[number]["action"]>) => {
+    const s = useStore.getState();
+    const to = ds.goals.find((g) => g.id === a.toGoalId);
+    await s.patch("goals", a.fromGoalId, { monthly_contribution: 0 });
+    if (to) await s.patch("goals", to.id, { monthly_contribution: Math.round(to.monthly_contribution + a.amount) });
+  };
   const m = (n: number) => formatMoney(n, ctx);
   const apply = async () => {
     setBusy(true);
@@ -165,7 +173,7 @@ function GoalPlan() {
             </div>
             <Progress className="mt-2" value={a.needed > 0 ? Math.min(1, a.recommended / a.needed) : 1} tone={a.funded === "full" ? "brand" : "future"} label={`${a.goal.name} funding`} />
             <p className="mt-1 text-[12px] text-ink-3">
-              {a.funded === "full" ? "Fully funded this month ✓" : `${m(a.needed)} needed to stay on schedule`}
+              {a.blocked ? `⏸ ${a.blocked}` : a.funded === "full" ? "Fully funded this month ✓" : `${m(a.needed)} needed to stay on schedule`}
               {a.suggestedDate ? ` · realistic by ${formatDate(a.suggestedDate)} at this pace` : ""}
             </p>
           </li>
@@ -185,6 +193,11 @@ function GoalPlan() {
                   {r.title}
                 </p>
                 <p className="mt-0.5 text-ink-2">{r.detail}</p>
+                {r.action && (
+                  <Button size="sm" variant="secondary" className="mt-2" onClick={() => void applyAction(r.action!)}>
+                    {r.action.label}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -195,7 +208,15 @@ function GoalPlan() {
           Use this as my monthly plan
         </Button>
         <span className="text-[12px] text-ink-3">Sets each goal&apos;s monthly contribution. You can change any of them later.</span>
+        <Button size="sm" variant="ghost" onClick={() => setChecklist(!checklist)} aria-expanded={checklist}>
+          {checklist ? "Hide month checklist" : "Full month checklist"}
+        </Button>
       </div>
+      {checklist && (
+        <div className="mt-4">
+          <SalaryPlanPanel monthOf={month} force />
+        </div>
+      )}
     </Panel>
   );
 }
@@ -234,7 +255,7 @@ function GoalCard({ g }: { g: GoalProgress }) {
             {g.goal.target_date ? `By ${formatDate(g.goal.target_date)}` : "No deadline"} · {PRIORITY_LABEL[priorityOf(g.goal)]} priority
           </p>
         </button>
-        <Badge tone={st.tone}>{g.status === "done" ? "🎉 Reached" : st.label}</Badge>
+        <Badge tone={g.goal.paused ? "neutral" : st.tone}>{g.status === "done" ? "🎉 Reached" : g.goal.paused ? "Paused" : st.label}</Badge>
       </div>
       <div className="mt-3 flex items-baseline justify-between">
         <Money value={g.value} className="display text-[24px] font-semibold" />

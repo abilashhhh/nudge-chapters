@@ -247,6 +247,9 @@ export const goalFields: FieldDef<Goal>[] = [
   { name: "linked_account_ids", label: "Linked bank accounts", type: "accounts", help: "Their balances count towards this goal." },
   { name: "linked_investment_ids", label: "Linked investments", type: "investments" },
   { name: "expected_return", label: "Expected return on goal money", type: "percent", optional: true, half: true },
+  { name: "depends_on", label: "Start after this goal", type: "goal", noneLabel: "No dependency", half: true, help: "Gets no money until that goal is far enough along." },
+  { name: "min_before_start", label: "…once it has saved", type: "money", optional: true, half: true, showIf: (v) => !!v.depends_on, help: "Blank = when it's fully funded." },
+  { name: "paused", label: "Paused (keeps progress, no new money)", type: "toggle" },
   { name: "archived", label: "Archived", type: "toggle" },
   { name: "notes", label: "Notes", type: "textarea", optional: true },
 ];

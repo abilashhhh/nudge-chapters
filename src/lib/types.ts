@@ -156,6 +156,11 @@ export interface Goal extends Owned {
   linked_investment_ids: UUID[];
   /** 1 Critical · 2 High · 3 Medium · 4 Low. */
   priority: 1 | 2 | 3 | 4;
+  /** Starts receiving money only after this goal reaches `min_before_start` (its full target when 0). */
+  depends_on?: UUID | null;
+  min_before_start?: number | null;
+  /** Paused goals keep their progress but get no new money. */
+  paused?: boolean | null;
   expected_return?: number | null;
   color?: string | null;
   archived: boolean;
@@ -386,6 +391,12 @@ export interface Preferences {
   visual?: { emoji?: boolean; celebrations?: boolean; spendIcons?: boolean; motion?: "full" | "subtle" | "off" };
   /** Minimum cash to keep untouched when planning goals. */
   cashBuffer?: number;
+  /** Credit-utilisation alert, in % of limit (default 30). */
+  utilAlert?: number;
+  /** Warn when projected available cash would drop below this. */
+  lowBalance?: number;
+  /** Salary-day plans the user accepted or skipped, by month ("YYYY-MM"). */
+  salaryPlans?: Record<string, { status: "accepted" | "skipped"; at: string }>;
 }
 
 export interface Profile {

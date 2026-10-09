@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AmountInput, DateInput, Field, Input, NumberInput, Select, Switch } from "@/components/ui/form";
 import { Badge, KV, Panel, Segmented, Tabs } from "@/components/ui/misc";
 import { cn } from "@/lib/cn";
-import { addDays, addMonths, endOfMonth, formatDate, yearsBetween } from "@/lib/dates";
+import { addDays, addMonths, endOfMonth, formatDate, formatMonthLong, yearsBetween } from "@/lib/dates";
 import { DEFAULT_ASSUMPTIONS, resolveAssumptions } from "@/lib/engine/defaults";
 import type { FinEvent } from "@/lib/engine/events";
 import { affordability, project, type ProjectionPoint, type ProjectionResult, type PurchasePlan, type WhatIf } from "@/lib/engine/projection";
@@ -19,6 +19,7 @@ import { formatMoney, formatPct } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
+import { purchaseCheck, stressPresets } from "@/lib/engine/phase2";
 import type { Assumptions, ScenarioAssumptions, ScenarioKey } from "@/lib/types";
 
 const TABS = ["projection", "compare", "whatif", "afford", "assumptions"] as const;
@@ -432,7 +433,7 @@ const WHATIF_TEMPLATES: { type: WhatIf["type"]; label: string; make: (today: str
 ];
 
 function WhatIfView({ date }: { date: string }) {
-  const { ds, today, positions, assumptions, ctx } = useFinance();
+  const { ds, today, positions, assumptions, ctx, ef } = useFinance();
   const params = useSearchParams();
   const [items, setItems] = useState<WhatIf[]>([]);
   useEffect(() => {
@@ -449,6 +450,27 @@ function WhatIfView({ date }: { date: string }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Panel title="Your what-ifs" description="Stack as many as you like. Nothing here changes your real plans.">
+        <div className="mb-3">
+          <p className="text-[12.5px] font-semibold text-ink-2">Stress tests</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {stressPresets(today).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setItems([...items.filter((w) => !p.items.some((x) => x.id === w.id)), ...p.items])}
+                className="rounded-full border border-line px-2.5 py-1 text-[12.5px] text-ink-2 hover:border-line-strong hover:text-ink"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {items.length > 0 && (
+            <p className="mt-2 text-[12.5px] text-ink-2">
+              Lowest cash with these: <strong>{formatMoney(alt.lowest.cash, ctx)}</strong> on {formatDate(alt.lowest.date, "short")} (vs {formatMoney(base.lowest.cash, ctx)}).{" "}
+              {ef.essentialMonthly > 0 && `Your emergency money covers about ${(ef.current / ef.essentialMonthly).toFixed(1)} months of essentials.`}
+            </p>
+          )}
+        </div>
         <div className="flex flex-col gap-3">
           {items.map((w) => (
             <div key={w.id} className="rounded-xl border border-line bg-surface-2 p-3">
@@ -631,8 +653,99 @@ function Afford() {
             Goals funded from your bank balances may slow down by the amount spent. Assets bought (like a car) aren&apos;t added to net worth here — add them under Assets if you buy.
           </p>
         </Panel>
+        <PurchaseGoals plan={d} />
       </div>
     </div>
+  );
+}
+
+/** §2.3 — what the purchase does to your goals, a save-up schedule, cash vs EMI, and "make it a goal". */
+function PurchaseGoals({ plan }: { plan: PurchasePlan }) {
+  const { ds, positions, today, ctx } = useFinance();
+  const [priority, setPriority] = useState<1 | 2 | 3 | 4>(3);
+  const input = {
+    name: plan.name,
+    price: plan.price,
+    month: plan.date,
+    priority,
+    financing: plan.financing === "emi" ? ("emi" as const) : ("cash" as const),
+    downPayment: plan.downPayment,
+    emiMonths: plan.emiMonths,
+    emiRate: plan.emiRate,
+  };
+  const r = useMemo(() => purchaseCheck(ds, positions, today, input), [ds, positions, today, JSON.stringify(input)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const m = (n: number) => formatMoney(n, ctx);
+  const makeGoal = async () => {
+    const months = Math.max(1, r.schedule.length);
+    await useStore.getState().add("goals", {
+      name: plan.name,
+      kind: "gadget",
+      target_amount: r.upfront,
+      target_date: endOfMonth(plan.date),
+      priority,
+      current_amount: 0,
+      monthly_contribution: Math.round(r.upfront / months),
+      linked_account_ids: [],
+      linked_investment_ids: [],
+      archived: false,
+    });
+  };
+  return (
+    <Panel title="Effect on your goals" description="Uses the same month-by-month plan as Chapters: free money first, then only goals with a lower priority than this purchase.">
+      <Field label="How important is this purchase?" htmlFor="pg-pri">
+        <Select id="pg-pri" value={priority} onChange={(e) => setPriority(Number(e.target.value) as 1 | 2 | 3 | 4)}>
+          <option value={1}>Critical</option>
+          <option value={2}>High</option>
+          <option value={3}>Medium</option>
+          <option value={4}>Low</option>
+        </Select>
+      </Field>
+      <p className={cn("mt-3 text-[15px] font-semibold", r.verdict === "fits" ? "text-ok" : r.verdict === "slows_goals" ? "text-warn" : "text-ink")}>
+        {r.verdict === "fits"
+          ? "✅ You can work this in without slowing any goal."
+          : r.verdict === "slows_goals"
+            ? "🟡 You can work towards it — a few lower-priority goals slow down a little."
+            : `🗓️ Not by ${formatDate(plan.date, "short")} yet${r.earliestFree ? ` — it fits by ${formatMonthLong(r.earliestFree)} without touching goals.` : "."}`}
+      </p>
+      {r.schedule.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[12.5px] font-semibold text-ink-2">Save-up schedule ({m(r.upfront)} upfront)</p>
+          <ul className="mt-1 divide-y divide-line text-[13px]">
+            {r.schedule.map((s) => (
+              <li key={s.month} className="flex justify-between py-1.5">
+                <span>{formatMonthLong(s.month)}</span>
+                <span className="num">
+                  {m(s.fromFree + s.fromGoals)}
+                  {s.fromGoals > 0 && <span className="text-ink-3"> ({m(s.fromGoals)} from goals)</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {r.impacts.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[12.5px] font-semibold text-ink-2">Goals that slow down</p>
+          {r.impacts.map((i) => (
+            <KV key={i.goalId} k={i.name} v={`−${m(i.amount)}`} />
+          ))}
+        </div>
+      )}
+      {r.emi && (
+        <div className="mt-3 rounded-xl bg-surface-2 p-3 text-[13px]">
+          <p className="font-semibold">Cash vs EMI</p>
+          <KV k="Pay upfront" v={m(r.cashTotal)} />
+          <KV k={`EMI ${m(r.emi.amount)} × ${r.emi.months}`} v={`${m(r.emi.total)} total`} />
+          <KV k="Extra cost of EMI" v={m(r.emi.interest)} />
+          <p className={cn("mt-1", r.emi.fits ? "text-ok" : "text-warn")}>
+            {r.emi.fits ? "The EMI fits in the month after you buy." : `The EMI is more than the ${m(r.emi.freeAfter)} free that month — goals would slow down.`}
+          </p>
+        </div>
+      )}
+      <Button size="sm" className="mt-3" onClick={() => void makeGoal()}>
+        Turn this into a goal
+      </Button>
+    </Panel>
   );
 }
 

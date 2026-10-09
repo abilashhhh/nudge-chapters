@@ -11,7 +11,10 @@ import { cn } from "@/lib/cn";
 import { addDays, addMonths, endOfMonth, formatDate, formatMonth, formatMonthLong, monthKey, parseISO, startOfMonth } from "@/lib/dates";
 import { buildEvents, isPending, type FinEvent } from "@/lib/engine/events";
 import { useFinance } from "@/lib/finance";
-import { formatCompact } from "@/lib/money";
+import { formatCompact, formatMoney } from "@/lib/money";
+import { forecast } from "@/lib/engine/phase2";
+import { useStore } from "@/lib/store";
+import { AmountInput, Field } from "@/components/ui/form";
 import { useUI } from "@/lib/ui";
 
 const FILTERS: { id: string; label: string; test: (e: FinEvent) => boolean }[] = [
@@ -45,7 +48,7 @@ function chipClass(e: FinEvent, today: string) {
 
 function CalendarView() {
   const { ds, today, positions, assumptions } = useFinance();
-  const [view, setView] = useState<"month" | "agenda" | "year">("month");
+  const [view, setView] = useState<"month" | "agenda" | "year" | "forecast">("month");
   const [offset, setOffset] = useState(0);
   const [filter, setFilter] = useState("all");
   const [account, setAccount] = useState("");
@@ -86,6 +89,7 @@ function CalendarView() {
             { id: "month", label: "Month" },
             { id: "agenda", label: "Agenda" },
             { id: "year", label: "Year" },
+            { id: "forecast", label: "Balance forecast" },
           ]}
           value={view}
           onChange={(v) => {
@@ -126,6 +130,8 @@ function CalendarView() {
           </Select>
         </div>
       </div>
+
+      {view === "forecast" && <ForecastView />}
 
       {view === "month" && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -242,5 +248,71 @@ function CalendarView() {
         </div>
       )}
     </>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// §2.2 Balance forecast: every event with the available cash left after it.
+
+function ForecastView() {
+  const { ds, today, positions, ctx } = useFinance();
+  const [days, setDays] = useState(90);
+  const saved = ds.profile.preferences?.lowBalance ?? 0;
+  const [threshold, setThreshold] = useState<number | null>(saved);
+  const fc = useMemo(() => forecast(ds, positions, today, addDays(today, days), threshold ?? 0), [ds, positions, today, days, threshold]);
+  const m = (n: number) => formatMoney(n, ctx);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Look ahead" htmlFor="fc-days">
+          <Select id="fc-days" className="h-9 w-auto text-[13px]" value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value="30">30 days</option>
+            <option value="60">60 days</option>
+            <option value="90">90 days</option>
+            <option value="180">6 months</option>
+            <option value="365">1 year</option>
+          </Select>
+        </Field>
+        <Field label="Warn me below" htmlFor="fc-thr">
+          <AmountInput id="fc-thr" value={threshold} onChange={setThreshold} currency={ctx.currency} />
+        </Field>
+        {(threshold ?? 0) !== saved && (
+          <Button size="sm" onClick={() => void useStore.getState().updatePrefs({ lowBalance: threshold ?? 0 })}>
+            Save as my low-balance alert
+          </Button>
+        )}
+      </div>
+      {fc.firstLow ? (
+        <p className="rounded-xl bg-danger-soft px-4 py-3 text-[13.5px] text-danger">
+          ⚠️ On {formatDate(fc.firstLow.event.date)}, <strong>{fc.firstLow.event.title}</strong> ({m(fc.firstLow.event.remaining)}) would take your available cash to{" "}
+          <strong>{m(fc.firstLow.balance)}</strong>, below your {m(threshold ?? 0)} alert. Move money in before then, or reschedule something.
+        </p>
+      ) : (
+        <p className="rounded-xl bg-ok-soft px-4 py-3 text-[13.5px] text-ok">
+          🙂 Your available cash stays above {m(threshold ?? 0)} for the next {days} days. Lowest: {m(fc.lowest.cash)} on {formatDate(fc.lowest.date, "short")}.
+        </p>
+      )}
+      <Panel title="Day by day" description={`Starts from ${m(fc.start)} available today. Expected repayments and card bills are estimates until they happen.`}>
+        <ul className="divide-y divide-line">
+          {fc.rows.map((r, i) => (
+            <li key={r.event.key + i}>
+              <button type="button" onClick={() => useUI.getState().openEvent(r.event.key)} className="flex w-full items-center gap-3 py-2 text-left text-[13.5px] hover:bg-surface-2">
+                <span className="num w-16 shrink-0 text-ink-3">{formatDate(r.event.date, "short")}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {r.event.title}
+                  {r.event.estimated && <span className="ml-1 text-[11px] text-future-ink">est.</span>}
+                </span>
+                <span className={cn("num w-24 shrink-0 text-right", r.event.flow === "in" ? "text-ok" : r.event.flow === "none" ? "text-ink-3" : "")}>
+                  {r.event.flow === "none" ? `${m(r.event.remaining)} on card` : `${r.event.flow === "in" ? "+" : "−"}${m(r.event.remaining)}`}
+                </span>
+                <span className={cn("num w-28 shrink-0 text-right font-semibold", r.low ? "text-danger" : "")}>{m(r.balance)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {fc.rows.length === 0 && <p className="py-3 text-[14px] text-ink-2">Nothing planned in this period.</p>}
+      </Panel>
+    </div>
   );
 }

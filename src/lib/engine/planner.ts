@@ -31,6 +31,8 @@ export interface GoalAllocation {
   funded: "full" | "partial" | "none";
   /** A realistic date at the recommended pace, when it differs from the target date. */
   suggestedDate: ISODate | null;
+  /** Why it gets nothing yet: paused, or waiting for another goal. */
+  blocked?: string | null;
 }
 
 export interface Recommendation {
@@ -39,6 +41,8 @@ export interface Recommendation {
   title: string;
   detail: string;
   amount?: number;
+  /** A one-tap change the user can accept (never applied automatically). */
+  action?: { kind: "move_contribution"; fromGoalId: string; toGoalId: string; amount: number; label: string };
 }
 
 export interface MonthPlan {
@@ -92,9 +96,21 @@ export function planMonth(ds: Dataset, positions: Positions, today: ISODate, mon
   const monthsFromToday = Math.max(0, diffMonths(startOfMonth(today), startOfMonth(monthOf)));
   const goals = ds.goals.filter((g) => !g.archived);
   const progress = goals.map((g) => goalProgress(g, positions, today));
+  const byId = new Map(progress.map((p) => [p.goal.id, p]));
+  const blockedWhy = (g: Goal): string | null => {
+    if (g.paused) return "Paused";
+    if (!g.depends_on) return null;
+    const pre = byId.get(g.depends_on);
+    if (!pre) return null;
+    const threshold = g.min_before_start && g.min_before_start > 0 ? g.min_before_start : pre.goal.target_amount;
+    return pre.value + 0.5 < threshold ? `Starts after ${pre.goal.name} reaches ${fmt(threshold)}` : null;
+  };
   const rows = progress
     .filter((p) => p.status !== "done")
-    .map((p) => ({ p, priority: priorityOf(p.goal), needed: neededFor(p, monthsFromToday) }))
+    .map((p) => {
+      const blocked = blockedWhy(p.goal);
+      return { p, priority: priorityOf(p.goal), needed: blocked ? 0 : neededFor(p, monthsFromToday), blocked };
+    })
     .sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
       const ea = a.p.goal.kind === "emergency" ? 0 : 1;
@@ -125,8 +141,9 @@ export function planMonth(ds: Dataset, positions: Positions, today: ISODate, mon
         priority: tier,
         needed: r.needed,
         recommended: share,
-        funded: share >= r.needed - 0.5 ? "full" : share > 0 ? "partial" : "none",
+        funded: r.blocked ? "none" : share >= r.needed - 0.5 ? "full" : share > 0 ? "partial" : "none",
         suggestedDate,
+        blocked: r.blocked,
       });
     }
     left = round2(left - give);
@@ -169,7 +186,19 @@ export function planMonth(ds: Dataset, positions: Positions, today: ISODate, mon
       detail: `At ${a.recommended > 0 ? `${fmt(a.recommended)} a month` : "the pace left after higher priorities"} it's realistic by ${formatDate(a.suggestedDate)}. Higher-priority goals stay on schedule.`,
     });
   }
-  const unfunded = allocations.find((a) => a.funded !== "full");
+  // Finished goals that still have a monthly contribution: suggest moving it to the next goal in line.
+  const next = allocations.find((a) => !a.blocked && a.funded !== "full");
+  for (const p of progress.filter((x) => x.status === "done" && x.goal.monthly_contribution > 0)) {
+    if (!next) break;
+    recs.push({
+      id: `move-${p.goal.id}`,
+      emoji: "🔁",
+      title: `${p.goal.name} is complete`,
+      detail: `Its ${fmt(p.goal.monthly_contribution)} a month could go to ${next.goal.name}. Nothing changes until you say so.`,
+      action: { kind: "move_contribution", fromGoalId: p.goal.id, toGoalId: next.goal.id, amount: p.goal.monthly_contribution, label: `Move to ${next.goal.name}` },
+    });
+  }
+  const unfunded = allocations.find((a) => a.funded !== "full" && !a.blocked);
   if (unfunded) {
     recs.push({ id: "extra", emoji: "✨", title: "Add windfalls to the next goal in line", detail: `When extra money arrives (a bonus, a repayment, a refund), send it to ${unfunded.goal.name} first.` });
   }

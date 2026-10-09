@@ -177,3 +177,57 @@ describe("projection explains income ending", () => {
     expect(project(ds, { today: TODAY, to: "2029-10-09" }).end.cash).toBeGreaterThan(0);
   });
 });
+
+import { forecast, purchaseCheck, salaryDayPlan, stressPresets } from "./phase2";
+
+describe("phase 2", () => {
+  it("salary-day plan protects bills and Critical goals; flexible = what the plan leaves", () => {
+    const ds = salaryDs();
+    ds.goals = [goal({ name: "EF", kind: "emergency", target_amount: 120_000, target_date: "2027-10-31", priority: 1 })];
+    const sp = salaryDayPlan(ds, computePositions(ds, TODAY), TODAY, "2026-11-01");
+    const bills = sp.lines.filter((l) => l.group === "bills").reduce((s, l) => s + l.amount, 0);
+    expect(bills).toBe(20_000);
+    expect(sp.lines.find((l) => l.group === "goal")?.label).toBe("EF");
+    expect(sp.flexible).toBeCloseTo(sp.plan.available - sp.plan.allocated, 1);
+    expect(sp.assigned).toBeCloseTo(60_000, 0);
+  });
+
+  it("forecast's last balance equals projected cash", () => {
+    const ds = salaryDs();
+    const pos = computePositions(ds, TODAY);
+    const fc = forecast(ds, pos, TODAY, "2026-12-31", 45_000);
+    expect(fc.rows.at(-1)!.balance).toBeCloseTo(project(ds, { today: TODAY, to: "2026-12-31", positions: pos }).end.cash, 1);
+    expect(fc.firstLow?.event.title).toBe("Rent");
+  });
+
+  it("purchase check slows only lower-priority goals and adds up to the price", () => {
+    const ds = salaryDs();
+    ds.goals = [
+      goal({ name: "EF", kind: "emergency", target_amount: 240_000, target_date: "2027-10-31", priority: 1 }),
+      goal({ name: "Car", target_amount: 600_000, target_date: "2027-10-31", priority: 4 }),
+    ];
+    const r = purchaseCheck(ds, computePositions(ds, TODAY), TODAY, { name: "Phone", price: 30_000, month: "2026-12-01", priority: 3, financing: "cash" });
+    const saved = r.schedule.reduce((s, x) => s + x.fromFree + x.fromGoals, 0);
+    expect(saved).toBeCloseTo(30_000, 0);
+    expect(r.impacts.map((i) => i.name)).toEqual(["Car"]);
+    expect(r.verdict).toBe("slows_goals");
+  });
+
+  it("a dependent goal gets nothing until its prerequisite reaches the threshold", () => {
+    const ds = salaryDs();
+    const ef = goal({ name: "EF", kind: "emergency", target_amount: 100_000, target_date: "2027-10-31", priority: 1, current_amount: 20_000 });
+    ds.goals = [ef, goal({ name: "Car", target_amount: 500_000, target_date: "2028-01-31", priority: 2, depends_on: ef.id, min_before_start: 50_000 })];
+    let p = planMonth(ds, computePositions(ds, TODAY), TODAY, "2026-11-01");
+    expect(p.allocations.find((a) => a.goal.name === "Car")!.recommended).toBe(0);
+    ds.goals[0] = { ...ef, current_amount: 60_000 };
+    p = planMonth(ds, computePositions(ds, TODAY), TODAY, "2026-11-01");
+    expect(p.allocations.find((a) => a.goal.name === "Car")!.recommended).toBeGreaterThan(0);
+  });
+
+  it("stress test: no income for 3 months lowers the lowest balance", () => {
+    const ds = salaryDs();
+    const base = project(ds, { today: TODAY, to: "2027-06-30" });
+    const s = project(ds, { today: TODAY, to: "2027-06-30", whatIfs: stressPresets(TODAY)[0].items });
+    expect(s.lowest.cash).toBeLessThan(base.lowest.cash);
+  });
+});
