@@ -85,6 +85,15 @@ export const loanFields: FieldDef<Loan>[] = [
   { name: "emi_amount", label: "EMI amount", type: "money", optional: true, half: true, help: "Leave blank to calculate it." },
   { name: "payment_account_id", label: "EMI paid from", type: "account", showIf: (v) => !v.card_id, half: true },
   { name: "card_id", label: "Billed on credit card", type: "card", noneLabel: "Not a card EMI", showIf: (v) => v.type === "card_emi", half: true },
+  {
+    name: "reimbursable_person",
+    label: "Bought for someone who repays you",
+    type: "text",
+    optional: true,
+    half: true,
+    placeholder: "e.g. Surya",
+    help: "Their name. These EMIs are tracked under Owed to you and never counted as your spending — the card bill still includes them.",
+  },
   { name: "emis_paid_offset", label: "EMIs already paid", type: "int", optional: true, min: 0, half: true, help: "Leave blank to count EMIs dated before today as paid." },
   { name: "processing_fee", label: "Processing fee", type: "money", optional: true, half: true },
   { name: "status", label: "Status", type: "select", options: opts({ active: "Active", closed: "Closed" }), half: true },
@@ -107,6 +116,7 @@ export function finalizeLoan(v: Partial<Loan>, today: ISODate): Partial<Loan> {
     out.emis_paid_offset = s.filter((i) => i.date < today).length;
   }
   if (out.type !== "card_emi") out.card_id = null;
+  out.reimbursable_person = (out.reimbursable_person ?? "").trim() || null;
   if (out.card_id) out.payment_account_id = null;
   return out;
 }
@@ -229,7 +239,7 @@ export const valuationFields: FieldDef<InvestmentValuation>[] = [
 export const goalFields: FieldDef<Goal>[] = [
   { name: "name", label: "Goal", type: "text", required: true, placeholder: "e.g. House down payment", autoFocus: true },
   { name: "kind", label: "Kind", type: "select", options: opts({ emergency: "Emergency fund", house: "House", vehicle: "Vehicle", travel: "Travel", education: "Education", retirement: "Retirement", wedding: "Wedding", gadget: "Gadget", other: "Other" }), half: true },
-  { name: "priority", label: "Priority", type: "select", options: [{ value: "1", label: "High" }, { value: "2", label: "Medium" }, { value: "3", label: "Low" }], half: true },
+  { name: "priority", label: "Priority", type: "select", options: [{ value: "1", label: "Critical" }, { value: "2", label: "High" }, { value: "3", label: "Medium" }, { value: "4", label: "Low" }], half: true, help: "Money goes to Critical goals first, then High, Medium and Low." },
   { name: "target_amount", label: "Target amount", type: "money", required: true, half: true, min: 1 },
   { name: "target_date", label: "Target date", type: "date", optional: true, half: true },
   { name: "current_amount", label: "Saved so far (outside linked accounts)", type: "money", half: true, optional: true },

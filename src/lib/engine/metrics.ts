@@ -4,7 +4,8 @@ import { addDays, addMonths, endOfMonth, monthKey, startOfMonth } from "../dates
 import { round2 } from "../money";
 import type { Dataset, ISODate } from "../types";
 import { buildEvents, isPending, type FinEvent } from "./events";
-import { classify, isOpening, type Positions } from "./ledger";
+import { classify, computePositions, isOpening, type Positions } from "./ledger";
+import { project } from "./projection";
 import { perMonth } from "./schedule";
 
 export interface Line {
@@ -15,6 +16,12 @@ export interface Line {
 
 export interface MonthMetrics {
   month: string;
+  /** Whether the month is before, containing, or after today. */
+  period: "past" | "current" | "future";
+  /** Card bills and EMIs you pay for purchases made on someone else's behalf (they repay you). */
+  reimbursableDue: number;
+  /** Repayments expected this month from people you paid for. */
+  reimbursementsExpected: number;
   from: ISODate;
   to: ISODate;
   events: FinEvent[];
@@ -51,16 +58,33 @@ export function isCommitment(e: FinEvent): boolean {
   return e.flow === "out";
 }
 
-export function monthMetrics(ds: Dataset, positions: Positions, today: ISODate, events?: FinEvent[]): MonthMetrics {
-  const from = startOfMonth(today);
-  const to = endOfMonth(today);
-  const evs = events ?? buildEvents(ds, { from, to, today, positions });
+/**
+ * Figures for one calendar month. `monthOf` is any date in the month (default: today's month).
+ * Each month uses only its own income, bills and commitments: the current month starts from today's actual
+ * cash, a future month from the cash projected at the end of the previous month, and a past month shows actuals.
+ */
+export function monthMetrics(ds: Dataset, positions: Positions, today: ISODate, events?: FinEvent[], monthOf?: ISODate): MonthMetrics {
+  const ref = monthOf ?? today;
+  const from = startOfMonth(ref);
+  const to = endOfMonth(ref);
+  const period: MonthMetrics["period"] = to < today ? "past" : from > today ? "future" : "current";
+  const evsAll = events ?? buildEvents(ds, { from: period === "current" ? startOfMonth(addMonths(today, -1)) : from, to, today, positions });
+  // Overdue items from earlier months still need paying now, so they belong to the current month only.
+  const evs = evsAll.filter(
+    (e) =>
+      (e.date >= from && e.date <= to) ||
+      (e.budget && e.budget.periodEnd >= from && e.date <= to) ||
+      (period === "current" && e.date < from && (e.status === "overdue" || e.status === "partial")),
+  );
+  const txUntil = period === "future" ? from : to < today ? to : today;
 
-  const monthTx = ds.transactions.filter((t) => t.date >= from && t.date <= today && !isOpening(t));
+  const monthTx = ds.transactions.filter((t) => t.date >= from && t.date <= txUntil && !isOpening(t) && period !== "future");
   let incomeReceived = 0;
   let spent = 0;
   let invested = 0;
+  const reimbLoans = new Set(ds.loans.filter((l) => l.reimbursable_person).map((l) => l.id));
   for (const t of monthTx) {
+    if (t.loan_id && reimbLoans.has(t.loan_id)) continue;
     const c = classify(t);
     incomeReceived += c.income;
     spent += c.expense;
@@ -82,23 +106,41 @@ export function monthMetrics(ds: Dataset, positions: Positions, today: ISODate, 
   const unpaid = committedItems.filter(isPending);
   const overdue = unpaid.filter((e) => e.status === "overdue" || (e.status === "partial" && e.date < today));
 
-  const availableCash = positions.totals.cash;
+  let availableCash = positions.totals.cash;
+  if (period === "future") availableCash = project(ds, { today, to: addDays(from, -1), positions }).end.cash;
+  else if (period === "past") availableCash = computePositions(ds, to).totals.cash;
   const reserved = positions.totals.reserved;
-  const spendable = availableCash + incomeExpected - committedPending - budgetRemaining - reserved;
+  const reimbursableDue = round2(
+    committedItems.filter(isPending).reduce((s, e) => s + (e.kind === "card_bill" ? Math.min(e.remaining, e.reimbursablePart ?? 0) : e.reimbursable ? e.remaining : 0), 0),
+  );
+  const reimbPeople = new Set(ds.loans.filter((l) => l.reimbursable_person && l.status === "active").map((l) => l.reimbursable_person!.toLowerCase()));
+  const reimbursementsExpected = round2(
+    evs
+      .filter((e) => e.kind === "lend_due" && isPending(e) && !e.excluded && [...reimbPeople].some((p) => e.title.toLowerCase().includes(p)))
+      .reduce((s, e) => s + e.remaining, 0),
+  );
+  const spendable =
+    period === "past" ? 0 : availableCash + incomeExpected + reimbursementsExpected - committedPending - budgetRemaining - reserved;
 
   const spendableLines: Line[] = [
     { label: "Cash in your accounts", amount: availableCash, hint: "Balances of accounts included in available cash" },
     { label: "Income still expected this month", amount: incomeExpected, hint: "Known income not yet received" },
-    { label: "Bills and commitments still to pay", amount: -committedPending, hint: "EMIs, card bills, rent, SIPs, chits and other fixed outflows due by month end (including overdue)" },
+    { label: "Bills and commitments still to pay", amount: -committedPending, hint: "EMIs, card bills, rent, SIPs, chits and other fixed outflows due by month end (including overdue). Card bills include purchases made for others — you still owe the bank." },
+    ...(reimbursementsExpected > 0
+      ? [{ label: "Repayments expected from people you paid for", amount: reimbursementsExpected, hint: "Expected this month for reimbursable purchases. Not income — it offsets the card payment you make for them." }]
+      : []),
     { label: "Remaining spending budgets", amount: -budgetRemaining, hint: "What's left in your variable budgets for this month" },
     { label: "Set aside in reserves", amount: -reserved, hint: "Money earmarked for future needs" },
   ];
 
   const incomeTotal = incomeReceived + incomeExpectedAll;
-  const expenseTotal = spent + evs.filter((e) => (e.kind === "expense" || e.kind === "card_spend") && isPending(e) && !e.excluded).reduce((s, e) => s + e.remaining, 0);
+  const expenseTotal = spent + evs.filter((e) => (e.kind === "expense" || e.kind === "card_spend") && isPending(e) && !e.excluded && !e.reimbursable).reduce((s, e) => s + e.remaining, 0);
 
   return {
-    month: monthKey(today),
+    month: monthKey(ref),
+    period,
+    reimbursableDue,
+    reimbursementsExpected,
     from,
     to,
     events: evs,
@@ -133,6 +175,8 @@ export interface MonthlyNorms {
   essentialExpenses: number;
   variableBudgets: number;
   emis: number;
+  /** EMIs for purchases someone else repays — excluded from `emis` and from personal outflow. */
+  reimbursableEmis: number;
   sips: number;
   chits: number;
   cardSpend: number;
@@ -163,7 +207,12 @@ export function monthlyNorms(ds: Dataset, positions: Positions): MonthlyNorms {
     }
   }
   let emis = 0;
-  for (const { loan, state } of positions.loans.values()) if (loan.status === "active" && state.remainingInstallments > 0) emis += state.emi;
+  let reimbursableEmis = 0;
+  for (const { loan, state } of positions.loans.values()) {
+    if (loan.status !== "active" || state.remainingInstallments <= 0) continue;
+    if (loan.reimbursable_person) reimbursableEmis += state.emi;
+    else emis += state.emi;
+  }
   let sips = 0;
   for (const i of ds.investments) if (i.sip_active && !i.archived) sips += i.sip_amount;
   let chits = 0;
@@ -178,6 +227,7 @@ export function monthlyNorms(ds: Dataset, positions: Positions): MonthlyNorms {
     essentialExpenses: round2(essential),
     variableBudgets: round2(budgets),
     emis: round2(emis),
+    reimbursableEmis: round2(reimbursableEmis),
     sips: round2(sips),
     chits: round2(chits),
     cardSpend: round2(cardSpend),

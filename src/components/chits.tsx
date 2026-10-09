@@ -119,8 +119,10 @@ export function ChitCard({ cp }: { cp: ChitPosition }) {
           v={s.payoutReceived != null ? `${money(s.payoutReceived)} received` : received ? "Received — amount not entered" : <span className="font-normal text-ink-3">Not taken yet</span>}
         />
         <div>
-          <KV k="Current actual net" v={<span className={s.currentNet >= 0 ? "text-ok" : "text-danger"}>{formatMoney(s.currentNet, ctx, { sign: true })}</span>} />
-          <p className="-mt-1 pb-1.5 text-[12px] text-ink-3">Payout received minus installments paid. Actual figures only.</p>
+          <KV k="Net cash flow to date" v={<span className={s.currentNet >= 0 ? "text-ok" : "text-ink"}>{formatMoney(s.currentNet, ctx, { sign: true })}</span>} />
+          <p className="-mt-1 pb-1.5 text-[12px] text-ink-3">
+            Payouts actually received minus installments actually paid. {s.payoutReceived == null ? "It's negative until you take the payout — that's money saved in the chit, not a loss." : ""}
+          </p>
         </div>
       </div>
       {s.unrecordedCount > 0 && (
@@ -142,6 +144,7 @@ export function ChitCard({ cp }: { cp: ChitPosition }) {
             {s.tbdCount > 0 && <KV k={`Auction not held yet (${s.tbdCount})`} v={<span className="projected">{range}</span>} />}
             <KV k="Projected remaining cost" v={<Money value={s.projectedRemainingEstimate} projected={s.tbdCount > 0} />} />
             {!received && <KV k="Expected payout" v={<Money value={s.payoutExpected} projected />} />}
+            {!received && <KV k="Expected payout date" v={<span className="projected">{formatDate(c.payout_date ?? cp.endDate)}</span>} />}
             <div>
               <KV k="Projected overall (estimate)" v={<Money value={s.projectedOverallNet} sign projected />} />
               <p className="-mt-1 pb-1.5 text-[12px] text-ink-3">
@@ -156,6 +159,11 @@ export function ChitCard({ cp }: { cp: ChitPosition }) {
         </>
       )}
 
+      {!received && (
+        <p className="mt-2 text-[12px] text-ink-3">
+          The payout is shown as expected, never as cash, until you record it. Your net worth counts what you&apos;ve paid in so far.
+        </p>
+      )}
       {c.auction_notes && <p className="mt-2 text-[12.5px] text-ink-3">{c.auction_notes}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         {next && (
@@ -239,7 +247,7 @@ function InstallmentsView({ cp, onClose }: { cp: ChitPosition; onClose: () => vo
         <Stat label="Actually paid" value={money(s.actualPaid)} note={`${s.actualPaidCount} installment${s.actualPaidCount === 1 ? "" : "s"}`} />
         <Stat label="Confirmed to pay" value={money(s.remainingConfirmed)} note={`${s.remainingConfirmedCount} installment${s.remainingConfirmedCount === 1 ? "" : "s"}`} />
         <Stat label="Auction pending (TBD)" value={range ?? money(0)} note={`${s.tbdCount} installment${s.tbdCount === 1 ? "" : "s"}`} projected />
-        <Stat label="Current actual net" value={formatMoney(s.currentNet, ctx, { sign: true })} note="received − paid" tone={s.currentNet >= 0 ? "ok" : "danger"} />
+        <Stat label="Net cash flow to date" value={formatMoney(s.currentNet, ctx, { sign: true })} note="received − paid (actuals)" tone={s.currentNet >= 0 ? "ok" : undefined} />
       </div>
 
       {/* Table on tablets and up */}

@@ -89,13 +89,22 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
   const flowIn = e.flow === "in";
   const isCountBased = e.source === "loan" || (e.source === "chit" && e.kind === "chit");
   const canSkip = !isCountBased && e.kind !== "lend_due" && e.kind !== "borrow_due" && e.kind !== "chit_payout";
-  const canAdjust = e.source === "rule" || e.source === "sip" || e.source === "card";
+  const canAdjust = e.source === "rule" || e.source === "sip" || e.source === "card" || e.source === "task";
   const override = ds.event_overrides.find((o) => o.source_type === e.source && o.source_id === e.sourceId && o.occurrence_date === e.occurrence);
   const isCardOnly = e.kind === "card_spend" || (e.kind === "emi" && e.flow === "none");
   const accountName = (id?: string | null) => ds.accounts.find((a) => a.id === id)?.name;
   const cardName = (id?: string | null) => ds.credit_cards.find((c) => c.id === id)?.name;
 
   const upsertOverride = async (o: Partial<EventOverride>) => {
+    if (e.source === "task") {
+      // Task costs live on the task itself: move its date, change its estimate, or drop it.
+      const item = ds.life_items.find((x) => x.id === e.sourceId);
+      if (!item) return;
+      if (o.action === "reschedule" && o.new_date) await patch("life_items", item.id, { due_date: o.new_date });
+      else if (o.action === "adjust" && o.new_amount != null) await patch("life_items", item.id, { data: { ...item.data, estimated_cost: o.new_amount } });
+      else await patch("life_items", item.id, { status: "done", completed_at: new Date().toISOString() });
+      return;
+    }
     const body = { source_type: e.source, source_id: e.sourceId, occurrence_date: e.occurrence, new_date: null, new_amount: null, ...o } as Partial<EventOverride>;
     if (override) await patch("event_overrides", override.id, body);
     else await add("event_overrides", body);

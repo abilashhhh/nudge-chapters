@@ -13,6 +13,7 @@ import { useStore } from "@/lib/store";
 import type { ChecklistEntry, LifeItem, LifeKind, Repeat } from "@/lib/types";
 import { enableAlarmPush } from "@/lib/push";
 import { useUI } from "@/lib/ui";
+import { celebrate } from "@/lib/celebrate";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Input, Select, Switch, Textarea } from "./ui/form";
 import { Badge, Progress } from "./ui/misc";
@@ -32,7 +33,20 @@ export function useLifeActions() {
     async complete(item: LifeItem) {
       const p = completionPatch(item, today);
       await patch("life_items", item.id, p);
-      toast.success(item.repeat !== "none" && item.due_date ? `Done — next one ${formatDate(p.due_date!, "short")}` : "Done");
+      if (item.repeat === "none") celebrate(["✅", "✨", "🎉"]);
+      const cost = Number(item.data?.estimated_cost ?? 0);
+      if (cost > 0 && item.kind === "task" && item.repeat === "none") {
+        // Reconcile the estimate with what it really cost: the recorded expense replaces the reserved estimate.
+        toast.success("Done 🎉 What did it actually cost?", {
+          action: {
+            label: "Record cost",
+            onClick: () => useUI.getState().openTx({ type: "expense", amount: cost, description: item.title, category: item.data?.category ?? null, tags: [`task:${item.id}`] }),
+          },
+          duration: 10000,
+        });
+        return;
+      }
+      toast.success(item.repeat !== "none" && item.due_date ? `Done — next one ${formatDate(p.due_date!, "short")}` : "Done ✓");
     },
     async reopen(item: LifeItem) {
       await patch("life_items", item.id, { status: "open", completed_at: null });
@@ -93,10 +107,22 @@ export function TaskRow({ item }: { item: LifeItem }) {
           )}
           {sub.total > 0 && <span className="text-ink-3">{sub.done}/{sub.total} steps</span>}
           {item.priority === 1 && !done && <span className="font-medium text-danger">High</span>}
+          {Number(item.data?.estimated_cost ?? 0) > 0 && <TaskCost item={item} />}
           <ChapterChip goalId={item.goal_id} />
         </span>
       </button>
     </div>
+  );
+}
+
+function TaskCost({ item }: { item: LifeItem }) {
+  const { ds, ctx } = useFinance();
+  const tag = `task:${item.id}`;
+  const actual = ds.transactions.filter((t) => Array.isArray(t.tags) && t.tags.includes(tag)).reduce((s, t) => s + t.amount, 0);
+  return actual > 0 ? (
+    <span className="text-ink-3">· cost {formatMoney(actual, ctx)}</span>
+  ) : (
+    <span className="projected text-future-ink">· ≈{formatMoney(Number(item.data?.estimated_cost), ctx)} reserved</span>
   );
 }
 
@@ -466,6 +492,11 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
                   <option value={2}>Medium</option>
                   <option value={3}>Low</option>
                 </Select>
+              </Field>
+            )}
+            {kind === "task" && (
+              <Field label="Estimated cost" htmlFor="li-cost" optional help="Reserved from that month's money before goals. Needs a due date.">
+                <AmountInput id="li-cost" value={v.data?.estimated_cost ?? null} onChange={(x) => setData({ estimated_cost: x })} currency={ctx.currency} />
               </Field>
             )}
             <Field label="Tags" htmlFor="li-tags" optional help="Separate with commas">

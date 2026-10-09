@@ -193,6 +193,32 @@ function ProjectionView({ date }: { date: string }) {
         </div>
       )}
 
+      {res.insights.length > 0 && (
+        <Panel title="Why the numbers look like this" description="What drives this projection, in plain words. Estimates, not guarantees.">
+          <ul className="flex flex-col gap-3">
+            {res.insights.map((i) => (
+              <li key={i.kind + (i.ruleId ?? "")} className="rounded-xl border border-line bg-surface-2 p-3 text-[13.5px]">
+                <p className="font-semibold">
+                  {i.kind === "income_ends" ? "💼 " : i.kind === "expense_growth" ? "📈 " : i.kind === "reimbursable" ? "🤝 " : "ℹ️ "}
+                  {i.date ? i.title.replace(i.date, formatDate(i.date)) : i.title}
+                </p>
+                <p className="mt-0.5 text-ink-2">{i.amount && i.kind === "income_ends" ? i.detail.replace(String(Math.round(i.amount)), formatMoney(i.amount, ctx)) : i.detail}</p>
+                {i.kind === "income_ends" && i.ruleId && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => void useStore.getState().patch("recurring_rules", i.ruleId!, { end_date: null })}>
+                      Keep it going (remove end date)
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => useUI.getState().openEditor("rule", i.ruleId)}>
+                      Edit
+                    </Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
       <Panel
         title={`${METRIC_LABEL[metric]} over time`}
         action={

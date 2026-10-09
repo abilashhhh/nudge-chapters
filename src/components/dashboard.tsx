@@ -2,13 +2,15 @@
 
 import { ArrowDown, ArrowRight, ArrowUp, Eye, EyeOff, Info, Settings2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addDays, addMonths, diffMonths, endOfMonth, formatDate, startOfMonth } from "@/lib/dates";
 import { isPending } from "@/lib/engine/events";
 import { project } from "@/lib/engine/projection";
 import { allocation, monthlySeries } from "@/lib/engine/reports";
-import { useFinance } from "@/lib/finance";
+import { useFinance, useMonthMetrics } from "@/lib/finance";
+import { MonthPicker } from "./ui/month-picker";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
@@ -41,6 +43,9 @@ const WIDGETS: Record<string, { label: string; span: string }> = {
   investments: { label: "Investments", span: "lg:col-span-5" },
 };
 
+/** A widget disappears with its section (Settings → Sections). */
+const WIDGET_SECTION: Record<string, string> = { goals: "goals", budgets: "budgets", investments: "investments", ribbon: "projections", networth: "reports", cashflow: "reports", upcoming: "bills" };
+
 const DEFAULT_DESKTOP = ["hero", "ribbon", "upcoming", "income", "alerts", "cashflow", "networth", "timeline", "investments", "goals", "budgets"];
 const DEFAULT_MOBILE = ["hero", "ribbon", "upcoming", "timeline", "investments", "goals", "alerts", "budgets", "income", "cashflow", "networth"];
 
@@ -71,6 +76,7 @@ export function Dashboard() {
   const key = desktop ? "desktop" : "mobile";
   const layout = resolveLayout(ds.profile.preferences?.dashboard?.[key], desktop ? DEFAULT_DESKTOP : DEFAULT_MOBILE);
   const name = ds.profile.name?.split(" ")[0];
+  const { today } = useFinance();
 
   const save = (next: DashboardWidgetPref[] | undefined) =>
     updatePrefs({ dashboard: { ...(ds.profile.preferences?.dashboard ?? {}), [key]: next } });
@@ -79,13 +85,16 @@ export function Dashboard() {
     <>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h1 className="display text-[26px] font-semibold leading-tight sm:text-[30px]">{greeting()}{name ? `, ${name}` : ""}</h1>
+        <MonthPicker today={today} className="ml-auto hidden md:flex" />
         <Button size="sm" variant="ghost" icon={<Settings2 className="h-4 w-4" />} onClick={() => setCustomize(true)}>
           <span className="hidden sm:inline">Customise</span>
         </Button>
       </div>
+      <MonthPicker today={today} className="mb-3 md:hidden" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {layout
-          .filter((w) => !w.hidden)
+          .filter((w) => !w.hidden && !(ds.profile.preferences?.hidden?.widgets ?? []).includes(w.id))
+          .filter((w) => !(ds.profile.preferences?.hidden?.sections ?? []).includes(WIDGET_SECTION[w.id] ?? "-"))
           .map((w) => (
             <div key={w.id} className={cn("min-w-0", WIDGETS[w.id].span)}>
               <Widget id={w.id} />
@@ -191,7 +200,9 @@ function Widget({ id }: { id: string }) {
 
 function Hero() {
   const f = useFinance();
-  const { month, positions, ds, today, ctx } = f;
+  const { positions, ds, today, ctx } = f;
+  const month = useMonthMetrics();
+  const router = useRouter();
   const t = positions.totals;
   const explain = useExplain((s) => s.show);
   const prevSnap = [...ds.net_worth_snapshots].filter((s) => s.date <= addDays(startOfMonth(today), -1)).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
@@ -199,8 +210,11 @@ function Hero() {
 
   const showSpendable = () =>
     explain({
-      title: "Safe to spend this month",
-      intro: `What's left until ${formatDate(month.to)} after everything you've committed to.`,
+      title: month.period === "current" ? "Safe to spend this month" : month.period === "future" ? `Safe to spend in ${formatDate(month.from, "medium").slice(3)}` : "That month",
+      intro:
+        month.period === "future"
+          ? `Starts from the cash projected for ${formatDate(month.from)} and uses only that month's own income, bills and budgets.`
+          : `What's left until ${formatDate(month.to)} after everything you've committed to.`,
       lines: month.spendableLines.map((l) => ({ label: l.label, amount: l.amount, hint: l.hint })),
       total: { label: "Safe to spend", amount: month.spendable },
       footnote: "Uncertain income (like a bonus) isn't counted. Tap Cash flow to see each bill.",
@@ -273,16 +287,13 @@ function Hero() {
       label: "Owed to you",
       value: t.receivables,
       sub: (() => {
-        const n = [...positions.lendings.values()].filter((l) => l.lending.direction === "lent" && l.outstanding > 0).length;
-        return n === 1 ? "1 person" : `${n} people`;
+        const lent = [...positions.lendings.values()].filter((l) => l.lending.direction === "lent" && l.outstanding > 0);
+        const dueNow = lent.filter((l) => (l.lending.expected_date ?? l.lending.date) < today).reduce((s, l) => s + l.outstanding, 0);
+        const people = new Set(lent.map((l) => l.lending.person.split(/\s+[—–-]\s+/)[0].trim().toLowerCase())).size;
+        return `${people === 1 ? "1 person" : `${people} people`}${dueNow > 0 ? ` · ${formatMoney(dueNow, ctx)} due` : ""}`;
       })(),
       tone: "in",
-      onClick: () =>
-        explain({
-          title: "Money owed to you",
-          lines: [...positions.lendings.values()].filter((l) => l.lending.direction === "lent" && l.outstanding > 0).map((l) => ({ label: l.lending.person, amount: l.outstanding, hint: l.lending.expected_date ? `Expected ${formatDate(l.lending.expected_date)}` : "No date set" })),
-          total: { label: "Total", amount: t.receivables },
-        }),
+      onClick: () => router.push("/owed"),
     },
   ];
 
@@ -291,14 +302,14 @@ function Hero() {
       <div className="grid grid-cols-1 gap-0 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <button type="button" onClick={showSpendable} className="group p-5 text-left sm:p-6">
           <p className="flex items-center gap-1.5 text-[13.5px] font-medium text-ink-2">
-            Safe to spend until {formatDate(month.to, "short")}
+            {month.period === "past" ? `Spent in ${formatDate(month.from, "medium").slice(3)}` : `Safe to spend until ${formatDate(month.to, "short")}`}
             <Info className="h-3.5 w-3.5 text-ink-3 group-hover:text-ink" aria-hidden />
           </p>
-          <p className={cn("display mt-1 text-[44px] font-semibold leading-none tracking-tight sm:text-[56px]", month.spendable < 0 && "text-danger")}>
-            <Money value={month.spendable} />
+          <p className={cn("display anim-count mt-1 text-[44px] font-semibold leading-none tracking-tight sm:text-[56px]", month.spendable < 0 && month.period !== "past" && "text-danger")}>
+            <Money value={month.period === "past" ? month.spentThisMonth : month.spendable} projected={month.period === "future"} />
           </p>
           <p className="mt-2 text-[13.5px] text-ink-2">
-            From <Money value={month.availableCash} className="font-medium text-ink" /> in your accounts, after{" "}
+            From <Money value={month.availableCash} className="font-medium text-ink" /> {month.period === "future" ? "projected at the start of the month" : "in your accounts"}, after{" "}
             <Money value={month.committedPending} className="font-medium text-ink" /> of bills
             {month.budgetRemaining > 0 && (
               <>
@@ -488,14 +499,15 @@ function ProjectionRibbon() {
 // ---------------------------------------------------------------------------
 
 function UpcomingBills() {
-  const { events, today } = useFinance();
+  const { events, today, ctx } = useFinance();
   const items = events
     .filter((e) => isPending(e) && !e.excluded && e.date <= addDays(today, 30) && (e.flow === "out" || (e.kind === "emi" && e.flow === "none")) && !e.budget)
     .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const total = items.filter((e) => !(e.kind === "emi" && e.flow === "none")).reduce((s, e) => s + e.remaining, 0);
   return (
     <Panel
       title="Upcoming bills"
-      description="Next 30 days, including anything overdue"
+      description={`${formatMoney(total, ctx)} in the next 30 days, incl. overdue. Card EMIs are inside the card bill.`}
       action={
         <Link href="/cash-flow?tab=bills" className="text-[13px] font-medium text-ink-2 hover:text-ink">
           All bills
@@ -642,7 +654,8 @@ function GoalsWidget() {
 }
 
 function BudgetsWidget() {
-  const { month, ctx } = useFinance();
+  const { ctx } = useFinance();
+  const month = useMonthMetrics();
   const budgets = month.budgets;
   return (
     <Panel title="Spending budgets" description={`${formatMoney(month.budgetSpent, ctx)} of ${formatMoney(month.budgetLimit, ctx)} used`} className="h-full">

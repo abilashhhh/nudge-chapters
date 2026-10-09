@@ -71,7 +71,10 @@ function Liabilities() {
         <div className="rounded-2xl border border-line bg-surface p-4">
           <p className="text-[12.5px] text-ink-3">Loans & EMIs</p>
           <Money value={t.loanDebt} className="mt-0.5 block text-[18px] font-semibold" />
-          <p className="num text-[12px] text-ink-3">{formatMoney(norms.emis, ctx)}/month</p>
+          <p className="num text-[12px] text-ink-3">
+            {formatMoney(norms.emis, ctx)}/month yours
+            {norms.reimbursableEmis > 0 ? ` · ${formatMoney(norms.reimbursableEmis, ctx)} for others` : ""}
+          </p>
         </div>
         <div className="rounded-2xl border border-line bg-surface p-4">
           <p className="text-[12.5px] text-ink-3">EMI burden</p>
@@ -310,7 +313,12 @@ function LoanCard({ loan, state, defaultOpen }: { loan: Loan; state: LoanState; 
       <div className="p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[16px] font-semibold">{loan.name}</p>
+            <p className="text-[16px] font-semibold">
+              {loan.name}
+              {loan.reimbursable_person && (
+                <span className="ml-2 rounded-full bg-future-soft px-2 py-0.5 align-middle text-[11.5px] font-medium text-future-ink">Reimbursable · {loan.reimbursable_person}</span>
+              )}
+            </p>
             <p className="text-[12.5px] text-ink-3">
               {LOAN_TYPE_LABEL[loan.type]}
               {loan.lender ? ` · ${loan.lender}` : ""}

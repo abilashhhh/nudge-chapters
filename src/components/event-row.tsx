@@ -59,6 +59,12 @@ export function EventRow({ e, showStatus = true, compact }: { e: FinEvent; showS
           {!compact && showStatus && <StatusPill status={e.status} flowIn={e.flow === "in"} />}
           <span>{relativeDays(today, e.date)}</span>
           {where && <span className="truncate">· {where}</span>}
+          {e.reimbursable && <span className="rounded-full bg-future-soft px-1.5 text-[11px] font-medium text-future-ink">for {e.reimbursable} · reimbursable</span>}
+          {!e.reimbursable && (e.reimbursablePart ?? 0) > 0.5 && (
+            <span className="rounded-full bg-future-soft px-1.5 text-[11px] font-medium text-future-ink">incl. {Math.round(e.reimbursablePart!)} reimbursable</span>
+          )}
+          {e.kind === "emi" && e.flow === "none" && <span className="text-[11px]">· on the card bill</span>}
+          {e.source === "task" && <span className="text-[11px]">· planned task</span>}
         </p>
       </div>
       <div className="text-right">

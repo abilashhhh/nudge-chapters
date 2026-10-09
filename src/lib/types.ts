@@ -83,6 +83,8 @@ export interface Loan extends Owned {
   emis_paid_offset: number;
   payment_account_id?: UUID | null;
   card_id?: UUID | null;
+  /** Bought for someone else who repays you (e.g. a friend's laptop on your card). Not a personal expense. */
+  reimbursable_person?: string | null;
   processing_fee: number;
   status: "active" | "closed";
   notes?: string | null;
@@ -152,7 +154,8 @@ export interface Goal extends Owned {
   monthly_contribution: number;
   linked_account_ids: UUID[];
   linked_investment_ids: UUID[];
-  priority: 1 | 2 | 3;
+  /** 1 Critical · 2 High · 3 Medium · 4 Low. */
+  priority: 1 | 2 | 3 | 4;
   expected_return?: number | null;
   color?: string | null;
   archived: boolean;
@@ -378,6 +381,11 @@ export interface Preferences {
   emergencyMonths?: number;
   projectionDate?: ISODate;
   showBmcWidget?: boolean;
+  /** Sections and widgets the user hid. Hiding never changes the underlying data or calculations. */
+  hidden?: { sections?: string[]; widgets?: string[] };
+  visual?: { emoji?: boolean; celebrations?: boolean; spendIcons?: boolean; motion?: "full" | "subtle" | "off" };
+  /** Minimum cash to keep untouched when planning goals. */
+  cashBuffer?: number;
 }
 
 export interface Profile {
@@ -424,6 +432,8 @@ export interface LifeItemData {
   /** Prices you've recorded over time, for the buy/wait check (facts you entered, not fetched). */
   price_history?: { date: ISODate; price: number }[];
   category?: string | null;
+  /** Tasks: expected cost, reserved in the month the task is due. */
+  estimated_cost?: number | null;
   /** "YYYY-MM-DD HH:MM" of the alarm you last turned off, so it doesn't ring again. */
   alarm_ack?: string | null;
 }

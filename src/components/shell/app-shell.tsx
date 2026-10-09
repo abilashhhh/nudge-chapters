@@ -2,7 +2,7 @@
 
 import {
   BarChart3, Bell, CalendarDays, Eye, EyeOff, Home, Landmark, LayoutGrid, LogOut, Moon, Plus, Search, Settings, Sparkles, Sun, Target,
-  TrendingUp, Wallet, ListChecks, PieChart,
+  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,6 +13,8 @@ import { Brand } from "../brand";
 import { useFinance } from "@/lib/finance";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
+import { useHidden } from "@/lib/visual";
+import { AppLock } from "./app-lock";
 import { Editors } from "../editors";
 import { ChitInstallmentsSheet } from "../chits";
 import { AlarmWatcher } from "../alarm";
@@ -25,21 +27,22 @@ import { AlertsPanel } from "./alerts-panel";
 import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
 
-export const NAV = [
+/** `section` is the id used by Settings → Sections to hide an entry (data and calculations are unaffected). */
+export const NAV: { href: string; label: string; icon: typeof Home; section?: string }[] = [
   { href: "/", label: "Today", icon: Home },
-  { href: "/plan", label: "Plan", icon: ListChecks },
-  { href: "/goals", label: "Chapters", icon: Target },
-  { href: "/money", label: "Money", icon: PieChart },
-  { href: "/cash-flow", label: "Cash flow", icon: Wallet },
-  { href: "/assets", label: "Assets", icon: TrendingUp },
-  { href: "/liabilities", label: "Liabilities", icon: Landmark },
-  { href: "/projection", label: "Future", icon: Sparkles },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/plan", label: "Plan", icon: ListChecks, section: "tasks" },
+  { href: "/goals", label: "Chapters", icon: Target, section: "goals" },
+  { href: "/money", label: "Money", icon: PieChart, section: "dashboard" },
+  { href: "/cash-flow", label: "Cash flow", icon: Wallet, section: "transactions" },
+  { href: "/budgets", label: "Budgets", icon: PiggyBank, section: "budgets" },
+  { href: "/owed", label: "Owed to you", icon: HandCoins, section: "reimbursements" },
+  { href: "/assets", label: "Assets", icon: TrendingUp, section: "investments" },
+  { href: "/liabilities", label: "Liabilities", icon: Landmark, section: "credit_cards" },
+  { href: "/projection", label: "Future", icon: Sparkles, section: "projections" },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, section: "bills" },
+  { href: "/reports", label: "Reports", icon: BarChart3, section: "reports" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
-
-const MOBILE_NAV = [NAV[0], NAV[1], NAV[2], NAV[3], { href: "/more", label: "More", icon: LayoutGrid }];
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
@@ -54,8 +57,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const masked = !!ds.profile.preferences?.maskValues;
   const critical = alerts.filter((a) => a.priority === "critical" || a.priority === "high").length;
   const ui = useUI();
+  const hidden = useHidden();
+  const nav = NAV.filter((n) => !n.section || !hidden.isHidden(n.section));
+  const visual = ds.profile.preferences?.visual;
+  useEffect(() => {
+    const r = document.documentElement;
+    r.dataset.motion = visual?.motion ?? "full";
+    r.dataset.celebrate = visual?.celebrations === false ? "off" : "on";
+  }, [visual?.motion, visual?.celebrations]);
+  const mobileNav = [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
 
-  // Keyboard: Ctrl/Cmd+K = search, N = add transaction, / = search
+  // Keyboard: Ctrl/Cmd+K or / = search
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -70,9 +82,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (e.key === "/") {
         e.preventDefault();
         useUI.getState().setPalette(true);
-      } else if (e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        useUI.getState().openTx({ type: "expense" });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -100,6 +109,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? "More" : pathname.startsWith("/support") ? "Support" : APP_NAME);
 
   return (
+    <AppLock>
     <div className="min-h-dvh">
       {/* Desktop sidebar */}
       <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface px-3 py-5 lg:flex">
@@ -107,7 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Brand size="md" />
         </Link>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const active = isActive(pathname, n.href);
             return (
               <Link
@@ -150,7 +160,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <Search className="h-4 w-4" aria-hidden />
               Search or jump to…
-              <kbd className="ml-auto rounded-md border border-line px-1.5 text-[11px]">Ctrl K</kbd>
             </button>
             <div className="ml-auto flex items-center md:ml-2">
               <button type="button" aria-label="Search" onClick={() => ui.setPalette(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3 md:hidden">
@@ -215,8 +224,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation */}
       <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
         <div className="mx-auto grid max-w-lg grid-cols-5">
-          {MOBILE_NAV.map((n) => {
-            const active = n.href === "/more" ? ["/more", "/goals", "/projection", "/calendar", "/reports", "/settings", "/support"].some((p) => pathname.startsWith(p)) : isActive(pathname, n.href);
+          {mobileNav.map((n) => {
+            const active = n.href === "/more" ? !mobileNav.slice(0, 4).some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
@@ -246,6 +255,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AlertsPanel />
       <ExplainSheet />
     </div>
+    </AppLock>
   );
 }
 

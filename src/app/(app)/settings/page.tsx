@@ -22,9 +22,10 @@ import { CURRENCIES } from "@/lib/forms";
 import { useFinance } from "@/lib/finance";
 import { useStore } from "@/lib/store";
 import { useTab } from "@/lib/use-tab";
+import { AppLockSettings, SectionSettings, VisualSettings } from "@/components/settings-extra";
 import type { AlertModule, AuditEvent, Category } from "@/lib/types";
 
-const TABS = ["profile", "categories", "notifications", "data", "security", "activity", "appearance"] as const;
+const TABS = ["profile", "categories", "notifications", "data", "security", "activity", "appearance", "sections"] as const;
 
 export default function SettingsPage() {
   return (
@@ -51,6 +52,7 @@ function Settings() {
           { id: "security", label: "Security" },
           { id: "activity", label: "Activity log" },
           { id: "appearance", label: "Appearance" },
+          { id: "sections", label: "Sections & widgets" },
         ]}
       />
       {tab === "profile" && <Profile />}
@@ -60,6 +62,7 @@ function Settings() {
       {tab === "security" && <Security />}
       {tab === "activity" && <Activity />}
       {tab === "appearance" && <Appearance />}
+      {tab === "sections" && <SectionSettings />}
     </>
   );
 }
@@ -414,6 +417,15 @@ function Data() {
 // ---------------------------------------------------------------------------
 
 function Security() {
+  return (
+    <div className="flex flex-col gap-4">
+      <AppLockSettings />
+      <SecurityAccount />
+    </div>
+  );
+}
+
+function SecurityAccount() {
   const repo = useStore((s) => s.repo);
   const router = useRouter();
   const [del, setDel] = useState(false);
@@ -696,6 +708,7 @@ function Appearance() {
           <Switch checked={!!ds.profile.preferences?.maskValues} onChange={(v) => updatePrefs({ maskValues: v })} label="Hide amounts" help="Blurs every amount until you turn it off (also in the top bar)." />
         </div>
       </Panel>
+      <VisualSettings />
       <Panel title="How much to show">
         <Segmented
           options={[
@@ -726,9 +739,6 @@ function Appearance() {
           </div>
         </Panel>
       )}
-      <p className="text-[12.5px] text-ink-3 lg:col-span-2">
-        Keyboard: <kbd className="rounded border border-line px-1">Ctrl</kbd>+<kbd className="rounded border border-line px-1">K</kbd> search, <kbd className="rounded border border-line px-1">N</kbd> new transaction. <Link className="underline" href="/support">About & support</Link>
-      </p>
     </div>
   );
 }

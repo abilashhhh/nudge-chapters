@@ -1,7 +1,9 @@
 "use client";
 
 import { Plus, Target } from "lucide-react";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { celebrate } from "@/lib/celebrate";
+import { useVisual } from "@/lib/visual";
 import { TaskRow } from "@/components/life";
 import { Money } from "@/components/money";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -10,7 +12,9 @@ import { AmountInput, Field, NumberInput } from "@/components/ui/form";
 import { Badge, EmptyState, KV, Panel, Progress, Segmented, Tabs } from "@/components/ui/misc";
 import { cn } from "@/lib/cn";
 import { addMonths, formatDate } from "@/lib/dates";
-import { firePlan, goalConflicts, monthsToReach, requiredMonthly, retirementPlan, type GoalProgress } from "@/lib/engine/goals";
+import { MonthPicker, useSelectedMonth } from "@/components/ui/month-picker";
+import { planMonth, PRIORITY_EMOJI, PRIORITY_LABEL, priorityOf } from "@/lib/engine/planner";
+import { firePlan, monthsToReach, requiredMonthly, retirementPlan, type GoalProgress } from "@/lib/engine/goals";
 import { useFinance } from "@/lib/finance";
 import { formatMoney, formatPct } from "@/lib/money";
 import { useStore } from "@/lib/store";
@@ -70,9 +74,7 @@ const STATUS_LABEL: Record<GoalProgress["status"], { label: string; tone: "brand
 };
 
 function GoalList() {
-  const { goals, norms, ctx } = useFinance();
-  const surplus = norms.income - norms.outflow;
-  const conflict = goalConflicts(goals, surplus);
+  const { goals } = useFinance();
   if (!goals.length) {
     return (
       <EmptyState
@@ -83,15 +85,10 @@ function GoalList() {
       />
     );
   }
-  const sorted = [...goals].sort((a, b) => a.goal.priority - b.goal.priority);
+  const sorted = [...goals].sort((a, b) => priorityOf(a.goal) - priorityOf(b.goal));
   return (
     <div className="flex flex-col gap-4">
-      {conflict.conflict && (
-        <p className="rounded-xl bg-warn-soft px-4 py-3 text-[13.5px] text-warn">
-          Your dated goals need about <strong>{formatMoney(conflict.required, ctx)}/month</strong> together, but your plans leave about{" "}
-          <strong>{formatMoney(Math.max(0, conflict.surplus), ctx)}/month</strong>. Consider moving a date or lowering a target — high-priority goals first.
-        </p>
-      )}
+      <GoalPlan />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {sorted.map((g) => (
           <GoalCard key={g.goal.id} g={g} />
@@ -101,8 +98,121 @@ function GoalList() {
   );
 }
 
+/** Priority-based allocation for the selected month, built on that month's own income and commitments. */
+function GoalPlan() {
+  const { ds, positions, today, ctx } = useFinance();
+  const month = useSelectedMonth(today);
+  const plan = useMemo(() => planMonth(ds, positions, today, month, (n) => formatMoney(n, ctx)), [ds, positions, today, month, ctx]);
+  const [busy, setBusy] = useState(false);
+  const [showMath, setShowMath] = useState(false);
+  const vis = useVisual();
+  const m = (n: number) => formatMoney(n, ctx);
+  const apply = async () => {
+    setBusy(true);
+    try {
+      for (const a of plan.allocations) {
+        if (Math.abs(a.recommended - a.goal.monthly_contribution) > 0.5) await useStore.getState().patch("goals", a.goal.id, { monthly_contribution: Math.round(a.recommended) });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (plan.month.period === "past") {
+    return (
+      <Panel title="Your goal plan" action={<MonthPicker today={today} />}>
+        <p className="text-[13.5px] text-ink-2">This month is over. Pick this month or a future one to plan your goals.</p>
+      </Panel>
+    );
+  }
+  return (
+    <Panel
+      title="Your goal plan"
+      description={plan.month.period === "current" ? "Based on your cash today and everything still due this month." : "Based on this month's own income and commitments."}
+      action={<MonthPicker today={today} />}
+    >
+      <div className="anim-rise rounded-2xl bg-brand-soft/60 p-4">
+        <p className="text-[13px] text-ink-2">You can put towards your goals</p>
+        <p className="display text-[28px] font-semibold text-brand-ink">{m(plan.available)}</p>
+        {plan.taskReserve > 0 && <p className="mt-0.5 text-[12.5px] text-ink-2">after keeping {m(plan.taskReserve)} for planned tasks this month</p>}
+        <button type="button" className="mt-1 text-[12.5px] font-medium text-brand-ink underline" onClick={() => setShowMath(!showMath)} aria-expanded={showMath}>
+          {showMath ? "Hide the calculation" : "How is this calculated?"}
+        </button>
+        {showMath && (
+          <ul className="mt-2 divide-y divide-line/60 text-[13px]">
+            {plan.availableLines.map((l) => (
+              <li key={l.label} className="flex justify-between gap-3 py-1.5">
+                <span>
+                  {l.label}
+                  {l.hint && <span className="block text-[11.5px] text-ink-3">{l.hint}</span>}
+                </span>
+                <span className="num shrink-0">{m(l.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <ul className="mt-4 flex flex-col gap-2">
+        {plan.allocations.map((a) => (
+          <li key={a.goal.id} className="rounded-xl border border-line p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-[14px] font-semibold">
+                {vis.emoji ? `${PRIORITY_EMOJI[a.priority]} ` : ""}
+                {a.goal.name}
+                <span className="ml-2 text-[12px] font-normal text-ink-3">{PRIORITY_LABEL[a.priority]}</span>
+              </p>
+              <span className="num shrink-0 text-[14px] font-semibold">{m(a.recommended)}</span>
+            </div>
+            <Progress className="mt-2" value={a.needed > 0 ? Math.min(1, a.recommended / a.needed) : 1} tone={a.funded === "full" ? "brand" : "future"} label={`${a.goal.name} funding`} />
+            <p className="mt-1 text-[12px] text-ink-3">
+              {a.funded === "full" ? "Fully funded this month ✓" : `${m(a.needed)} needed to stay on schedule`}
+              {a.suggestedDate ? ` · realistic by ${formatDate(a.suggestedDate)} at this pace` : ""}
+            </p>
+          </li>
+        ))}
+      </ul>
+
+      {plan.recommendations.length > 0 && (
+        <div className="mt-4">
+          <p className="text-[13.5px] font-semibold">
+            {plan.shortfall > 0 ? `Here's how to get closer to your targets` : "Nice — you're on track"}
+          </p>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {plan.recommendations.map((r) => (
+              <li key={r.id} className="rounded-xl bg-surface-2 p-3 text-[13px]">
+                <p className="font-medium">
+                  {vis.emoji ? `${r.emoji} ` : ""}
+                  {r.title}
+                </p>
+                <p className="mt-0.5 text-ink-2">{r.detail}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Button variant="primary" size="sm" loading={busy} onClick={apply}>
+          Use this as my monthly plan
+        </Button>
+        <span className="text-[12px] text-ink-3">Sets each goal&apos;s monthly contribution. You can change any of them later.</span>
+      </div>
+    </Panel>
+  );
+}
+
 function GoalCard({ g }: { g: GoalProgress }) {
   const { ds, today, ctx } = useFinance();
+  useEffect(() => {
+    if (g.status !== "done") return;
+    const k = `nudge:celebrated:${g.goal.id}`;
+    try {
+      if (localStorage.getItem(k)) return;
+      localStorage.setItem(k, today);
+    } catch {
+      return;
+    }
+    celebrate(["🎉", "🏆", "💰", "✨"]);
+  }, [g.status, g.goal.id, today]);
   const [whatIf, setWhatIf] = useState(false);
   const [contrib, setContrib] = useState<number | null>(g.goal.monthly_contribution);
   const [delay, setDelay] = useState(0);
@@ -121,10 +231,10 @@ function GoalCard({ g }: { g: GoalProgress }) {
         <button type="button" className="min-w-0 text-left" onClick={() => useUI.getState().openEditor("goal", g.goal.id)}>
           <p className="truncate text-[16px] font-semibold hover:underline">{g.goal.name}</p>
           <p className="text-[12.5px] text-ink-3">
-            {g.goal.target_date ? `By ${formatDate(g.goal.target_date)}` : "No deadline"} · {["", "High", "Medium", "Low"][g.goal.priority]} priority
+            {g.goal.target_date ? `By ${formatDate(g.goal.target_date)}` : "No deadline"} · {PRIORITY_LABEL[priorityOf(g.goal)]} priority
           </p>
         </button>
-        <Badge tone={st.tone}>{st.label}</Badge>
+        <Badge tone={st.tone}>{g.status === "done" ? "🎉 Reached" : st.label}</Badge>
       </div>
       <div className="mt-3 flex items-baseline justify-between">
         <Money value={g.value} className="display text-[24px] font-semibold" />

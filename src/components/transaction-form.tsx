@@ -526,6 +526,20 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
           <Field label="Notes" optional htmlFor="tx-notes">
             <Textarea id="tx-notes" value={d.notes ?? ""} onChange={(e) => set({ notes: e.target.value })} />
           </Field>
+          {(type === "expense" || type === "card_spend") && (
+            <Switch
+              checked={(d.tags ?? []).includes("reimbursable")}
+              onChange={(v) => set({ tags: v ? [...(d.tags ?? []).filter((t) => t !== "reimbursable"), "reimbursable"] : (d.tags ?? []).filter((t) => t !== "reimbursable") })}
+              label="Paid for someone else — they'll repay me (not my spending)"
+            />
+          )}
+          {type === "income" && (
+            <Switch
+              checked={(d.tags ?? []).includes("refund")}
+              onChange={(v) => set({ tags: v ? [...(d.tags ?? []).filter((t) => t !== "refund"), "refund"] : (d.tags ?? []).filter((t) => t !== "refund") })}
+              label="This is a refund (gives budget back, not income)"
+            />
+          )}
           {editing && <Switch checked={!!d.reconciled} onChange={(v) => set({ reconciled: v })} label="Reconciled with bank statement" />}
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
         </form>

@@ -11,7 +11,7 @@ import type {
   Certainty, CreditCard, Dataset, EventOverride, ISODate, OverrideSource, RecurringRule, ScenarioAssumptions, Transaction, TxType,
 } from "../types";
 import { DEFAULT_ASSUMPTIONS } from "./defaults";
-import { computePositions, isOpening, type Positions } from "./ledger";
+import { computePositions, isOpening, isRefund, isReimbursable, type Positions } from "./ledger";
 import { nextOccurrenceAfter, occurrences } from "./schedule";
 
 export type EventKind =
@@ -32,7 +32,8 @@ export type EventStatus = "planned" | "due" | "overdue" | "paid" | "received" | 
 
 export interface FinEvent {
   key: string;
-  source: OverrideSource;
+  /** "task" events come from tasks with an estimated cost; they can't be skipped via overrides. */
+  source: OverrideSource | "task";
   sourceId: string;
   occurrence: ISODate;
   date: ISODate;
@@ -68,6 +69,12 @@ export interface FinEvent {
   installment?: number;
   installments?: number;
   budget?: { spent: number; periodEnd: ISODate; limit: number };
+  /** Paid on behalf of this person, who repays you: not a personal expense (still a real card/cash outflow). */
+  reimbursable?: string | null;
+  /** Card bills: the part of this bill that belongs to reimbursable purchases/EMIs. */
+  reimbursablePart?: number;
+  /** Task events: the task this planned cost belongs to. */
+  taskId?: string;
 }
 
 export const SETTLED: EventStatus[] = ["paid", "received", "adjusted", "skipped", "cancelled"];
@@ -219,14 +226,17 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
         // A spending budget: consumed by actual spending in its category during the period.
         const next = nextOccurrenceAfter(rule, o);
         const periodEnd = next ? addDays(next, -1) : addDays(o, 30);
+        // Spending in the category this period; refunds (income tagged "refund") give budget back.
+        // Purchases made on someone else's behalf (tagged "reimbursable") never use up your budget.
         const spentTxs = txs.filter(
           (t) =>
-            (t.type === "expense" || t.type === "card_spend") &&
+            (t.type === "expense" || t.type === "card_spend" || (t.type === "income" && isRefund(t))) &&
+            !isReimbursable(t) &&
             t.date >= o &&
             t.date <= periodEnd &&
             ((t.rule_id == null && t.category === rule.category) || (t.rule_id === rule.id)),
         );
-        const spent = round2(spentTxs.reduce((s, t) => s + t.amount, 0));
+        const spent = round2(Math.max(0, spentTxs.reduce((s, t) => s + (t.type === "income" ? -t.amount : t.amount), 0)));
         let limit = rule.amount;
         if (ov?.action === "adjust" && ov.new_amount != null) limit = ov.new_amount;
         const ev: FinEvent = {
@@ -337,6 +347,7 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
           interest: inst.interest,
           installment: i + 1,
           installments: schedule.length,
+          reimbursable: loan.reimbursable_person || null,
         },
         ov && ov.action !== "skip" ? ov : undefined,
         tx ? [tx] : [],
@@ -461,6 +472,43 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
     if (keep(ev, from, to)) events.push(ev);
   }
 
+  // --- Tasks with an estimated cost (planned one-off expenses) ------------------
+  // A task's cost is reserved in the month it's due. Once a transaction tagged `task:<id>` is recorded, the
+  // event is settled by that actual amount, so the estimate and the actual are never both counted.
+  for (const item of ds.life_items ?? []) {
+    const cost = Number(item.data?.estimated_cost ?? 0);
+    if (item.kind !== "task" || !(cost > 0) || !item.due_date || item.status === "archived") continue;
+    const tag = `task:${item.id}`;
+    const actual = txs.filter((t) => Array.isArray(t.tags) && t.tags.includes(tag));
+    if (item.status === "done" && !actual.length) continue; // finished without a recorded cost: nothing to reserve
+    const date = item.due_date;
+    const paid = round2(actual.reduce((s, t) => s + t.amount, 0));
+    const ev: FinEvent = {
+      key: tag,
+      source: "task",
+      sourceId: item.id,
+      taskId: item.id,
+      occurrence: date,
+      date,
+      kind: "expense",
+      title: item.title,
+      amount: actual.length ? paid : cost,
+      paid,
+      remaining: actual.length ? 0 : cost,
+      status: actual.length ? "paid" : pendingStatus(date, today),
+      flow: "out",
+      accountId: null,
+      category: item.data?.category ?? "Planned task",
+      isFixed: true,
+      isEssential: item.priority === 1,
+      certainty: "known",
+      excluded: false,
+      estimated: !actual.length,
+      txIds: actual.map((t) => t.id),
+    };
+    if (keep(ev, from, to)) events.push(ev);
+  }
+
   // --- Credit cards: recorded statements, projected bills and expected spend ---
   for (const card of ds.credit_cards) {
     if (card.archived) continue;
@@ -574,7 +622,7 @@ function projectCardCycles(
   // Spends not yet on a statement: pending items on this card, effective no earlier than today.
   const spends = events
     .filter((e) => e.cardId === card.id && (e.kind === "card_spend" || (e.kind === "emi" && e.flow === "none")) && isPending(e) && !e.excluded)
-    .map((e) => ({ date: e.date < today ? today : e.date, amount: e.remaining }));
+    .map((e) => ({ date: e.date < today ? today : e.date, amount: e.remaining, reimb: e.reimbursable ? e.remaining : 0 }));
   const paymentsByDue = new Map<string, Transaction[]>();
   for (const t of ds.transactions) {
     if (t.card_id === card.id && t.type === "card_payment" && !t.statement_id && t.occurrence_date) {
@@ -621,7 +669,9 @@ function projectCardCycles(
         });
       }
     }
-    const cycleSpend = spends.filter((s) => s.date > prev && s.date <= S).reduce((a, s) => a + s.amount, 0);
+    const inCycle = spends.filter((s) => s.date > prev && s.date <= S);
+    const cycleSpend = inCycle.reduce((a, s) => a + s.amount, 0);
+    const cycleReimb = round2(inCycle.reduce((a, s) => a + s.reimb, 0));
     const bill = round2(carried + cycleSpend + expected);
     carried = 0;
     if (bill > 0.5 && due <= to) {
@@ -651,6 +701,7 @@ function projectCardCycles(
         (a) => a,
         true,
       );
+      if (cycleReimb > 0) ev.reimbursablePart = Math.min(cycleReimb, ev.amount);
       if (keep(ev, from, to)) out.push(ev);
     }
     if (S >= from && S <= to) {
@@ -712,6 +763,7 @@ export function settlementDraft(e: FinEvent, input: SettleInput): Partial<Transa
     case "income":
       return { ...common, type: "income", rule_id: e.ruleId };
     case "expense":
+      if (e.taskId) return { ...common, type: "expense", occurrence_date: null, tags: [`task:${e.taskId}`] };
       return { ...common, type: "expense", rule_id: e.ruleId };
     case "transfer":
       return { ...common, type: "transfer", rule_id: e.ruleId, to_account_id: e.toAccountId };

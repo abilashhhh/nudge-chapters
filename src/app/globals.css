@@ -310,6 +310,50 @@ input[type="range"].ribbon::-moz-range-thumb {
   animation: fade-in 160ms ease-out;
 }
 
+/* ---- Motion system (Settings → Look & feel). data-motion="subtle" shortens, "off" disables. ---- */
+@keyframes rise-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes count-pop {
+  0% { transform: scale(0.97); opacity: 0.4; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes burst {
+  0% { transform: translate(0, 0) scale(0.6) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(var(--rot)); opacity: 0; }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.anim-rise { animation: rise-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-fade { animation: fade-in 220ms ease-out both; }
+.anim-count { animation: count-pop 380ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+main > * { animation: rise-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+[role="progressbar"] > div { transform-origin: left; animation: grow-x 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: width 600ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.lift { transition: transform 160ms ease, box-shadow 160ms ease; }
+.lift:hover { transform: translateY(-2px); }
+button:active:not(:disabled) { transform: scale(0.98); }
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 50%, var(--surface-3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.celebrate-piece { position: fixed; z-index: 200; pointer-events: none; font-size: 22px; animation: burst 1100ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+:root[data-motion="subtle"] *, :root[data-motion="subtle"] *::before, :root[data-motion="subtle"] *::after {
+  animation-duration: 120ms !important;
+  transition-duration: 120ms !important;
+}
+:root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -14,6 +14,7 @@ import { project, type ProjectionResult } from "./engine/projection";
 import { buildNudges, type Nudge } from "./engine/life";
 import type { MoneyContext } from "./money";
 import { useStore } from "./store";
+import { useMonth } from "@/components/ui/month-picker";
 import type { Assumptions, Dataset, ISODate } from "./types";
 
 export interface Finance {
@@ -85,6 +86,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => (ds ? computeFinance(ds) : null), [ds]);
   if (!value) return null;
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
+}
+
+/** Month metrics for the month picked in any MonthPicker (today's month by default). */
+export function useMonthMetrics(): MonthMetrics {
+  const f = useFinance();
+  const sel = useMonth((s) => s.month);
+  return useMemo(
+    () => (!sel || sel === startOfMonth(f.today) ? f.month : monthMetrics(f.ds, f.positions, f.today, undefined, sel)),
+    [f, sel],
+  );
 }
 
 export function useFinance(): Finance {

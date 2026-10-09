@@ -62,7 +62,21 @@ export function cardDelta(t: Transaction): number {
 }
 
 /** How a transaction counts in income/expense reports. Transfers, settlements and investments count as neither. */
+/** Paid on someone else's behalf (they repay you): tracked under "Owed to you", never as personal spending. */
+export function isReimbursable(t: Pick<Transaction, "tags">): boolean {
+  return Array.isArray(t.tags) && t.tags.includes("reimbursable");
+}
+
+/** Money back for something you bought (income tagged "refund"): reduces spending rather than adding income. */
+export function isRefund(t: Pick<Transaction, "tags" | "type">): boolean {
+  return t.type === "income" && Array.isArray(t.tags) && t.tags.includes("refund");
+}
+
 export function classify(t: Transaction): { income: number; expense: number; invested: number; debtPaid: number } {
+  if (isRefund(t)) return { income: 0, expense: -t.amount, invested: 0, debtPaid: 0 };
+  if (isReimbursable(t) && (t.type === "expense" || t.type === "card_spend" || t.type === "loan_emi" || t.type === "income")) {
+    return { income: 0, expense: 0, invested: 0, debtPaid: 0 };
+  }
   switch (t.type) {
     case "income":
       return { income: t.amount, expense: 0, invested: 0, debtPaid: 0 };

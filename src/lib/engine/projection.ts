@@ -86,6 +86,17 @@ export interface ProjectionResult {
   investmentsEnd: { id: string; name: string; value: number; contributed: number; assetClass: AssetClass }[];
   liabilitiesEnd: { id: string; name: string; kind: "card" | "loan" | "chit" | "borrowed"; amount: number }[];
   inflationFactor: number;
+  /** Plain-language findings that explain big movements (e.g. income ending while expenses continue). */
+  insights: ProjectionInsight[];
+}
+
+export interface ProjectionInsight {
+  kind: "income_ends" | "expense_growth" | "chit_payout" | "reimbursable";
+  title: string;
+  detail: string;
+  ruleId?: string;
+  date?: ISODate;
+  amount?: number;
 }
 
 export interface ProjectionOptions {
@@ -409,7 +420,8 @@ export function project(ds: Dataset, opts: ProjectionOptions): ProjectionResult 
         case "emi": {
           const ratio = e.amount > 0 ? amt / e.amount : 1;
           const principal = (e.principal ?? amt) * ratio;
-          const interest = (e.interest ?? 0) * ratio;
+          // Reimbursable EMIs are real outflows but not your cost: interest isn't counted as a personal expense.
+          const interest = e.reimbursable ? 0 : (e.interest ?? 0) * ratio;
           if (e.cardId && cards.has(e.cardId)) cards.get(e.cardId)!.owed += amt;
           else moveCash(acct(e.accountId), -amt, "emis");
           const l = e.loanId ? loans.get(e.loanId) : undefined;
@@ -499,7 +511,51 @@ export function project(ds: Dataset, opts: ProjectionOptions): ProjectionResult 
   for (const [id, v] of chits) if (v.liability > 0.5) liabilitiesEnd.push({ id, name: v.name, kind: "chit", amount: round2(v.liability) });
   for (const [id, v] of borrowed) if (v.owed > 0.5) liabilitiesEnd.push({ id, name: v.name, kind: "borrowed", amount: round2(v.owed) });
 
+  // ---- Insights ---------------------------------------------------------------
+  const insights: ProjectionInsight[] = [];
+  const incomeEvents = applied.filter((e) => e.kind === "income");
+  const lastIncome = incomeEvents.at(-1)?.date ?? null;
+  for (const r of ds.recurring_rules) {
+    if (!r.active || r.kind !== "income" || r.frequency === "once" || !r.end_date) continue;
+    if (r.end_date < today || r.end_date >= to) continue;
+    const after = applied.filter((e) => e.date > r.end_date! && e.flow === "out" && e.kind !== "transfer");
+    const months = Math.max(1, diffDays(r.end_date, to) / 30.4375);
+    const outPerMonth = round2(after.reduce((s2, e) => s2 + e.remaining, 0) / months);
+    const otherIncome = incomeEvents.some((e) => e.date > r.end_date! && e.ruleId !== r.id);
+    insights.push({
+      kind: "income_ends",
+      ruleId: r.id,
+      date: r.end_date,
+      amount: outPerMonth,
+      title: `${r.name} ends on ${r.end_date} in your plan`,
+      detail: otherIncome
+        ? `After that date other planned income continues, but about ${Math.round(outPerMonth)}/month of outflows remain. If you expect this income to continue (a new job, a renewal), extend or remove the end date.`
+        : `No other income is planned after that date, while about ${Math.round(outPerMonth)}/month of expenses, bills and commitments continue. This is the main reason long-range cash turns negative. If you expect to keep earning, extend or remove the end date.`,
+    });
+  }
+  if (!lastIncome && applied.some((e) => e.flow === "out")) {
+    insights.push({ kind: "income_ends", title: "No income is planned in this period", detail: "Add your salary or other income as a recurring item so the projection can offset your expenses." });
+  }
+  if (sc.expenseGrowth > 0 && yearsBetween(today, to) >= 2) {
+    insights.push({
+      kind: "expense_growth",
+      title: `Expenses grow ${sc.expenseGrowth}% a year; salary grows ${sc.salaryGrowth}% a year`,
+      detail: "Applied to every recurring item without its own growth rate, once per full year from today. Change these in the scenario assumptions.",
+    });
+  }
+  const reimb = applied.filter((e) => e.reimbursable);
+  if (reimb.length) {
+    const amt = round2(reimb.reduce((s2, e) => s2 + e.remaining, 0));
+    insights.push({
+      kind: "reimbursable",
+      amount: amt,
+      title: "Purchases made for others are cash-neutral",
+      detail: "EMIs you pay for someone else go out through the card bill, and their expected repayments come back in. Neither is counted as your income or expense.",
+    });
+  }
+
   return {
+    insights,
     scenario: sc,
     scenarioKey,
     inflation: assumptions.inflation,

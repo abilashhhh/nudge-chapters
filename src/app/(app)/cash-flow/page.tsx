@@ -19,6 +19,7 @@ import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
+import { useMonth, useSelectedMonth } from "@/components/ui/month-picker";
 import type { RecurringRule, TxType } from "@/lib/types";
 
 const TABS = ["overview", "transactions", "bills", "recurring", "reserves", "subscriptions"] as const;
@@ -78,8 +79,11 @@ function CashFlow() {
 
 function Overview() {
   const { ds, today, positions, assumptions, ctx } = useFinance();
-  const [offset, setOffset] = useState(0);
-  const ref = addMonths(startOfMonth(today), offset);
+  // Shares the month chosen anywhere else in the app (dashboard, goals, budgets).
+  const ref = useSelectedMonth(today);
+  const setMonth = useMonth((st) => st.set);
+  const offset = (Number(ref.slice(0, 4)) - Number(today.slice(0, 4))) * 12 + Number(ref.slice(5, 7)) - Number(today.slice(5, 7));
+  const setOffset = (n: number) => setMonth(n === 0 ? null : addMonths(startOfMonth(today), n));
   const from = startOfMonth(ref);
   const to = endOfMonth(ref);
   const isCurrent = offset === 0;
@@ -345,22 +349,96 @@ function Transactions() {
 
 // ---------------------------------------------------------------------------
 
+type BillRange = "7" | "30" | "this" | "next" | "custom";
+
 function Bills() {
   const { events, today, ds, positions, assumptions, ctx } = useFinance();
-  const [range, setRange] = useState(60);
+  const [range, setRange] = useState<BillRange>("30");
+  const [cFrom, setCFrom] = useState(today);
+  const [cTo, setCTo] = useState(addDays(today, 30));
+  const [scope, setScope] = useState<"all" | "personal" | "reimbursable">("all");
+  const [from, to] = useMemo((): [string, string] => {
+    if (range === "7") return [today, addDays(today, 7)];
+    if (range === "30") return [today, addDays(today, 30)];
+    if (range === "this") return [startOfMonth(today), endOfMonth(today)];
+    if (range === "next") {
+      const n = addMonths(startOfMonth(today), 1);
+      return [n, endOfMonth(n)];
+    }
+    return [cFrom <= cTo ? cFrom : cTo, cFrom <= cTo ? cTo : cFrom];
+  }, [range, today, cFrom, cTo]);
+  const horizon = endOfMonth(addDays(today, 120));
   const list = useMemo(
-    () => (range <= 120 ? events : buildEvents(ds, { from: startOfMonth(addMonths(today, -1)), to: addDays(today, range), today, positions, scenario: assumptions.scenarios.base })),
-    [events, range, ds, today, positions, assumptions],
+    () =>
+      to <= horizon && from >= startOfMonth(addMonths(today, -1))
+        ? events
+        : buildEvents(ds, { from: from < today ? from : startOfMonth(addMonths(today, -1)), to, today, positions, scenario: assumptions.scenarios.base }),
+    [events, from, to, horizon, ds, today, positions, assumptions],
   );
-  const bills = list.filter((e) => !e.budget && (e.flow === "out" || (e.kind === "emi" && e.flow === "none")) && e.kind !== "card_statement");
+  // Card EMIs are paid through the card bill, so they're listed for information but never added to the total.
+  const isBill = (e: FinEvent) => !e.budget && e.kind !== "card_statement" && (e.flow === "out" || (e.kind === "emi" && e.flow === "none"));
+  const inScope = (e: FinEvent) =>
+    scope === "all" ? true : scope === "reimbursable" ? !!e.reimbursable || (e.reimbursablePart ?? 0) > 0.5 : !e.reimbursable;
+  const bills = list.filter(isBill).filter(inScope);
+  const counted = (e: FinEvent) => !(e.kind === "emi" && e.flow === "none");
   const overdue = bills.filter((e) => isPending(e) && e.date < today);
-  const upcoming = bills.filter((e) => isPending(e) && e.date >= today && e.date <= addDays(today, range));
-  const recent = bills.filter((e) => !isPending(e) && e.date >= addDays(today, -30) && e.date <= today).sort((a, b) => (a.date < b.date ? 1 : -1));
-  const total = upcoming.reduce((s, e) => s + e.remaining, 0);
+  const inPeriod = bills.filter((e) => e.date >= from && e.date <= to).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const pending = inPeriod.filter((e) => isPending(e) && e.date >= today);
+  const paid = inPeriod.filter((e) => !isPending(e) && (e.status === "paid" || e.status === "partial"));
+  const due = pending.filter(counted).reduce((s, e) => s + e.remaining, 0);
+  const paidAmt = inPeriod.filter(counted).reduce((s, e) => s + e.paid, 0);
+  const reimb = pending.reduce((s, e) => s + (e.reimbursable && counted(e) ? e.remaining : e.kind === "card_bill" ? Math.min(e.remaining, e.reimbursablePart ?? 0) : 0), 0);
+  const m = (n: number) => formatMoney(n, ctx);
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["7", "Next 7 days"],
+            ["30", "Next 30 days"],
+            ["this", "This month"],
+            ["next", "Next month"],
+            ["custom", "Custom"],
+          ] as [BillRange, string][]
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setRange(id)}
+            className={cn("h-8 rounded-full px-3 text-[12.5px] font-medium transition-colors", range === id ? "bg-ink text-paper" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+          >
+            {label}
+          </button>
+        ))}
+        {range === "custom" && (
+          <span className="flex items-center gap-1">
+            <DateInput aria-label="From" className="h-8 w-auto text-[13px]" value={cFrom} onChange={(e) => setCFrom(e.target.value)} />
+            <span className="text-ink-3">–</span>
+            <DateInput aria-label="To" className="h-8 w-auto text-[13px]" value={cTo} onChange={(e) => setCTo(e.target.value)} />
+          </span>
+        )}
+        <Select aria-label="Show" className="ml-auto h-8 w-auto text-[13px]" value={scope} onChange={(e) => setScope(e.target.value as typeof scope)}>
+          <option value="all">Personal + reimbursable</option>
+          <option value="personal">Personal only</option>
+          <option value="reimbursable">Reimbursable only</option>
+        </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { k: "Still to pay", v: due, note: `${pending.filter(counted).length} bills · ${formatDate(from, "short")} – ${formatDate(to, "short")}` },
+          { k: "Already paid", v: paidAmt, note: `${paid.length} in this period` },
+          { k: "Overdue", v: overdue.filter(counted).reduce((s, e) => s + e.remaining, 0), note: `${overdue.length} bill${overdue.length === 1 ? "" : "s"}` },
+          { k: "Reimbursable in what's due", v: reimb, note: "paid for others; they repay you" },
+        ].map((c) => (
+          <div key={c.k} className="anim-rise rounded-2xl border border-line bg-surface p-4">
+            <p className="text-[12.5px] text-ink-3">{c.k}</p>
+            <Money value={c.v} className="display block text-[21px] font-semibold" />
+            <p className="text-[11.5px] text-ink-3">{c.note}</p>
+          </div>
+        ))}
+      </div>
       {overdue.length > 0 && (
-        <Panel title={`Overdue · ${formatMoney(overdue.reduce((s, e) => s + e.remaining, 0), ctx)}`} description="Mark them paid, reschedule or skip." className="border-danger/40">
+        <Panel title={`⚠️ Overdue · ${m(overdue.filter(counted).reduce((s, e) => s + e.remaining, 0))}`} description="Mark them paid, reschedule or skip." className="border-danger/40">
           <div className="-mx-2 sm:-mx-3">
             {overdue.map((e) => (
               <EventRow key={e.key} e={e} />
@@ -369,37 +447,28 @@ function Bills() {
         </Panel>
       )}
       <Panel
-        title={`Coming up · ${formatMoney(total, ctx)}`}
-        description={`${upcoming.length} bills in the next ${range} days`}
-        action={
-          <Select aria-label="Range" className="h-9 w-auto text-[13px]" value={String(range)} onChange={(e) => setRange(Number(e.target.value))}>
-            <option value="7">7 days</option>
-            <option value="30">30 days</option>
-            <option value="60">60 days</option>
-            <option value="120">120 days</option>
-            <option value="365">1 year</option>
-          </Select>
-        }
+        title={`Coming up · ${m(due)}`}
+        description={`${pending.filter(counted).length} bills to pay. Card EMIs are shown for reference — they're inside the card bill, so they're not added twice.`}
       >
-        {upcoming.length ? (
+        {pending.length ? (
           <div className="-mx-2 sm:-mx-3">
-            {upcoming.map((e) => (
+            {pending.map((e) => (
               <EventRow key={e.key} e={e} />
             ))}
           </div>
         ) : (
-          <p className="py-4 text-[14px] text-ink-2">No bills in this period.</p>
+          <p className="py-4 text-[14px] text-ink-2">No bills in this period. 🎉</p>
         )}
       </Panel>
-      <Panel title="Paid in the last 30 days">
-        {recent.length ? (
+      <Panel title="Paid in this period">
+        {paid.length ? (
           <div className="-mx-2 sm:-mx-3">
-            {recent.map((e) => (
+            {paid.map((e) => (
               <EventRow key={e.key} e={e} />
             ))}
           </div>
         ) : (
-          <p className="py-2 text-[14px] text-ink-2">Nothing marked paid yet.</p>
+          <p className="py-2 text-[14px] text-ink-2">Nothing marked paid in this period yet.</p>
         )}
       </Panel>
     </div>
