@@ -519,7 +519,7 @@ function DebtPlanner() {
             <AmountInput id="debt-extra" value={extra} onChange={setExtra} />
           </Field>
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[460px] text-[13.5px]">
+            <table className="table-compact w-full text-[13.5px]">
               <thead>
                 <tr className="text-left text-[12px] text-ink-3">
                   <th className="py-2 font-medium">Strategy</th>
@@ -531,16 +531,19 @@ function DebtPlanner() {
               <tbody className="num">
                 {(
                   [
-                    ["minimum", "Minimum payments only"],
-                    ["snowball", "Snowball — smallest balance first"],
-                    ["avalanche", "Avalanche — highest interest first"],
+                    ["minimum", "Minimum payments only", "Minimum only"],
+                    ["snowball", "Snowball — smallest balance first", "Snowball"],
+                    ["avalanche", "Avalanche — highest interest first", "Avalanche"],
                   ] as const
-                ).map(([k, label]) => {
+                ).map(([k, label, short]) => {
                   const p = plans[k];
                   return (
                     <tr key={k} className="border-t border-line">
-                      <td className="py-2.5 pr-3 font-sans">{label}</td>
-                      <td className="py-2.5 text-right">{p.feasible ? formatDate(addMonths(today, p.months), "medium") : "Never at this pace"}</td>
+                      <td className="py-2.5 pr-3 font-sans">
+                        <span className="hidden sm:inline">{label}</span>
+                        <span className="sm:hidden">{short}</span>
+                      </td>
+                      <td className="py-2.5 text-right">{p.feasible ? formatDate(addMonths(today, p.months), "medium") : "Never"}</td>
                       <td className="py-2.5 text-right">{formatMoney(p.totalInterest, ctx)}</td>
                       <td className="py-2.5 text-right text-ok">{k === "minimum" ? "—" : formatMoney(plans.minimum.totalInterest - p.totalInterest, ctx)}</td>
                     </tr>
@@ -585,7 +588,7 @@ function CardPlanner({ cp, nextBill, near }: { cp: CardPosition; nextBill?: FinE
   const funded = !after || after.cashAfter >= 0;
   const m = (n: number) => formatMoney(n, ctx);
   return (
-    <div className="mt-3 grid grid-cols-2 gap-x-4 rounded-xl border border-line p-3 text-[13px]">
+    <div className="mt-3 grid grid-cols-1 gap-x-4 rounded-xl border border-line p-3 text-[13px] sm:grid-cols-2">
       <KV k="Statement balance" v={open ? m(open.remaining) : "—"} />
       <KV k="Total outstanding" v={m(cp.outstanding)} />
       <KV k="Minimum due" v={open ? m(open.statement.min_due) : "—"} />
@@ -593,7 +596,7 @@ function CardPlanner({ cp, nextBill, near }: { cp: CardPosition; nextBill?: FinE
       {nextBill && (nextBill.reimbursablePart ?? 0) > 0.5 && <KV k="Of which others repay you" v={<span className="text-future-ink">{m(nextBill.reimbursablePart!)}</span>} />}
       <KV k="Utilisation" v={<span className={cp.utilization * 100 > alertPct ? "font-semibold text-warn" : ""}>{formatPct(cp.utilization * 100, 0)}{cp.utilization * 100 > alertPct ? ` · above your ${alertPct}% alert` : ""}</span>} />
       {nextBill && after && (
-        <p className={cn("col-span-2 mt-1 text-[12.5px]", funded ? "text-ok" : "text-danger")}>
+        <p className={cn("mt-1 text-[12.5px] sm:col-span-2", funded ? "text-ok" : "text-danger")}>
           {funded
             ? `✓ Funded — your cash covers the ${formatDate(nextBill.date, "short")} payment.`
             : `⚠️ Not fully funded — paying on ${formatDate(nextBill.date, "short")} would leave ${m(after!.cashAfter)}. Paying late adds interest (${formatPct(cp.card.interest_rate_apr, 0)} a year) and a late fee.`}

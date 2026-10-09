@@ -310,6 +310,16 @@ input[type="range"].ribbon::-moz-range-thumb {
   animation: fade-in 160ms ease-out;
 }
 
+/* Tables on phones: tighter cells so 4 columns fit without sideways scrolling. */
+@media (max-width: 639px) {
+  .table-compact th,
+  .table-compact td {
+    padding-left: 0.4rem !important;
+    padding-right: 0.4rem !important;
+    font-size: 12px;
+  }
+}
+
 /* ---- Motion system (Settings → Look & feel). data-motion="subtle" shortens, "off" disables. ---- */
 @keyframes rise-in {
   from { transform: translateY(8px); opacity: 0; }

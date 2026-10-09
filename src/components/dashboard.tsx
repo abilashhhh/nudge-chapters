@@ -439,7 +439,7 @@ function ProjectionRibbon() {
           <span>+10 yrs</span>
         </div>
       </div>
-      <div className="no-scrollbar -mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1">
+      <div className="mt-2 flex flex-wrap gap-1.5">
         {chips.map((c) => (
           <button
             key={c.label}

@@ -297,16 +297,17 @@ function ForecastView() {
         <ul className="divide-y divide-line">
           {fc.rows.map((r, i) => (
             <li key={r.event.key + i}>
-              <button type="button" onClick={() => useUI.getState().openEvent(r.event.key)} className="flex w-full items-center gap-3 py-2 text-left text-[13.5px] hover:bg-surface-2">
-                <span className="num w-16 shrink-0 text-ink-3">{formatDate(r.event.date, "short")}</span>
+              <button type="button" onClick={() => useUI.getState().openEvent(r.event.key)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 py-2 text-left text-[13.5px] hover:bg-surface-2 sm:flex-nowrap">
+                <span className="num w-14 shrink-0 text-ink-3">{formatDate(r.event.date, "short")}</span>
                 <span className="min-w-0 flex-1 truncate">
                   {r.event.title}
                   {r.event.estimated && <span className="ml-1 text-[11px] text-future-ink">est.</span>}
                 </span>
-                <span className={cn("num w-24 shrink-0 text-right", r.event.flow === "in" ? "text-ok" : r.event.flow === "none" ? "text-ink-3" : "")}>
+                <span className="basis-full sm:hidden" aria-hidden />
+                <span className={cn("num ml-[4.25rem] shrink-0 text-right sm:ml-0 sm:w-24", r.event.flow === "in" ? "text-ok" : r.event.flow === "none" ? "text-ink-3" : "")}>
                   {r.event.flow === "none" ? `${m(r.event.remaining)} on card` : `${r.event.flow === "in" ? "+" : "−"}${m(r.event.remaining)}`}
                 </span>
-                <span className={cn("num w-28 shrink-0 text-right font-semibold", r.low ? "text-danger" : "")}>{m(r.balance)}</span>
+                <span className={cn("num ml-auto shrink-0 text-right font-semibold sm:w-28", r.low ? "text-danger" : "")}>{m(r.balance)}</span>
               </button>
             </li>
           ))}

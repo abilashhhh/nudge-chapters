@@ -25,12 +25,12 @@ export function Panel({
   return (
     <section id={id} className={cn("rounded-2xl border border-line bg-surface", className)}>
       {(title || action) && (
-        <header className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
-          <div className="min-w-0">
+        <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 pt-4 sm:px-5">
+          <div className="min-w-0 flex-1 basis-56">
             {title && <h2 className="text-[15px] font-semibold text-ink">{title}</h2>}
             {description && <p className="mt-0.5 text-[13px] text-ink-3">{description}</p>}
           </div>
-          {action && <div className="shrink-0">{action}</div>}
+          {action && <div className="min-w-0 max-w-full">{action}</div>}
         </header>
       )}
       <div className={cn(flush ? "pt-3" : "px-4 pb-4 pt-3 sm:px-5 sm:pb-5")}>{children}</div>
@@ -151,7 +151,7 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
 }) {
   return (
-    <div className={cn("inline-flex rounded-xl bg-surface-3 p-1", className)} role="radiogroup">
+    <div className={cn("inline-flex max-w-full flex-wrap gap-0.5 rounded-xl bg-surface-3 p-1", className)} role="radiogroup">
       {options.map((o) => (
         <button
           key={o.id}
@@ -160,7 +160,7 @@ export function Segmented<T extends string>({
           aria-checked={value === o.id}
           onClick={() => onChange(o.id)}
           className={cn(
-            "rounded-lg font-medium transition-colors",
+            "shrink-0 whitespace-nowrap rounded-lg font-medium transition-colors",
             size === "sm" ? "px-2.5 py-1 text-[12.5px]" : "px-3 py-1.5 text-[13.5px]",
             value === o.id ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink",
           )}
@@ -183,8 +183,8 @@ export function Dot({ color, className }: { color?: string | null; className?: s
 export function KV({ k, v, className }: { k: ReactNode; v: ReactNode; className?: string }) {
   return (
     <div className={cn("flex items-baseline justify-between gap-3 py-1.5 text-[14px]", className)}>
-      <span className="text-ink-2">{k}</span>
-      <span className="num text-right font-medium text-ink">{v}</span>
+      <span className="min-w-0 text-ink-2">{k}</span>
+      <span className="num min-w-0 text-right font-medium text-ink">{v}</span>
     </div>
   );
 }

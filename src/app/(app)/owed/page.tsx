@@ -90,7 +90,7 @@ function Group({ g }: { g: ReimbursementGroup }) {
         <span className="num text-[13px] text-ink-3">of {m(g.total)}</span>
       </div>
       <Progress className="mt-2" value={g.total > 0 ? (g.received + g.writtenOff) / g.total : 0} label={`${g.person} repaid`} />
-      <div className="mt-3 grid grid-cols-2 gap-x-6 text-[13px]">
+      <div className="mt-3 grid grid-cols-1 gap-x-6 text-[13px] sm:grid-cols-2">
         <KV k="Total owed" v={m(g.total)} />
         <KV k="Repaid" v={m(g.received)} />
         {g.writtenOff > 0 && <KV k="Written off" v={m(g.writtenOff)} />}

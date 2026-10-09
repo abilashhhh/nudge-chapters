@@ -435,11 +435,11 @@ function Fire() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-[12.5px] text-ink-3">FI number</p>
-            <Money value={plan.fiNumber} className="display text-[26px] font-semibold" />
+            <Money value={plan.fiNumber} className="display text-[21px] sm:text-[26px] font-semibold" />
           </div>
           <div>
             <p className="text-[12.5px] text-ink-3">FI ratio</p>
-            <p className="display text-[26px] font-semibold">{formatPct(plan.fiRatio * 100, 0)}</p>
+            <p className="display text-[21px] sm:text-[26px] font-semibold">{formatPct(plan.fiRatio * 100, 0)}</p>
           </div>
         </div>
         <Progress className="mt-3" value={plan.fiRatio} tone="future" label="Financial independence progress" />

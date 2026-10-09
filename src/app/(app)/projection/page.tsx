@@ -62,7 +62,7 @@ function Projection() {
           </div>
         }
       />
-      <div className="no-scrollbar -mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1">
+      <div className="mb-4 flex flex-wrap gap-1.5">
         {[
           ["End of month", endOfMonth(today)],
           [`31 Dec ${today.slice(0, 4)}`, `${today.slice(0, 4)}-12-31`],
@@ -252,7 +252,7 @@ function ProjectionView({ date }: { date: string }) {
             <span className="font-semibold">Projected cash</span>
             <Money value={cb.endCash} projected className="display text-[20px] font-semibold" />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-x-4 text-[13px]">
+          <div className="mt-4 grid grid-cols-1 gap-x-4 sm:grid-cols-2 text-[13px]">
             <KV k="Income by then" v={formatMoney(res.totals.income, ctx)} />
             <KV k="Spending by then" v={formatMoney(res.totals.expenses, ctx)} />
             <KV k="Interest paid" v={formatMoney(res.totals.interest, ctx)} />
@@ -260,7 +260,7 @@ function ProjectionView({ date }: { date: string }) {
           </div>
         </Panel>
         <Panel title="Assumptions used" description={`${sc === assumptions.scenarios.base ? "Base" : scenario} scenario`}>
-          <div className="grid grid-cols-2 gap-x-6">
+          <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
             <KV k="Salary growth" v={formatPct(sc.salaryGrowth)} />
             <KV k="Expense growth" v={formatPct(sc.expenseGrowth)} />
             <KV k="Income vs plan" v={formatPct(sc.incomeFactor * 100, 0)} />
@@ -381,7 +381,7 @@ function Compare({ date }: { date: string }) {
         <ScenarioChart metricLabel={METRIC_LABEL[metric]} series={results.map((r) => ({ key: r.key, label: label[r.key], points: r.res.series.map((p: ProjectionPoint) => ({ date: p.date, value: p[metric] })) }))} />
       </Panel>
       <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-        <table className="w-full min-w-[560px] text-[14px]">
+        <table className="table-compact w-full text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] text-ink-3">
               <th className="px-4 py-3 font-medium">On {formatDate(date)}</th>
@@ -528,7 +528,7 @@ function WhatIfView({ date }: { date: string }) {
       </Panel>
       <div className="flex flex-col gap-4">
         <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-          <table className="w-full min-w-[440px] text-[14px]">
+          <table className="table-compact w-full text-[14px]">
             <thead>
               <tr className="border-b border-line text-left text-[12.5px] text-ink-3">
                 <th className="px-4 py-3 font-medium">On {formatDate(date)}</th>

@@ -112,16 +112,16 @@ function Overview() {
       </Panel>
       <Panel title="Month by month" flush>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-[13.5px]">
+          <table className="table-compact w-full text-[13.5px]">
             <thead>
               <tr className="border-b border-line text-left text-[12px] text-ink-3">
                 <th className="px-4 py-2 font-medium">Month</th>
                 <th className="px-4 py-2 text-right font-medium">Income</th>
                 <th className="px-4 py-2 text-right font-medium">Spending</th>
                 <th className="px-4 py-2 text-right font-medium">Left over</th>
-                <th className="px-4 py-2 text-right font-medium">Savings rate</th>
-                <th className="px-4 py-2 text-right font-medium">Invested</th>
-                <th className="px-4 py-2 text-right font-medium">Debt repaid</th>
+                <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Savings rate</th>
+                <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Invested</th>
+                <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Debt repaid</th>
               </tr>
             </thead>
             <tbody className="num">
@@ -134,9 +134,9 @@ function Overview() {
                   <td className="px-4 py-2 text-right">{formatMoney(r.income, ctx)}</td>
                   <td className="px-4 py-2 text-right">{formatMoney(r.expenses, ctx)}</td>
                   <td className={cn("px-4 py-2 text-right", r.net < 0 && "text-danger")}>{formatMoney(r.net, ctx)}</td>
-                  <td className="px-4 py-2 text-right">{r.savingsRate == null ? "—" : formatPct(r.savingsRate, 0)}</td>
-                  <td className="px-4 py-2 text-right">{formatMoney(r.invested, ctx)}</td>
-                  <td className="px-4 py-2 text-right">{formatMoney(r.debtPaid, ctx)}</td>
+                  <td className="hidden px-4 py-2 text-right sm:table-cell">{r.savingsRate == null ? "—" : formatPct(r.savingsRate, 0)}</td>
+                  <td className="hidden px-4 py-2 text-right sm:table-cell">{formatMoney(r.invested, ctx)}</td>
+                  <td className="hidden px-4 py-2 text-right sm:table-cell">{formatMoney(r.debtPaid, ctx)}</td>
                 </tr>
               ))}
             </tbody>
@@ -349,12 +349,12 @@ function InvestmentReport() {
         </Panel>
         <Panel title="Performance by holding" flush>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-[13.5px]">
+            <table className="table-compact w-full text-[13.5px]">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] text-ink-3">
                   <th className="px-4 py-2 font-medium">Holding</th>
                   <th className="px-4 py-2 text-right font-medium">Value</th>
-                  <th className="px-4 py-2 text-right font-medium">Invested</th>
+                  <th className="hidden px-4 py-2 text-right font-medium sm:table-cell">Invested</th>
                   <th className="px-4 py-2 text-right font-medium">Return</th>
                   <th className="px-4 py-2 text-right font-medium">XIRR</th>
                 </tr>
@@ -363,11 +363,11 @@ function InvestmentReport() {
                 {list.map((p) => (
                   <tr key={p.investment.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-2 font-sans">
-                      <span className="block max-w-[220px] truncate">{p.investment.name}</span>
+                      <span className="block max-w-[130px] truncate sm:max-w-[220px]">{p.investment.name}</span>
                       <span className="text-[11.5px] text-ink-3">{INVESTMENT_TYPE_LABEL[p.investment.type]}</span>
                     </td>
                     <td className="px-4 py-2 text-right">{formatMoney(p.valueBase, ctx)}</td>
-                    <td className="px-4 py-2 text-right">{formatMoney(p.invested, ctx)}</td>
+                    <td className="hidden px-4 py-2 text-right sm:table-cell">{formatMoney(p.invested, ctx)}</td>
                     <td className={cn("px-4 py-2 text-right", p.gain >= 0 ? "text-ok" : "text-danger")}>{formatPct(p.gainPct)}</td>
                     <td className="px-4 py-2 text-right">{p.xirr == null ? "—" : formatPct(p.xirr)}</td>
                   </tr>
