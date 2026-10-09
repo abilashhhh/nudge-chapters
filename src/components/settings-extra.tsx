@@ -24,6 +24,7 @@ export function AppLockSettings() {
   const [pin2, setPin2] = useState("");
   useEffect(() => {
     setCfg(readLock());
+    // Checked up front so setting a PIN can register Face ID within the same tap.
     void biometricAvailable().then(setBioOk);
   }, []);
   const reset = () => {
@@ -45,10 +46,19 @@ export function AppLockSettings() {
       return reset();
     }
     if (!valid) return toast.error("Use 4–6 digits, entered the same twice");
-    const next = await makeLock(pin, cfg);
+    // Face ID / fingerprint is on by default: set it up in the same tap (browsers only allow it right after a tap).
+    let credId = cfg?.credId ?? null;
+    if (mode === "set" && bioOk && !credId) {
+      try {
+        credId = await registerBiometric(ds.profile.name ?? "me");
+      } catch {
+        toast.message("Face ID wasn't set up — you can turn it on below. Your PIN works meanwhile.");
+      }
+    }
+    const next = { ...(await makeLock(pin, cfg)), credId };
     writeLock(next);
     setCfg(next);
-    toast.success(mode === "set" ? "App lock is on 🔒" : "PIN changed");
+    toast.success(mode === "set" ? (credId ? "App lock is on — Face ID unlocks it 🔒" : "App lock is on 🔒") : "PIN changed");
     reset();
   };
   const toggleBio = async (on: boolean) => {
@@ -83,7 +93,7 @@ export function AppLockSettings() {
           />
           <Field label="Lock automatically" htmlFor="al-auto">
             <Select id="al-auto" value={String(cfg.autoLockMin)} onChange={(e) => setAuto(Number(e.target.value))}>
-              <option value="0">Immediately when I leave the app</option>
+              <option value="0">Every time I open the app</option>
               <option value="1">After 1 minute</option>
               <option value="5">After 5 minutes</option>
               <option value="15">After 15 minutes</option>
@@ -102,7 +112,10 @@ export function AppLockSettings() {
       ) : mode === "set" ? (
         <PinForm mode="set" cur={cur} setCur={setCur} pin={pin} setPin={setPin} pin2={pin2} setPin2={setPin2} onSave={save} onCancel={reset} />
       ) : (
-        <Button variant="primary" onClick={() => setMode("set")}>Set a PIN</Button>
+        <div className="flex flex-col gap-2">
+          <Button variant="primary" onClick={() => setMode("set")}>{bioOk ? "Turn on Face ID lock" : "Set a PIN"}</Button>
+          {bioOk && <p className="text-[12.5px] text-ink-3">You&apos;ll choose a backup PIN, then Face ID is used to unlock. It won&apos;t ask again while you&apos;re using the app, or if you come back within the auto-lock time.</p>}
+        </div>
       )}
     </Panel>
   );

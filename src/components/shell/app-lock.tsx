@@ -2,7 +2,7 @@
 
 import { Fingerprint, Lock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { checkPin, readLock, verifyBiometric, writeLock, type LockConfig } from "@/lib/lock";
+import { checkPin, markActive, readLock, recentlyActive, verifyBiometric, writeLock, type LockConfig } from "@/lib/lock";
 import { useStore } from "@/lib/store";
 import { Brand } from "../brand";
 import { Button } from "../ui/button";
@@ -22,7 +22,8 @@ export function AppLock({ children }: { children: ReactNode }) {
       return c;
     };
     const c = load();
-    setLocked(!!c);
+    // Reopening the app within the auto-lock window doesn't ask again.
+    setLocked(!!c && !recentlyActive(c));
     setReady(true);
     const onChange = () => load();
     window.addEventListener("nudge:lock-changed", onChange);
@@ -31,7 +32,11 @@ export function AppLock({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!cfg) return;
-    const bump = () => (last.current = Date.now());
+    const bump = () => {
+      last.current = Date.now();
+      markActive();
+    };
+    markActive();
     const evs = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
     evs.forEach((e) => window.addEventListener(e, bump, { passive: true }));
     const limit = Math.max(0, cfg.autoLockMin) * 60_000;
@@ -61,6 +66,7 @@ export function AppLock({ children }: { children: ReactNode }) {
         cfg={cfg}
         onUnlock={() => {
           last.current = Date.now();
+          markActive();
           setLocked(false);
         }}
       />
@@ -74,12 +80,13 @@ function LockScreen({ cfg, onUnlock }: { cfg: LockConfig; onUnlock: () => void }
   const [fails, setFails] = useState(0);
   const [until, setUntil] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [usePin, setUsePin] = useState(!cfg.credId);
   const tried = useRef(false);
 
   const bio = useCallback(async () => {
     if (!cfg.credId) return;
     if (await verifyBiometric(cfg.credId)) onUnlock();
-    else setErr("Couldn't verify — use your PIN.");
+    else setErr("Face ID didn't go through. Tap to try again, or use your PIN.");
   }, [cfg.credId, onUnlock]);
 
   useEffect(() => {
@@ -120,6 +127,35 @@ function LockScreen({ cfg, onUnlock }: { cfg: LockConfig; onUnlock: () => void }
     await useStore.getState().repo?.signOut();
     window.location.reload();
   };
+
+  if (!usePin) {
+    return (
+      <button
+        type="button"
+        onClick={() => void bio()}
+        className="anim-fade fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-paper px-6 text-center"
+        aria-label="Unlock with Face ID or fingerprint"
+      >
+        <Brand size="md" />
+        <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-3">
+          <Fingerprint className="h-10 w-10" aria-hidden />
+        </span>
+        <span className="text-[16px] font-semibold">Tap to unlock with Face ID</span>
+        <span className="h-5 text-[13px] text-danger">{err}</span>
+        <span
+          role="button"
+          tabIndex={0}
+          className="text-[13px] text-ink-3 underline"
+          onClick={(e) => {
+            e.stopPropagation();
+            setUsePin(true);
+          }}
+        >
+          Use PIN instead
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div className="anim-fade fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-paper px-6">

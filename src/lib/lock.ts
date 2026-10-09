@@ -58,7 +58,7 @@ async function derive(pin: string, salt: string): Promise<string> {
 
 export async function makeLock(pin: string, prev?: LockConfig | null): Promise<LockConfig> {
   const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
-  return { enabled: true, salt, hash: await derive(pin, salt), credId: prev?.credId ?? null, autoLockMin: prev?.autoLockMin ?? 1 };
+  return { enabled: true, salt, hash: await derive(pin, salt), credId: prev?.credId ?? null, autoLockMin: prev?.autoLockMin ?? 5 };
 }
 
 export async function checkPin(pin: string, c: LockConfig): Promise<boolean> {
@@ -107,6 +107,27 @@ export async function verifyBiometric(credId: string): Promise<boolean> {
       },
     });
     return !!res;
+  } catch {
+    return false;
+  }
+}
+
+const ACTIVE = "nudge:lock-active";
+
+/** Remember when the app was last used, so reopening it within the auto-lock window doesn't ask again. */
+export function markActive() {
+  try {
+    localStorage.setItem(ACTIVE, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function recentlyActive(c: LockConfig): boolean {
+  if (c.autoLockMin <= 0) return false;
+  try {
+    const t = Number(localStorage.getItem(ACTIVE) || 0);
+    return Date.now() - t < c.autoLockMin * 60_000;
   } catch {
     return false;
   }
