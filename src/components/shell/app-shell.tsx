@@ -26,7 +26,6 @@ import { QuickAddSheet, TransactionSheet } from "../transaction-form";
 import { AlertsPanel } from "./alerts-panel";
 import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
-import { ModeToggle } from "../mode-toggle";
 import { useViewMode } from "@/lib/view-mode";
 
 /** `section` is the id used by Settings → Sections to hide an entry (data and calculations are unaffected). */
@@ -71,12 +70,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     r.dataset.celebrate = visual?.celebrations === false ? "off" : "on";
   }, [visual?.motion, visual?.celebrations]);
   const { simple } = useViewMode();
-  // Simple look: just the essentials in the menu; every other section lives in "All sections" (/more).
-  const ALL = { href: "/more", label: "All sections", icon: LayoutGrid };
-  const sideNav = simple ? [...nav.filter((n) => SIMPLE_NAV.includes(n.href) && n.href !== "/settings"), ALL, ...nav.filter((n) => n.href === "/settings")] : nav;
-  const mobileNav = simple
-    ? [...nav.filter((n) => n.href === "/" || n.href === "/goals"), { ...ALL, label: "All" }, ...nav.filter((n) => n.href === "/settings")]
-    : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
+  // Simple look: just the essentials in the menu. Every other section lives in Settings → All sections.
+  const sideNav = simple ? nav.filter((n) => SIMPLE_NAV.includes(n.href)) : nav;
+  const mobileNav = simple ? sideNav : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
   const mobileMain = mobileNav.filter((n) => n.href !== "/more");
 
   // Keyboard: Ctrl/Cmd+K or / = search
@@ -118,7 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
-  const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? (simple ? "All sections" : "More") : pathname.startsWith("/support") ? "Support" : APP_NAME);
+  const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? "All sections" : pathname.startsWith("/support") ? "Support" : APP_NAME);
 
   return (
     <AppLock>
@@ -130,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
           {sideNav.map((n) => {
-            const active = n.href === "/more" && simple ? !sideNav.some((m) => m.href !== "/more" && isActive(pathname, m.href)) : isActive(pathname, n.href);
+            const active = isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
@@ -173,8 +169,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Search className="h-4 w-4" aria-hidden />
               Search or jump to…
             </button>}
-            <ModeToggle className={cn("ml-auto", !simple && "md:ml-3")} />
-            <div className="flex items-center">
+            <div className={cn("ml-auto flex items-center", !simple && "md:ml-2")}>
               <button type="button" aria-label="Search" onClick={() => ui.setPalette(true)} className={cn("inline-flex h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3", !simple && "md:hidden")}>
                 <Search className="h-5 w-5" />
               </button>
@@ -228,15 +223,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         type="button"
         onClick={() => ui.openQuick()}
         aria-label="Quick add"
-        className="no-print fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-on-brand shadow-panel transition-transform hover:scale-105 lg:bottom-8 lg:right-8 lg:h-auto lg:w-auto lg:gap-2 lg:rounded-xl lg:px-5 lg:py-3"
+        className="no-print fixed bottom-[calc(80px+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand text-on-brand shadow-panel transition-transform hover:scale-105 lg:bottom-8 lg:right-8 lg:h-auto lg:w-auto lg:gap-2 lg:rounded-xl lg:px-5 lg:py-3"
       >
-        <Plus className="h-6 w-6 lg:h-5 lg:w-5" aria-hidden />
+        <Plus className="h-5 w-5" aria-hidden />
         <span className="hidden text-[14.5px] font-semibold lg:inline">Add</span>
       </button>
 
       {/* Mobile bottom navigation */}
       <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
-        <div className={cn("mx-auto grid max-w-lg", mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        <div className={cn("mx-auto grid max-w-lg", mobileNav.length >= 5 ? "grid-cols-5" : mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
           {mobileNav.map((n) => {
             const active = n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (
