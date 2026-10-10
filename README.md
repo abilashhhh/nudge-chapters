@@ -2,7 +2,7 @@
 
 **Small nudges. Bigger chapters.** A personal command centre for your money.
 
-**Live:** https://abilashhhh.github.io/nudge-chapters/
+**Live:** https://nudgechapters.in
 
 Nudge Chapters is an all-in-one personal financial operating system built from the
 **All-in-One Personal Finance App PRD**. It combines cash flow, bills, bank balances,
@@ -216,7 +216,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`: typecheck → tests �
 
 One-time setup:
 1. Repo **Settings → Pages → Source: Deploy from a branch → `gh-pages` / root** (if not enabled automatically).
-2. **Supabase → Authentication → URL Configuration:** Site URL `https://abilashhhh.github.io/nudge-chapters/`, and add it to Redirect URLs (needed for magic links, sign-up confirmation and password reset).
+2. **Supabase → Authentication → URL Configuration:** Site URL `https://nudgechapters.in`, and add it to Redirect URLs (needed for magic links, sign-up confirmation and password reset).
 3. Optional: run `supabase/finish-setup.sql` in the Supabase SQL editor (audit trail + "Delete my account").
 
 Domain: `nudgechapters.com` availability couldn't be verified from here — check a registrar; if you buy it, add it under Settings → Pages → Custom domain and set `NEXT_PUBLIC_BASE_PATH` to empty in the workflow.

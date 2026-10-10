@@ -4,8 +4,9 @@
 #   pull request      → typecheck, test, build only (a staging check; nothing is deployed)
 #   manual run        → same as a push to main
 #
-# Live at https://<owner>.github.io/<repo>/ — the base path follows the repository name,
-# so renaming the repo keeps working.
+# Live at https://nudgechapters.in (custom domain, served from the site root — no base path).
+# To go back to https://<owner>.github.io/<repo>/: set NEXT_PUBLIC_BASE_PATH to /<repo>, point
+# NEXT_PUBLIC_SITE_URL at github.io, and drop the `cname` line in the publish step.
 #
 # Configuration comes from repository variables (Settings → Secrets and variables → Actions →
 # Variables). Every value is PUBLIC — it ends up in the JavaScript sent to browsers — so the
@@ -32,8 +33,9 @@ jobs:
     env:
       NEXT_OUTPUT: export
       NEXT_TELEMETRY_DISABLED: 1
-      NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
-      NEXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+      # With a custom domain the site lives at the root; otherwise under /<repo>/ on github.io.
+      NEXT_PUBLIC_BASE_PATH: ""
+      NEXT_PUBLIC_SITE_URL: https://nudgechapters.in
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://mzmcvnqmdyvlzzppzfyo.supabase.co' }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_kFWLbt5j1ytiB452nX_JlA_5bX9ChPE' }}
       NEXT_PUBLIC_BMC_USERNAME: ${{ vars.NEXT_PUBLIC_BMC_USERNAME || 'abilash2001' }}
@@ -62,4 +64,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./out
           force_orphan: true
+          # force_orphan wipes the branch on every deploy, so the CNAME file must be re-added each time
+          # or GitHub forgets the custom domain.
+          cname: nudgechapters.in
           commit_message: "Deploy ${{ github.sha }}"
