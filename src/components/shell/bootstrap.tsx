@@ -49,7 +49,7 @@ export function Bootstrap({ children, requireOnboarded = true }: { children: Rea
     const local = getLocalMode() === "local";
     if (local || !supabaseConfigured) {
       if (!local && !LocalRepo.hasData()) {
-        router.replace("/login");
+        router.replace(!pathname || pathname === "/" ? "/welcome" : "/login");
         return;
       }
       setRepo(new LocalRepo("existing"));
@@ -61,7 +61,8 @@ export function Bootstrap({ children, requireOnboarded = true }: { children: Rea
       const { data } = await sb.auth.getSession();
       const session = data.session;
       if (!session) {
-        router.replace(`/login${pathname && pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : ""}`);
+        // Signed-out visitors (and search engines) arriving at the home page get the public landing page.
+        router.replace(!pathname || pathname === "/" ? "/welcome" : `/login?next=${encodeURIComponent(pathname)}`);
         return;
       }
       const aal = await sb.auth.mfa.getAuthenticatorAssuranceLevel();

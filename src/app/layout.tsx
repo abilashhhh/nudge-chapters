@@ -5,7 +5,7 @@ import { APP_NAME, SITE_URL, TAGLINE, withBase } from "@/lib/config";
 import "./globals.css";
 
 const DESCRIPTION =
-  "Nudge Chapters is a personal command centre for your money: cash flow, bills, cards, EMIs, investments, EPF, chits and lending on one timeline, with timely nudges and a clear view of any future date.";
+  "Free personal finance tracker for India: bank balances, credit card bills, EMIs, chit funds, EPF, SIPs, budgets and lending on one timeline — with what's safe to spend and a view of any future date.";
 
 export const metadata: Metadata = {
   ...(SITE_URL ? { metadataBase: new URL(`${SITE_URL}/`) } : {}),
@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   manifest: withBase("/manifest.webmanifest"),
   applicationName: APP_NAME,
+  keywords: ["expense tracker", "budget app India", "credit card bill tracker", "EMI tracker", "chit fund tracker", "EPF tracker", "SIP tracker", "net worth tracker", "personal finance app", "money manager"],
+  category: "finance",
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ? { verification: { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION } } : {}),
   appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
   icons: {
     icon: [

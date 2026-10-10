@@ -1,16 +1,8 @@
-"use client";
+import type { Metadata } from "next";
+import { SetupLayoutClient } from "@/components/shell/setup-layout";
 
-import { Bootstrap } from "@/components/shell/bootstrap";
-import { Editors } from "@/components/editors";
-import { FinanceProvider } from "@/lib/finance";
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default function SetupLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <Bootstrap requireOnboarded={false}>
-      <FinanceProvider>
-        {children}
-        <Editors />
-      </FinanceProvider>
-    </Bootstrap>
-  );
+  return <SetupLayoutClient>{children}</SetupLayoutClient>;
 }

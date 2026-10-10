@@ -1,15 +1,9 @@
-"use client";
+import type { Metadata } from "next";
+import { AppLayoutClient } from "@/components/shell/app-layout";
 
-import { AppShell } from "@/components/shell/app-shell";
-import { Bootstrap } from "@/components/shell/bootstrap";
-import { FinanceProvider } from "@/lib/finance";
+// Your own finances: never shown in search results.
+export const metadata: Metadata = { robots: { index: false, follow: true } };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <Bootstrap>
-      <FinanceProvider>
-        <AppShell>{children}</AppShell>
-      </FinanceProvider>
-    </Bootstrap>
-  );
+  return <AppLayoutClient>{children}</AppLayoutClient>;
 }
