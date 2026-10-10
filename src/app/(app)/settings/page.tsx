@@ -719,8 +719,8 @@ function Appearance() {
           onChange={(m) => updateProfile({ mode: m })}
         />
         <p className="mt-3 text-[13.5px] text-ink-2">
-          Simple keeps to the essentials: dashboard, cash flow, accounts, bills and goals. Advanced adds scenario comparison, what-if planning, retirement and independence planners, the debt
-          planner and detailed reports.
+          Simple gives you a calm home page — what&apos;s safe to spend, what&apos;s coming up and your chapters — and tucks every other feature into All sections. Advanced shows the full
+          overview and every section in the menu. Nothing is deleted or recalculated either way; you can also switch from the top bar.
         </p>
         <Button size="sm" variant="ghost" className="mt-3" onClick={() => updatePrefs({ dashboard: {} })}>
           Reset dashboard layouts

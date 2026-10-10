@@ -15,14 +15,22 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
+import { useViewMode } from "@/lib/view-mode";
+import { SimpleToday } from "@/components/simple-today";
 
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-/** Today: what's happening, what needs attention, and the one thing worth doing next. */
+/** Today — Simple shows the calm home; Advanced shows the full overview. */
 export default function TodayPage() {
+  const { simple } = useViewMode();
+  return simple ? <SimpleToday /> : <AdvancedToday />;
+}
+
+/** Today: what's happening, what needs attention, and the one thing worth doing next. */
+function AdvancedToday() {
   const { ds, today, ctx, positions, month, goals, nudges } = useFinance();
   const updatePrefs = useStore((s) => s.updatePrefs);
   useEffect(() => {

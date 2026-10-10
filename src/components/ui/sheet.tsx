@@ -128,7 +128,8 @@ export function Sheet({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 pb-5">{children}</div>
-        {footer && <div className="pb-safe border-t border-line bg-surface-2 px-5 py-3">{footer}</div>}
+        {/* Own bottom padding (not .pb-safe, which would zero it on desktop) so buttons never sit on the edge. */}
+        {footer && <div className="border-t border-line bg-surface-2 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">{footer}</div>}
       </div>
     </div>,
     document.body,

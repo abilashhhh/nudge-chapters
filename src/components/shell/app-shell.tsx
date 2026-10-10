@@ -26,6 +26,8 @@ import { QuickAddSheet, TransactionSheet } from "../transaction-form";
 import { AlertsPanel } from "./alerts-panel";
 import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
+import { ModeToggle } from "../mode-toggle";
+import { useViewMode } from "@/lib/view-mode";
 
 /** `section` is the id used by Settings → Sections to hide an entry (data and calculations are unaffected). */
 export const NAV: { href: string; label: string; icon: typeof Home; section?: string }[] = [
@@ -43,6 +45,9 @@ export const NAV: { href: string; label: string; icon: typeof Home; section?: st
   { href: "/reports", label: "Reports", icon: BarChart3, section: "reports" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+/** Menu entries kept in the Simple look. */
+const SIMPLE_NAV = ["/", "/goals", "/settings"];
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
@@ -65,7 +70,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     r.dataset.motion = visual?.motion ?? "full";
     r.dataset.celebrate = visual?.celebrations === false ? "off" : "on";
   }, [visual?.motion, visual?.celebrations]);
-  const mobileNav = [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
+  const { simple } = useViewMode();
+  // Simple look: just the essentials in the menu; every other section lives in "All sections" (/more).
+  const ALL = { href: "/more", label: "All sections", icon: LayoutGrid };
+  const sideNav = simple ? [...nav.filter((n) => SIMPLE_NAV.includes(n.href) && n.href !== "/settings"), ALL, ...nav.filter((n) => n.href === "/settings")] : nav;
+  const mobileNav = simple
+    ? [...nav.filter((n) => n.href === "/" || n.href === "/goals"), { ...ALL, label: "All" }, ...nav.filter((n) => n.href === "/settings")]
+    : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
+  const mobileMain = mobileNav.filter((n) => n.href !== "/more");
 
   // Keyboard: Ctrl/Cmd+K or / = search
   useEffect(() => {
@@ -106,7 +118,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
-  const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? "More" : pathname.startsWith("/support") ? "Support" : APP_NAME);
+  const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? (simple ? "All sections" : "More") : pathname.startsWith("/support") ? "Support" : APP_NAME);
 
   return (
     <AppLock>
@@ -117,8 +129,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Brand size="md" />
         </Link>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
-          {nav.map((n) => {
-            const active = isActive(pathname, n.href);
+          {sideNav.map((n) => {
+            const active = n.href === "/more" && simple ? !sideNav.some((m) => m.href !== "/more" && isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
@@ -148,21 +160,22 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="lg:pl-60">
         {/* Top bar */}
         <header className="no-print sticky top-0 z-20 border-b border-line/70 bg-paper/85 backdrop-blur-md">
-          <div className="mx-auto flex h-14 max-w-[1240px] items-center gap-2 px-4 sm:px-6">
+          <div className="mx-auto flex h-14 max-w-[1240px] items-center gap-1 px-4 sm:gap-2 sm:px-6">
             <Link href="/" className="min-w-0 lg:hidden" aria-label={`${APP_NAME} home`}>
               <Brand size="sm" />
             </Link>
             <span className="hidden text-[15px] font-semibold text-ink lg:inline">{title}</span>
-            <button
+            {!simple && <button
               type="button"
               onClick={() => ui.setPalette(true)}
               className="ml-auto hidden h-9 w-72 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-left text-[13.5px] text-ink-3 hover:border-line-strong md:flex"
             >
               <Search className="h-4 w-4" aria-hidden />
               Search or jump to…
-            </button>
-            <div className="ml-auto flex items-center md:ml-2">
-              <button type="button" aria-label="Search" onClick={() => ui.setPalette(true)} className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3 md:hidden">
+            </button>}
+            <ModeToggle className={cn("ml-auto", !simple && "md:ml-3")} />
+            <div className="flex items-center">
+              <button type="button" aria-label="Search" onClick={() => ui.setPalette(true)} className={cn("inline-flex h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3", !simple && "md:hidden")}>
                 <Search className="h-5 w-5" />
               </button>
               <button
@@ -178,7 +191,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 type="button"
                 aria-label={currentDark ? "Switch to light theme" : "Switch to dark theme"}
                 onClick={() => setTheme(currentDark ? "light" : "dark")}
-                className="hidden h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3 sm:inline-flex"
+                className={cn("hidden h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3", !simple && "sm:inline-flex")}
               >
                 {currentDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
@@ -200,7 +213,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </span>
                 )}
               </button>
-              {repo?.kind === "local" && (
+              {repo?.kind === "local" && !simple && (
                 <span className="ml-1 hidden rounded-full bg-future-soft px-2.5 py-1 text-[12px] font-medium text-future-ink sm:inline">Demo · this device</span>
               )}
             </div>
@@ -223,9 +236,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom navigation */}
       <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
-        <div className="mx-auto grid max-w-lg grid-cols-5">
+        <div className={cn("mx-auto grid max-w-lg", mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
           {mobileNav.map((n) => {
-            const active = n.href === "/more" ? !mobileNav.slice(0, 4).some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
+            const active = n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
@@ -243,7 +256,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </nav>
 
-      <BmcFloating />
+      <BmcFloating hidden={simple} />
       <QuickAddSheet />
       <TransactionSheet />
       <EventSheet />
