@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { setLocalMode } from "@/components/shell/bootstrap";
 import { BmcButton } from "@/components/support";
 import { Button, LinkButton } from "@/components/ui/button";
-import { Field, Input, NumberInput, Select, Switch } from "@/components/ui/form";
+import { Field, Input, NumberInput, Select, Switch, RangeNumberInput } from "@/components/ui/form";
 import { Badge, EmptyState, Panel, Segmented, Tabs } from "@/components/ui/misc";
 import { ConfirmSheet, Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
@@ -118,10 +118,10 @@ function Profile() {
             </Select>
           </Field>
           <Field label="Birth year" htmlFor="pf-by">
-            <NumberInput id="pf-by" value={p.birth_year ?? ""} placeholder="1995" onChange={(e) => updateProfile({ birth_year: e.target.value ? Number(e.target.value) : null })} />
+            <RangeNumberInput id="pf-by" value={p.birth_year} min={1900} max={new Date().getFullYear()} optional placeholder="1995" onCommit={(v) => updateProfile({ birth_year: v })} />
           </Field>
           <Field label="Retirement age" htmlFor="pf-ra">
-            <NumberInput id="pf-ra" value={p.retirement_age} onChange={(e) => e.target.value && updateProfile({ retirement_age: Number(e.target.value) })} />
+            <RangeNumberInput id="pf-ra" value={p.retirement_age} min={30} max={100} onCommit={(v) => v != null && updateProfile({ retirement_age: v })} />
           </Field>
         </div>
       </Panel>

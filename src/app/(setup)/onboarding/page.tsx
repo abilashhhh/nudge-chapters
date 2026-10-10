@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Money } from "@/components/money";
 import { Button } from "@/components/ui/button";
-import { Field, Input, NumberInput, Select } from "@/components/ui/form";
+import { Field, Input, NumberInput, Select, RangeNumberInput } from "@/components/ui/form";
 import { cn } from "@/lib/cn";
 import { Brand } from "@/components/brand";
 import { APP_NAME } from "@/lib/config";
@@ -315,10 +315,10 @@ function ProfileStep({ onFinish }: { onFinish: () => void }) {
           </Select>
         </Field>
         <Field label="Birth year" htmlFor="ob-by" optional help="For retirement planning">
-          <NumberInput id="ob-by" value={p.birth_year ?? ""} placeholder="1995" onChange={(e) => updateProfile({ birth_year: e.target.value ? Number(e.target.value) : null })} />
+          <RangeNumberInput id="ob-by" value={p.birth_year} min={1900} max={new Date().getFullYear()} optional placeholder="1995" onCommit={(v) => updateProfile({ birth_year: v })} />
         </Field>
         <Field label="Retire at" htmlFor="ob-ra">
-          <NumberInput id="ob-ra" value={p.retirement_age} onChange={(e) => e.target.value && updateProfile({ retirement_age: Number(e.target.value) })} />
+          <RangeNumberInput id="ob-ra" value={p.retirement_age} min={30} max={100} onCommit={(v) => v != null && updateProfile({ retirement_age: v })} />
         </Field>
       </div>
       <div className="rounded-2xl border border-line bg-surface p-5">

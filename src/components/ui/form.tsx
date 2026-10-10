@@ -168,3 +168,60 @@ export function DateInput({ className, ...rest }: InputHTMLAttributes<HTMLInputE
 export function NumberInput({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input type="number" inputMode="decimal" className={cn(control, "h-11 num", className)} {...rest} />;
 }
+
+/**
+ * A whole number that saves only once it's valid. While you type "1995", the partial "1", "19", "199"
+ * stay on screen but aren't saved (the database would reject them). Leaving the box with an invalid
+ * value puts back the last saved one. Clearing it saves "empty" when `optional`.
+ */
+export function RangeNumberInput({
+  value,
+  min,
+  max,
+  optional,
+  onCommit,
+  className,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "min" | "max"> & {
+  value: number | null | undefined;
+  min: number;
+  max: number;
+  optional?: boolean;
+  onCommit: (v: number | null) => void;
+}) {
+  const [text, setText] = useState(value == null ? "" : String(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setText(value == null ? "" : String(value));
+  }, [value, focused]);
+  const valid = (t: string) => {
+    if (t.trim() === "") return !!optional;
+    const n = Number(t);
+    return Number.isInteger(n) && n >= min && n <= max;
+  };
+  const showError = !focused && text.trim() !== "" && !valid(text);
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      className={cn(control, "h-11 num", showError && "border-danger", className)}
+      value={text}
+      aria-invalid={showError || undefined}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => {
+        const t = e.target.value.replace(/[^0-9]/g, "");
+        setText(t);
+        if (valid(t)) {
+          const n = t.trim() === "" ? null : Number(t);
+          if (n !== (value ?? null)) onCommit(n);
+        }
+      }}
+      onBlur={() => {
+        setFocused(false);
+        if (!valid(text)) setText(value == null ? "" : String(value));
+      }}
+      {...rest}
+    />
+  );
+}
