@@ -23,12 +23,9 @@ import { useFinance } from "@/lib/finance";
 import { useStore } from "@/lib/store";
 import { useTab } from "@/lib/use-tab";
 import { AppLockSettings, SectionSettings, VisualSettings } from "@/components/settings-extra";
-import { AllSections } from "@/components/all-sections";
-import { ModeToggle } from "@/components/mode-toggle";
-import { useViewMode } from "@/lib/view-mode";
 import type { AlertModule, AuditEvent, Category } from "@/lib/types";
 
-const TABS = ["all", "profile", "categories", "notifications", "data", "security", "activity", "appearance", "sections"] as const;
+const TABS = ["profile", "categories", "notifications", "data", "security", "activity", "appearance", "sections"] as const;
 
 export default function SettingsPage() {
   return (
@@ -39,17 +36,15 @@ export default function SettingsPage() {
 }
 
 function Settings() {
-  const { simple } = useViewMode();
-  const [tab, setTab] = useTab(TABS, simple ? "all" : "profile");
+  const [tab, setTab] = useTab(TABS, "profile");
   return (
     <>
-      <PageHeader title="Settings" description="Every section of the app, plus your profile, alerts, data and security." />
+      <PageHeader title="Settings" description="Your profile, categories, alerts, data and security." />
       <Tabs
         className="mb-5"
         value={tab}
         onChange={setTab}
         tabs={[
-          { id: "all", label: "All sections" },
           { id: "profile", label: "Profile" },
           { id: "categories", label: "Categories" },
           { id: "notifications", label: "Alerts" },
@@ -60,7 +55,6 @@ function Settings() {
           { id: "sections", label: "Sections & widgets" },
         ]}
       />
-      {tab === "all" && <AllSectionsTab />}
       {tab === "profile" && <Profile />}
       {tab === "categories" && <Categories />}
       {tab === "notifications" && <Notifications />}
@@ -74,21 +68,6 @@ function Settings() {
 }
 
 // ---------------------------------------------------------------------------
-
-function AllSectionsTab() {
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4">
-        <div>
-          <p className="text-[15px] font-semibold">Look</p>
-          <p className="text-[13px] text-ink-3">Simple keeps the home page and menu calm. Advanced shows everything everywhere.</p>
-        </div>
-        <ModeToggle labels="always" />
-      </div>
-      <AllSections />
-    </div>
-  );
-}
 
 function Profile() {
   const { ds } = useFinance();
@@ -740,8 +719,8 @@ function Appearance() {
           onChange={(m) => updateProfile({ mode: m })}
         />
         <p className="mt-3 text-[13.5px] text-ink-2">
-          Simple gives you a calm home page — what&apos;s safe to spend, what&apos;s coming up and your chapters — and tucks every other feature into Settings → All sections. Advanced shows the full
-          overview and every section in the menu. Nothing is deleted or recalculated either way; you can also switch under Settings → All sections.
+          Simple gives you a calm home page — what&apos;s safe to spend, what&apos;s coming up and your chapters — and tucks every other feature into the Menu. Advanced shows the full
+          overview and every section in the menu. Nothing is deleted or recalculated either way; you can also switch at the top of the Menu.
         </p>
         <Button size="sm" variant="ghost" className="mt-3" onClick={() => updatePrefs({ dashboard: {} })}>
           Reset dashboard layouts

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  BarChart3, CalendarDays, Coffee, FileUp, Heart, Landmark, ListChecks, PieChart, PiggyBank, Sparkles, Target, TrendingUp, Users, Wallet,
+  BarChart3, CalendarDays, Coffee, FileUp, Heart, Landmark, ListChecks, PieChart, PiggyBank, Settings, Sparkles, Target, TrendingUp, Users, Wallet,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -13,8 +13,8 @@ import { useHidden } from "@/lib/visual";
 
 type Tile = { href: string; label: string; icon: typeof Wallet; hint: ReactNode; section?: string };
 
-/** Every feature of the app, grouped so it stays easy to scan. Lives in Settings (and /more in the Advanced look). */
-export function AllSections() {
+/** Every feature of the app, grouped so it stays easy to scan. Shown on the Menu page (/more). */
+export function AllSections({ withSettings = false }: { withSettings?: boolean }) {
   const { positions, month, ctx } = useFinance();
   const hidden = useHidden();
   const groups: { title: string; tiles: Tile[] }[] = [
@@ -46,8 +46,9 @@ export function AllSections() {
       ],
     },
     {
-      title: "Data",
+      title: "Your app",
       tiles: [
+        ...(withSettings ? [{ href: "/settings", label: "Settings", icon: Settings, hint: "Profile, alerts, look, security" }] : []),
         { href: "/settings?tab=data", label: "Import & export", icon: FileUp, hint: "CSV, Excel, backup" },
         ...(BMC_URL ? [{ href: "/support", label: `Support ${APP_NAME}`, icon: Coffee, hint: "Buy the developer a coffee" }] : []),
       ],

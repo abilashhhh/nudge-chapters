@@ -46,7 +46,7 @@ export const NAV: { href: string; label: string; icon: typeof Home; section?: st
 ];
 
 /** Menu entries kept in the Simple look. */
-const SIMPLE_NAV = ["/", "/goals", "/settings"];
+const SIMPLE_NAV = ["/", "/plan", "/goals"];
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
@@ -71,7 +71,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [visual?.motion, visual?.celebrations]);
   const { simple } = useViewMode();
   // Simple look: just the essentials in the menu. Every other section lives in Settings → All sections.
-  const sideNav = simple ? nav.filter((n) => SIMPLE_NAV.includes(n.href)) : nav;
+  const sideNav = simple
+    ? [...nav.filter((n) => SIMPLE_NAV.includes(n.href)).map((n) => (n.href === "/" ? { ...n, label: "Home" } : n)), { href: "/more", label: "Menu", icon: LayoutGrid }]
+    : nav;
   const mobileNav = simple ? sideNav : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
   const mobileMain = mobileNav.filter((n) => n.href !== "/more");
 
@@ -114,7 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
-  const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? "All sections" : pathname.startsWith("/support") ? "Support" : APP_NAME);
+  const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? (simple ? "Menu" : "All sections") : pathname.startsWith("/support") ? "Support" : APP_NAME);
 
   return (
     <AppLock>
@@ -126,7 +128,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
           {sideNav.map((n) => {
-            const active = isActive(pathname, n.href);
+            // In the Simple look, "Menu" stays lit on any section it leads to.
+            const active = simple && n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
