@@ -12,6 +12,7 @@ import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import type { Transaction, TxType } from "@/lib/types";
+import { useAppVersion } from "@/lib/app-version";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Input, NumberInput, Select, Switch, Textarea } from "./ui/form";
 import { ConfirmSheet, Sheet } from "./ui/sheet";
@@ -27,6 +28,27 @@ const MORE: TxType[] = [
   "chit_installment", "chit_payout", "lend", "borrow", "adjustment",
 ];
 
+/** Version 2 uses plain words for every kind of entry. */
+const V2_PRIMARY_LABEL: Partial<Record<TxType, string>> = { expense: "Spent", income: "Got money", transfer: "Move money" };
+export const V2_TX_LABEL: Record<TxType, string> = {
+  income: "Got money",
+  expense: "Spent money",
+  transfer: "Move money between my accounts",
+  card_spend: "Card spend",
+  card_payment: "Pay card bill",
+  lend: "Money lent",
+  lend_repayment: "Got money back",
+  borrow: "I borrowed",
+  borrow_repayment: "Paid back what I borrowed",
+  invest_buy: "Put money into savings",
+  invest_sell: "Took money out of savings",
+  loan_emi: "EMI paid",
+  loan_prepayment: "Pay extra on a loan",
+  chit_installment: "Chit payment",
+  chit_payout: "Chit amount received",
+  adjustment: "Fix balance",
+};
+
 type Draft = Partial<Transaction> & { payWith?: string };
 
 export function TransactionSheet() {
@@ -40,6 +62,7 @@ export function TransactionSheet() {
 
 function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transaction> | null; editing: Transaction | null; onClose: () => void }) {
   const { ds, today, positions, ctx } = useFinance();
+  const { v2 } = useAppVersion();
   const add = useStore((s) => s.add);
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
@@ -62,6 +85,8 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Version 2 keeps the form short: the rarely-used switches sit behind "More options".
+  const [moreOpen, setMoreOpen] = useState(() => !!editing && ((editing.tags ?? []).length > 0 || !!editing.notes));
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
   const type = d.type ?? "expense";
 
@@ -199,7 +224,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
   switch (type) {
     case "expense":
       specific = (
-        <Field label="Paid with" error={errors.payWith} htmlFor="tx-paywith">
+        <Field label={v2 ? "Paid from" : "Paid with"} error={errors.payWith} htmlFor="tx-paywith">
           <Select id="tx-paywith" value={d.payWith ?? ""} onChange={(e) => set({ payWith: e.target.value })}>
             <option value="">Choose…</option>
             <optgroup label="Bank & cash">
@@ -252,9 +277,9 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
             {renderAccount("Paid from", "account_id", "No account (refund / cashback)")}
           </div>
           {cp && cp.statements.some((s) => s.remaining > 0 || s.statement.id === d.statement_id) && (
-            <Field label="Towards statement" htmlFor="tx-stmt">
+            <Field label={v2 ? "Towards card bill" : "Towards statement"} htmlFor="tx-stmt">
               <Select id="tx-stmt" value={d.statement_id ?? ""} onChange={(e) => set({ statement_id: e.target.value || null })}>
-                <option value="">Not a specific statement</option>
+                <option value="">{v2 ? "Not a specific bill" : "Not a specific statement"}</option>
                 {cp.statements
                   .filter((s) => s.remaining > 0 || s.statement.id === d.statement_id)
                   .map((s) => (
@@ -397,7 +422,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
       specific = (
         <>
           {renderAccount("Account")}
-          <Note>Use a positive amount to add to the balance and a negative one to reduce it. Adjustments aren&apos;t income or expenses.</Note>
+          <Note>{v2 ? "Type what your bank app shows minus what this app shows. " : ""}Use a positive amount to add to the balance and a negative one to reduce it. Adjustments aren&apos;t income or expenses.</Note>
         </>
       );
       break;
@@ -410,7 +435,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
       <Sheet
         open
         onClose={onClose}
-        title={editing ? "Edit transaction" : "Add transaction"}
+        title={v2 ? (editing ? "Edit entry" : V2_TX_LABEL[type]) : editing ? "Edit transaction" : "Add transaction"}
         footer={
           <div className="flex items-center gap-2">
             {editing && (
@@ -459,7 +484,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
                   onClick={() => set({ type: t.id, category: t.id === "income" ? "Salary" : t.id === "expense" ? d.category : null, payWith: d.payWith ?? (primary ? `acct:${primary}` : "") })}
                   className={cn("rounded-lg px-3 py-1.5 text-[13.5px] font-medium", type === t.id ? "bg-surface text-ink shadow-sm" : "text-ink-2")}
                 >
-                  {t.label}
+                  {v2 ? V2_PRIMARY_LABEL[t.id] ?? t.label : t.label}
                 </button>
               ))}
             </div>
@@ -469,10 +494,10 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
               value={MORE.includes(type) ? type : ""}
               onChange={(e) => e.target.value && set({ type: e.target.value as TxType, category: null })}
             >
-              <option value="">More types…</option>
+              <option value="">{v2 ? "Something else…" : "More types…"}</option>
               {MORE.map((m) => (
                 <option key={m} value={m}>
-                  {TX_TYPE_LABEL[m]}
+                  {v2 ? V2_TX_LABEL[m] : TX_TYPE_LABEL[m]}
                 </option>
               ))}
             </Select>
@@ -489,8 +514,8 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
               <DateInput id="tx-date" value={d.date ?? ""} onChange={(e) => set({ date: e.target.value })} />
             </Field>
             {showCategory ? (
-              <Field label="Category" htmlFor="tx-cat">
-                <Input id="tx-cat" list="tx-cats" value={d.category ?? ""} placeholder="Category" onChange={(e) => set({ category: e.target.value || null })} />
+              <Field label={v2 ? "What for" : "Category"} htmlFor="tx-cat">
+                <Input id="tx-cat" list="tx-cats" value={d.category ?? ""} placeholder={v2 ? "e.g. Groceries" : "Category"} onChange={(e) => set({ category: e.target.value || null })} />
                 <datalist id="tx-cats">
                   {cats.map((c) => (
                     <option key={c.id} value={c.name} />
@@ -520,27 +545,36 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
             </div>
           )}
 
-          <Field label="Description" optional htmlFor="tx-desc">
+          <Field label={v2 ? "Note" : "Description"} optional htmlFor="tx-desc">
             <Input id="tx-desc" value={d.description ?? ""} placeholder="e.g. Swiggy, rent for May" onChange={(e) => set({ description: e.target.value })} />
           </Field>
-          <Field label="Notes" optional htmlFor="tx-notes">
-            <Textarea id="tx-notes" value={d.notes ?? ""} onChange={(e) => set({ notes: e.target.value })} />
-          </Field>
-          {(type === "expense" || type === "card_spend") && (
-            <Switch
-              checked={(d.tags ?? []).includes("reimbursable")}
-              onChange={(v) => set({ tags: v ? [...(d.tags ?? []).filter((t) => t !== "reimbursable"), "reimbursable"] : (d.tags ?? []).filter((t) => t !== "reimbursable") })}
-              label="Paid for someone else — they'll repay me (not my spending)"
-            />
+          {v2 && !moreOpen && (
+            <button type="button" className="-mt-1 self-start text-[13.5px] font-medium text-ink-2 underline-offset-2 hover:text-ink hover:underline" onClick={() => setMoreOpen(true)} aria-expanded={false}>
+              More options
+            </button>
           )}
-          {type === "income" && (
-            <Switch
-              checked={(d.tags ?? []).includes("refund")}
-              onChange={(v) => set({ tags: v ? [...(d.tags ?? []).filter((t) => t !== "refund"), "refund"] : (d.tags ?? []).filter((t) => t !== "refund") })}
-              label="This is a refund (gives budget back, not income)"
-            />
+          {(!v2 || moreOpen) && (
+            <>
+              <Field label={v2 ? "More details" : "Notes"} optional htmlFor="tx-notes">
+                <Textarea id="tx-notes" value={d.notes ?? ""} onChange={(e) => set({ notes: e.target.value })} />
+              </Field>
+              {(type === "expense" || type === "card_spend") && (
+                <Switch
+                  checked={(d.tags ?? []).includes("reimbursable")}
+                  onChange={(v) => set({ tags: v ? [...(d.tags ?? []).filter((t) => t !== "reimbursable"), "reimbursable"] : (d.tags ?? []).filter((t) => t !== "reimbursable") })}
+                  label={v2 ? "Someone will pay me back (not my spending)" : "Paid for someone else — they'll repay me (not my spending)"}
+                />
+              )}
+              {type === "income" && (
+                <Switch
+                  checked={(d.tags ?? []).includes("refund")}
+                  onChange={(v) => set({ tags: v ? [...(d.tags ?? []).filter((t) => t !== "refund"), "refund"] : (d.tags ?? []).filter((t) => t !== "refund") })}
+                  label={v2 ? "This is money returned to me (gives budget back, not income)" : "This is a refund (gives budget back, not income)"}
+                />
+              )}
+              {editing && <Switch checked={!!d.reconciled} onChange={(v) => set({ reconciled: v })} label={v2 ? "Matches my bank" : "Reconciled with bank statement"} />}
+            </>
           )}
-          {editing && <Switch checked={!!d.reconciled} onChange={(v) => set({ reconciled: v })} label="Reconciled with bank statement" />}
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
         </form>
       </Sheet>

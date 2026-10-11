@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Check, Pencil, Plus, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAppVersion } from "@/lib/app-version";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Money } from "@/components/money";
@@ -49,7 +50,12 @@ export default function OnboardingPage() {
   const updateProfile = useStore((s) => s.updateProfile);
   const addMany = useStore((s) => s.addMany);
   const router = useRouter();
-  const [step, setStep] = useState(Math.min(ds.profile.preferences?.onboardingStep ?? 0, STEPS.length - 1));
+  // Version 2: a short setup — You → Bank accounts → Cards → Done. Everything else can be added later.
+  const { v2 } = useAppVersion();
+  const steps = v2
+    ? STEPS.filter((x) => ["profile", "accounts", "cards", "review"].includes(x.id)).map((x) => (x.id === "review" ? { ...x, title: "Done", why: "You're set. Add salary, loans, chits and savings any time from the + button or the Menu." } : x))
+    : STEPS;
+  const [step, setStep] = useState(Math.min(ds.profile.preferences?.onboardingStep ?? 0, steps.length - 1));
   const seeded = useRef(false);
 
   // Default categories on first run.
@@ -60,7 +66,7 @@ export default function OnboardingPage() {
   }, [ds.categories.length, addMany]);
 
   const go = (n: number) => {
-    const next = Math.max(0, Math.min(STEPS.length - 1, n));
+    const next = Math.max(0, Math.min(steps.length - 1, n));
     setStep(next);
     void updatePrefs({ onboardingStep: next });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -69,7 +75,7 @@ export default function OnboardingPage() {
     await updateProfile({ onboarding_done: true, preferences: { ...ds.profile.preferences, onboardingStep: 0 } });
     router.replace("/");
   };
-  const s = STEPS[step];
+  const s = steps[step];
 
   return (
     <div className="min-h-dvh">
@@ -82,7 +88,7 @@ export default function OnboardingPage() {
         </div>
         <div className="mx-auto max-w-3xl px-4 pb-3">
           <ol className="flex gap-1" aria-label="Setup progress">
-            {STEPS.map((x, i) => (
+            {steps.map((x, i) => (
               <li key={x.id} className="flex-1">
                 <button
                   type="button"
@@ -98,7 +104,7 @@ export default function OnboardingPage() {
       </header>
       <main className="mx-auto max-w-3xl px-4 pb-32 pt-6">
         <p className="text-[13px] font-medium text-ink-3">
-          Step {step + 1} of {STEPS.length}
+          Step {step + 1} of {steps.length}
         </p>
         <h1 className="display mt-1 text-[30px] font-semibold leading-tight sm:text-[36px]">{s.title}</h1>
         <p className="mt-1 max-w-xl text-[14.5px] text-ink-2">{s.why}</p>
@@ -111,7 +117,7 @@ export default function OnboardingPage() {
           <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={() => go(step - 1)} disabled={step === 0}>
             Back
           </Button>
-          {step < STEPS.length - 1 ? (
+          {step < steps.length - 1 ? (
             <div className="flex gap-2">
               {step > 0 && (
                 <Button variant="ghost" onClick={() => go(step + 1)}>
@@ -124,7 +130,7 @@ export default function OnboardingPage() {
             </div>
           ) : (
             <Button variant="primary" icon={<Check className="h-4 w-4" />} onClick={finish}>
-              Go to my dashboard
+              {v2 ? "Go to Home" : "Go to my dashboard"}
             </Button>
           )}
         </div>

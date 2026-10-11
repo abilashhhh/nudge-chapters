@@ -13,6 +13,19 @@ import { formatMoney, parseAmount } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { NAV } from "./app-shell";
+import { useAppVersion } from "@/lib/app-version";
+import { V2_MENU_PAGES, V2_NAV, hrefForV2 } from "@/lib/v2/routes";
+
+/** Version 2 uses plain words for a few actions. */
+const V2_ACTION_LABEL: Record<string, string> = {
+  "a-exp": "Spent money",
+  "a-inc": "Got money",
+  "a-tr": "Move money between my accounts",
+  "a-card": "Pay card bill",
+  "a-rule": "Add a repeating bill, income or budget",
+  "a-lend": "Lent or borrowed money",
+  "a-inv": "Add savings or a fund",
+};
 
 interface Item {
   id: string;
@@ -51,6 +64,7 @@ export function CommandPalette() {
   const pathname = usePathname();
   const f = useFinance();
   const updatePrefs = useStore((s) => s.updatePrefs);
+  const { v2 } = useAppVersion();
   // Time of the last selection: a double click / repeated Enter within 400 ms runs only once.
   // (A time window can't get stuck the way an on/off flag can.)
   const lastSelect = useRef(0);
@@ -106,7 +120,8 @@ export function CommandPalette() {
   const items = useMemo<Item[]>(() => {
     if (!open) return [];
     const ui = useUI.getState();
-    const go = (href: string) => () => router.push(href);
+    // Version 2: Version 1 addresses go straight to their new place.
+    const go = (href: string) => () => router.push(v2 ? hrefForV2(href) : href);
     const m = (n: number) => formatMoney(n, f.ctx);
     const query = q.trim().toLowerCase();
     const out: Item[] = [];
@@ -177,15 +192,27 @@ export function CommandPalette() {
       { id: "a-mask", group: "Actions", label: f.ds.profile.preferences?.maskValues ? "Show amounts" : "Hide amounts", run: () => updatePrefs({ maskValues: !f.ds.profile.preferences?.maskValues }) },
       { id: "a-export", group: "Actions", label: "Export or back up my data", run: go("/settings?tab=data") },
     ];
-    const pages: Item[] = [
-      ...NAV.map((n) => ({ id: `p-${n.href}`, group: "Go to", label: n.label, run: go(n.href) })),
-      { id: "p-support", group: "Go to", label: "Buy me a coffee", run: go("/support") },
-    ];
+    const pages: Item[] = v2
+      ? [
+          ...V2_NAV.map((n) => ({ id: `p-${n.href}`, group: "Go to", label: n.label, hint: n.meaning, run: go(n.href) })),
+          ...Object.entries(V2_MENU_PAGES).map(([href, label]) => ({ id: `p-${href}`, group: "Go to", label, hint: "Menu", run: go(href) })),
+        ]
+      : [
+          ...NAV.map((n) => ({ id: `p-${n.href}`, group: "Go to", label: n.label, run: go(n.href) })),
+          { id: "p-support", group: "Go to", label: "Buy me a coffee", run: go("/support") },
+        ];
+    if (v2) {
+      for (const a of actions) {
+        a.label = V2_ACTION_LABEL[a.id] ?? a.label;
+        delete a.hint;
+      }
+    }
+    const acts = v2 ? actions.filter((a) => a.id !== "a-chap") : actions;
 
-    if (!query) return [...actions.slice(0, 6), ...pages];
+    if (!query) return [...acts.slice(0, 6), ...pages];
 
     const match = (s: string | null | undefined) => !!s && s.toLowerCase().includes(query);
-    out.push(...actions.filter((a) => match(a.label)), ...pages.filter((p) => match(p.label)));
+    out.push(...acts.filter((a) => match(a.label)), ...pages.filter((p) => match(p.label)));
 
     for (const a of f.ds.accounts) if (match(a.name) || match(a.institution)) out.push({ id: `acc-${a.id}`, group: "Accounts", label: a.name, hint: m(f.positions.accounts.get(a.id)?.balance ?? 0), run: () => ui.openEditor("account", a.id) });
     for (const c of f.ds.credit_cards) if (match(c.name) || match(c.issuer)) out.push({ id: `cc-${c.id}`, group: "Cards", label: c.name, hint: `${m(f.positions.cards.get(c.id)?.outstanding ?? 0)} owed`, run: go("/liabilities?tab=cards") });
@@ -216,8 +243,9 @@ export function CommandPalette() {
         });
       }
     }
-    return out;
-  }, [open, q, f, router, updatePrefs]);
+    // Version 2 search finds screens and items; the "Ask" answers stay in Version 1.
+    return v2 ? out.filter((i) => i.group !== "Ask").map((i) => (i.group === "Chapters" ? { ...i, group: "Goals" } : i)) : out;
+  }, [open, q, f, router, updatePrefs, v2]);
 
   useEffect(() => setIdx(0), [q]);
   useEffect(() => {
@@ -249,7 +277,7 @@ export function CommandPalette() {
                 select(items[idx]);
               }
             }}
-            placeholder='Search, or ask "how much will I have by Dec 2027?"'
+            placeholder={v2 ? "Search accounts, cards, loans, notes, entries…" : 'Search, or ask "how much will I have by Dec 2027?"'}
             className="no-focus-ring h-14 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
             aria-label="Search records and actions"
             role="combobox"
