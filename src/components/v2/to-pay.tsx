@@ -17,6 +17,7 @@ import { EmptyState, Tabs } from "../ui/misc";
 import { LoanPlanSheet } from "./loan-sheet";
 import { MonthGrid, useGridMonths } from "./month-grid";
 import { StatTile, useRangeEvents, V2PageHeader } from "./ui";
+import { Cell2, DataTable, Details } from "./data-table";
 
 const TABS = ["cards", "chits", "loans"] as const;
 type Tab = (typeof TABS)[number];
@@ -135,16 +136,16 @@ function ordinal(n: number) {
 // ---------------------------------------------------------------------------
 
 function ChitsSips() {
-  const { ds, today } = useFinance();
+  const { ds, positions, today } = useFinance();
   const months = useGridMonths();
   const events = useRangeEvents(months);
-  const data = useMemo(() => chitSipGrid(ds, events, months, today), [ds, events, months, today]);
+  const data = useMemo(() => chitSipGrid(ds, positions, events, months, today), [ds, positions, events, months, today]);
   const ui = useUI.getState();
   return (
     <MonthGrid
       data={data}
       nameHeader="Item"
-      forHeader="Pay from"
+      forHeader={null}
       grandLabel="Total"
       exportName="chits-and-sips"
       onRow={(row) => {
@@ -168,7 +169,7 @@ function Loans() {
   const { ds, positions, today, ctx } = useFinance();
   const months = useGridMonths();
   const events = useRangeEvents(months);
-  const data = useMemo(() => loanGrid(ds, events, months, today), [ds, events, months, today]);
+  const data = useMemo(() => loanGrid(ds, positions, events, months, today), [ds, positions, events, months, today]);
   const params = useSearchParams();
   const [sheet, setSheet] = useState<{ id: string; view: "plan" | "extra" } | null>(null);
   useEffect(() => {
@@ -198,83 +199,81 @@ function Loans() {
           }
         />
       ) : (
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[44rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">Name</th>
-                <th className="px-3 py-2.5 font-medium">From</th>
-                <th className="px-3 py-2.5 font-medium">Type</th>
-                <th className="px-3 py-2.5 text-right font-medium">Monthly</th>
-                <th className="px-3 py-2.5 text-right font-medium">Paid so far</th>
-                <th className="px-3 py-2.5 text-right font-medium">Still to pay</th>
-                <th className="px-3 py-2.5 text-right font-medium">EMIs left</th>
-                <th className="px-3 py-2.5 font-medium">Last EMI</th>
-                <th className="px-3 py-2.5 font-medium">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="num">
-              {loans.map(({ loan, state }) => (
-                <tr key={loan.id} className={cn("border-t border-line align-top", loan.status !== "active" && "text-ink-3")}>
-                  <td className="px-3 py-2.5 font-medium">{loan.name}</td>
-                  <td className="px-3 py-2.5">{loan.lender ?? "–"}</td>
-                  <td className="px-3 py-2.5">{TYPE[loan.type] ?? "Other"}</td>
-                  <td className="px-3 py-2.5 text-right">{m(state.emi)}</td>
-                  <td className="px-3 py-2.5 text-right">{m(state.principalPaid + state.interestPaid)}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold">{m(state.outstanding)}</td>
-                  <td className="px-3 py-2.5 text-right">{state.remainingInstallments}</td>
-                  <td className="px-3 py-2.5">{formatDate(state.endDate)}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {loan.status === "active" && (
-                        <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "loan_emi", loan_id: loan.id })}>
-                          EMI paid
-                        </Button>
-                      )}
-                      {loan.status === "active" && (
-                        <Button size="sm" onClick={() => setSheet({ id: loan.id, view: "extra" })}>
-                          Pay extra
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => setSheet({ id: loan.id, view: "plan" })}>
-                        Payment plan
+        <DataTable
+          label="Loans and money borrowed"
+          rows={[...loans.map((l) => ({ kind: "loan" as const, id: l.loan.id, l })), ...borrowed.map((b) => ({ kind: "borrow" as const, id: b.l.id, b }))]}
+          rowKey={(r) => r.id}
+          initiallyOpen={params.get("loan")}
+          rowClassName={(r) => ((r.kind === "loan" ? r.l.loan.status !== "active" : (r.b.p?.outstanding ?? 0) <= 0.5) ? "text-ink-3" : undefined)}
+          columns={[
+            {
+              key: "n",
+              header: "Name",
+              cell: (r) => (r.kind === "loan" ? <Cell2 main={r.l.loan.name} sub={r.l.loan.lender ?? TYPE[r.l.loan.type]} /> : <Cell2 main={r.b.l.person} sub="Borrowed" />),
+            },
+            { key: "m", header: "Monthly", align: "right", wide: false, cell: (r) => (r.kind === "loan" ? m(r.l.state.emi) : "–") },
+            {
+              key: "left",
+              header: "Still to pay",
+              align: "right",
+              cell: (r) => <span className="font-semibold">{m(r.kind === "loan" ? r.l.state.outstanding : r.b.p?.outstanding ?? 0)}</span>,
+            },
+          ]}
+          details={(r) =>
+            r.kind === "loan" ? (
+              <Details
+                items={[
+                  ["From", r.l.loan.lender ?? "–"],
+                  ["Type", TYPE[r.l.loan.type] ?? "Other"],
+                  ["Paid so far", m(r.l.state.principalPaid + r.l.state.interestPaid)],
+                  ["EMIs left", String(r.l.state.remainingInstallments)],
+                  ["Last EMI", formatDate(r.l.state.endDate)],
+                ]}
+                actions={
+                  <>
+                    {r.l.loan.status === "active" && (
+                      <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "loan_emi", loan_id: r.l.loan.id })}>
+                        EMI paid
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => ui.openEditor("loan", loan.id)}>
-                        Edit
+                    )}
+                    {r.l.loan.status === "active" && (
+                      <Button size="sm" onClick={() => setSheet({ id: r.l.loan.id, view: "extra" })}>
+                        Pay extra
                       </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {borrowed.map(({ l, p }) => (
-                <tr key={l.id} className={cn("border-t border-line align-top", (p?.outstanding ?? 0) <= 0.5 && "text-ink-3")}>
-                  <td className="px-3 py-2.5 font-medium">{l.notes || "Borrowed"}</td>
-                  <td className="px-3 py-2.5">{l.person}</td>
-                  <td className="px-3 py-2.5">Friend / family</td>
-                  <td className="px-3 py-2.5 text-right">–</td>
-                  <td className="px-3 py-2.5 text-right">{m(p?.repaid ?? 0)}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold">{m(p?.outstanding ?? 0)}</td>
-                  <td className="px-3 py-2.5 text-right">–</td>
-                  <td className="px-3 py-2.5">{l.expected_date ? formatDate(l.expected_date) : "No date"}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {(p?.outstanding ?? 0) > 0.5 && (
-                        <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "borrow_repayment", lending_id: l.id })}>
-                          Paid back
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => ui.openEditor("lending", l.id)}>
-                        Edit
+                    )}
+                    <Button size="sm" onClick={() => setSheet({ id: r.l.loan.id, view: "plan" })}>
+                      Payment plan
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => ui.openEditor("loan", r.l.loan.id)}>
+                      Edit
+                    </Button>
+                  </>
+                }
+              />
+            ) : (
+              <Details
+                items={[
+                  ["Borrowed", m(r.b.l.amount)],
+                  ["Paid back", m(r.b.p?.repaid ?? 0)],
+                  ["Pay back by", r.b.l.expected_date ? formatDate(r.b.l.expected_date) : "No date"],
+                  ...(r.b.l.notes ? ([["Note", r.b.l.notes]] as [string, string][]) : []),
+                ]}
+                actions={
+                  <>
+                    {(r.b.p?.outstanding ?? 0) > 0.5 && (
+                      <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "borrow_repayment", lending_id: r.b.l.id })}>
+                        Paid back
                       </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => ui.openEditor("lending", r.b.l.id)}>
+                      Edit
+                    </Button>
+                  </>
+                }
+              />
+            )
+          }
+        />
       )}
 
       <div>
@@ -282,7 +281,7 @@ function Loans() {
         <MonthGrid
           data={data}
           nameHeader="Loan or person"
-          forHeader="From"
+          forHeader={null}
           grandLabel="Total"
           exportName="loans-and-borrowed"
           onRow={(row) => {

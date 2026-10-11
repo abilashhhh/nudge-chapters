@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, LineChart, PiggyBank, Plus, Wallet } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { LineChart, PiggyBank, Plus, Wallet } from "lucide-react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/dates";
 import { INVESTMENT_TYPE_LABEL } from "@/lib/engine/defaults";
@@ -17,6 +17,7 @@ import { NumberInput } from "../ui/form";
 import { EmptyState, Tabs } from "../ui/misc";
 import { Sheet } from "../ui/sheet";
 import { StatTile, V2PageHeader } from "./ui";
+import { Cell2, DataTable, Details } from "./data-table";
 
 const TABS = ["funds", "chits", "other"] as const;
 type Tab = (typeof TABS)[number];
@@ -62,7 +63,6 @@ export function SavingsScreen() {
 function Funds({ list }: { list: InvestmentPosition[] }) {
   const { ctx } = useFinance();
   const [update, setUpdate] = useState(false);
-  const [open, setOpen] = useState<string | null>(null);
   const ui = useUI.getState();
   const m = (n: number) => formatMoney(n, ctx, { decimals: true });
   if (!list.length)
@@ -89,103 +89,55 @@ function Funds({ list }: { list: InvestmentPosition[] }) {
           Add a fund
         </Button>
       </div>
-      <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-        <table className="v2-table w-full min-w-[52rem] text-[13.5px]">
-          <thead className="text-left text-[12px] text-ink-3">
-            <tr className="border-b border-line">
-              <th className="px-3 py-2.5 font-medium">Fund</th>
-              <th className="px-3 py-2.5 text-right font-medium">Monthly SIP</th>
-              <th className="px-3 py-2.5 font-medium">SIP date</th>
-              <th className="px-3 py-2.5 text-right font-medium">Money put in</th>
-              <th className="px-3 py-2.5 text-right font-medium">Value today</th>
-              <th className="px-3 py-2.5 text-right font-medium">Profit</th>
-              <th className="px-3 py-2.5 text-right font-medium">Profit %</th>
-              <th className="px-3 py-2.5 font-medium">Last updated</th>
-              <th className="px-3 py-2.5 font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="num">
-            {list.map((p) => {
-              const i = p.investment;
-              const isOpen = open === i.id;
-              return (
-                <Fragment key={i.id}>
-                  <tr className="border-t border-line">
-                    <td className="px-3 py-2.5">
-                      <button type="button" className="flex items-center gap-1 text-left font-medium hover:underline" onClick={() => setOpen(isOpen ? null : i.id)} aria-expanded={isOpen}>
-                        {i.name}
-                        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />
-                      </button>
-                    </td>
-                    <td className="px-3 py-2.5 text-right">{i.sip_active && i.sip_amount > 0 ? m(i.sip_amount) : "–"}</td>
-                    <td className="px-3 py-2.5">{i.sip_active && i.sip_day ? `Every ${i.sip_day}` : "–"}</td>
-                    <td className="px-3 py-2.5 text-right">{m(p.invested)}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold">
-                      <Money value={p.value} decimals currency={i.currency} />
-                    </td>
-                    <td className={cn("px-3 py-2.5 text-right", p.gain < 0 ? "text-danger" : "text-ok")}>
-                      <Money value={p.gain} decimals sign className="text-inherit" />
-                    </td>
-                    <td className={cn("px-3 py-2.5 text-right", p.gain < 0 ? "text-danger" : "text-ok")}>{formatPct(p.gainPct)}</td>
-                    <td className="px-3 py-2.5 text-ink-2">{i.value_as_of ? formatDate(i.value_as_of, "short") : "–"}</td>
-                    <td className="px-2 py-1.5">
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => ui.openTx({ type: "invest_buy", investment_id: i.id, account_id: i.sip_account_id ?? undefined })}>
-                          Buy
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => ui.openTx({ type: "invest_sell", investment_id: i.id })}>
-                          Sell
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => ui.openEditor("investment", i.id)}>
-                          Edit
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                  {isOpen && (
-                    <tr className="border-t border-line/70 bg-surface-2/60 text-[13px]">
-                      <td colSpan={9} className="px-3 py-2.5">
-                        <span className="mr-5">
-                          Yearly return: <strong>{p.xirr != null ? formatPct(p.xirr) : "not enough history yet"}</strong>
-                        </span>
-                        {p.units != null && (
-                          <span className="mr-5">
-                            Units: <strong>{p.units.toLocaleString("en-IN", { maximumFractionDigits: 4 })}</strong>
-                          </span>
-                        )}
-                        {p.price != null && (
-                          <span className="mr-5">
-                            Price: <strong>{p.price}</strong>
-                          </span>
-                        )}
-                        {i.institution && <span className="text-ink-3">{i.institution}</span>}
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-          <tfoot className="num">
-            <tr className="border-t-2 border-ink font-bold">
-              <td className="px-3 py-2.5">Total</td>
-              <td className="px-3 py-2.5 text-right">{m(tot.sip)}</td>
-              <td />
-              <td className="px-3 py-2.5 text-right">{m(tot.inv)}</td>
-              <td className="px-3 py-2.5 text-right">
-                <Money value={tot.val} decimals />
-              </td>
-              <td className={cn("px-3 py-2.5 text-right", tot.val - tot.inv < 0 ? "text-danger" : "text-ok")}>
-                <Money value={tot.val - tot.inv} decimals sign className="text-inherit" />
-              </td>
-              <td className="px-3 py-2.5 text-right">{tot.inv > 0 ? formatPct(((tot.val - tot.inv) / tot.inv) * 100) : "–"}</td>
-              <td colSpan={2} />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+      <DataTable
+        label="Mutual funds"
+        rows={list}
+        rowKey={(p) => p.investment.id}
+        columns={[
+          { key: "n", header: "Fund", cell: (p) => <Cell2 main={p.investment.name} sub={p.investment.sip_active && p.investment.sip_amount > 0 ? `SIP ${formatMoney(p.investment.sip_amount, ctx)} a month` : undefined} /> },
+          { key: "v", header: "Value today", align: "right", cell: (p) => <Money value={p.value} decimals currency={p.investment.currency} className="font-semibold" /> },
+          {
+            key: "g",
+            header: "Profit",
+            align: "right",
+            wide: true,
+            cell: (p) => <Money value={p.gain} decimals sign className={cn(p.gain < 0 ? "text-danger" : "text-ok")} />,
+          },
+        ]}
+        details={(p) => {
+          const i = p.investment;
+          return (
+            <Details
+              items={[
+                ["Money put in", m(p.invested)],
+                ["Profit", `${m(p.gain)} (${formatPct(p.gainPct)})`],
+                ["Monthly SIP", i.sip_active && i.sip_amount > 0 ? `${m(i.sip_amount)} · every ${i.sip_day ?? "month"}` : "–"],
+                ["Yearly return", p.xirr != null ? formatPct(p.xirr) : "Not enough history"],
+                ...(p.units != null ? ([["Units", p.units.toLocaleString("en-IN", { maximumFractionDigits: 4 })]] as [string, string][]) : []),
+                ["Last updated", i.value_as_of ? formatDate(i.value_as_of, "short") : "–"],
+              ]}
+              actions={
+                <>
+                  <Button size="sm" onClick={() => ui.openTx({ type: "invest_buy", investment_id: i.id, account_id: i.sip_account_id ?? undefined })}>
+                    Buy
+                  </Button>
+                  <Button size="sm" onClick={() => ui.openTx({ type: "invest_sell", investment_id: i.id })}>
+                    Sell
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => ui.openEditor("investment", i.id)}>
+                    Edit
+                  </Button>
+                </>
+              }
+            />
+          );
+        }}
+        footer={[
+          "Total",
+          <Money key="v" value={tot.val} decimals className="font-bold" />,
+          <Money key="g" value={tot.val - tot.inv} decimals sign className={cn("font-bold", tot.val - tot.inv < 0 ? "text-danger" : "text-ok")} />,
+        ]}
+      />
       {update && <UpdateValueSheet list={list} onClose={() => setUpdate(false)} />}
     </div>
   );
@@ -284,77 +236,49 @@ function Chits() {
           Add a chit
         </Button>
       </div>
-      <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-        <table className="v2-table w-full min-w-[60rem] text-[13.5px]">
-          <thead className="text-left text-[12px] text-ink-3">
-            <tr className="border-b border-line">
-              <th className="px-3 py-2.5 font-medium">Chit</th>
-              <th className="px-3 py-2.5 text-right font-medium">Chit value</th>
-              <th className="px-3 py-2.5 text-right font-medium">Monthly</th>
-              <th className="px-3 py-2.5 font-medium">Months paid</th>
-              <th className="px-3 py-2.5 text-right font-medium">Paid so far</th>
-              <th className="px-3 py-2.5 text-right font-medium">Discount got</th>
-              <th className="px-3 py-2.5 font-medium">Amount received?</th>
-              <th className="px-3 py-2.5 text-right font-medium">Expected amount</th>
-              <th className="px-3 py-2.5 font-medium">Ends</th>
-              <th className="px-3 py-2.5 font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="num">
-            {list.map((cp) => {
-              const c = cp.chit;
-              const s = cp.summary;
-              const received = c.payout_status === "received" || s.payoutReceived != null;
-              return (
-                <tr key={c.id} className="border-t border-line align-top">
-                  <td className="px-3 py-2.5">
-                    <button type="button" className="text-left font-medium hover:underline" onClick={() => ui.openChitSheet(c.id)}>
-                      {c.name}
-                    </button>
-                    {c.provider && <span className="block text-[11.5px] text-ink-3">{c.provider}</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">{m(c.chit_value)}</td>
-                  <td className="px-3 py-2.5 text-right">{m(c.monthly_contribution)}</td>
-                  <td className="px-3 py-2.5">
-                    {s.paidCount} of {c.installments}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">{m(s.actualPaid)}</td>
-                  <td className="px-3 py-2.5 text-right text-ok">{m(s.auctionSavings)}</td>
-                  <td className="px-3 py-2.5">{received ? `✓ ${c.payout_date ? formatDate(c.payout_date, "short") : "Received"}` : "Not yet"}</td>
-                  <td className="px-3 py-2.5 text-right">
-                    {received ? m(s.payoutReceived ?? c.payout_amount ?? 0) : <Money value={s.payoutExpected} decimals projected />}
-                    {!received && s.tbdCount > 0 && (
-                      <span className="block text-[11.5px] text-ink-3">
-                        Still to pay <span className="projected">{formatMoney(s.projectedRemainingLow, ctx)}–{formatMoney(s.projectedRemainingHigh, ctx)}</span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">{formatDate(cp.endDate, "short")}</td>
-                  <td className="px-2 py-1.5">
-                    <div className="flex flex-wrap gap-1">
-                      {c.status === "active" && s.nextUnpaid && (
-                        <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "chit_installment", chit_id: c.id })}>
-                          Pay
-                        </Button>
-                      )}
-                      {!received && (
-                        <Button size="sm" onClick={() => ui.openTx({ type: "chit_payout", chit_id: c.id })}>
-                          Got chit amount
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => ui.openChitSheet(c.id)}>
-                        Installments
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        label="Chits"
+        rows={list}
+        rowKey={(cp) => cp.chit.id}
+        columns={[
+          { key: "n", header: "Chit", cell: (cp) => <Cell2 main={cp.chit.name} sub={`${cp.summary.paidCount} of ${cp.chit.installments} paid`} /> },
+          { key: "p", header: "Paid so far", align: "right", cell: (cp) => <span className="font-semibold">{m(cp.summary.actualPaid + (cp.summary.unrecordedEstimate || 0))}</span> },
+        ]}
+        details={(cp) => {
+          const c = cp.chit;
+          const s = cp.summary;
+          const received = c.payout_status === "received" || s.payoutReceived != null;
+          return (
+            <Details
+              items={[
+                ["Chit value", m(c.chit_value)],
+                ["Monthly", m(c.monthly_contribution)],
+                ["Discount got", m(s.auctionSavings)],
+                ["Amount received?", received ? `✓ ${c.payout_date ? formatDate(c.payout_date, "short") : "Yes"}` : "Not yet"],
+                ["Expected amount", received ? m(s.payoutReceived ?? c.payout_amount ?? 0) : <span className="projected">{m(s.payoutExpected)}</span>],
+                ["Ends", formatDate(cp.endDate)],
+              ]}
+              actions={
+                <>
+                  {c.status === "active" && s.nextUnpaid && (
+                    <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "chit_installment", chit_id: c.id })}>
+                      Pay
+                    </Button>
+                  )}
+                  {!received && (
+                    <Button size="sm" onClick={() => ui.openTx({ type: "chit_payout", chit_id: c.id })}>
+                      Got chit amount
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => ui.openChitSheet(c.id)}>
+                    Installments
+                  </Button>
+                </>
+              }
+            />
+          );
+        }}
+      />
       <p className="mt-2 text-[12.5px] text-ink-3">
         <span className="projected">Violet</span> amounts are estimates: future discounts depend on each month&apos;s auction.
       </p>
@@ -390,63 +314,40 @@ function Other({ list }: { list: InvestmentPosition[] }) {
           Add savings
         </Button>
       </div>
-      <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-        <table className="v2-table w-full min-w-[40rem] text-[13.5px]">
-          <thead className="text-left text-[12px] text-ink-3">
-            <tr className="border-b border-line">
-              <th className="px-3 py-2.5 font-medium">Name</th>
-              <th className="px-3 py-2.5 font-medium">Type</th>
-              <th className="px-3 py-2.5 text-right font-medium">Money put in</th>
-              <th className="px-3 py-2.5 text-right font-medium">Value today</th>
-              <th className="px-3 py-2.5 font-medium">Last updated</th>
-              <th className="px-3 py-2.5 font-medium">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="num">
-            {sorted.map((p) => {
-              const i = p.investment;
-              const monthly = i.employee_contribution + i.employer_contribution;
-              return (
-                <tr key={i.id} className="border-t border-line align-top">
-                  <td className="px-3 py-2.5">
-                    <span className="font-medium">{i.name}</span>
-                    {retirement(i.type) && monthly > 0 && <span className="block text-[11.5px] text-ink-3">{formatMoney(monthly, ctx)} a month goes in</span>}
-                  </td>
-                  <td className="px-3 py-2.5">{INVESTMENT_TYPE_LABEL[i.type] ?? "Other"}</td>
-                  <td className="px-3 py-2.5 text-right">{m(p.invested)}</td>
-                  <td className="px-3 py-2.5 text-right font-semibold">
-                    <Money value={p.value} decimals currency={i.currency} />
-                  </td>
-                  <td className="px-3 py-2.5 text-ink-2">{i.value_as_of ? formatDate(i.value_as_of, "short") : "–"}</td>
-                  <td className="px-2 py-1.5">
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => ui.openEditor("valuation", undefined, { investment_id: i.id })}>
-                        Update value
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => ui.openEditor("investment", i.id)}>
-                        Edit
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot className="num">
-            <tr className="border-t-2 border-ink font-bold">
-              <td className="px-3 py-2.5">Total</td>
-              <td />
-              <td className="px-3 py-2.5 text-right">{m(list.reduce((s, p) => s + toBase(p.invested, p.investment.currency, ctx), 0))}</td>
-              <td className="px-3 py-2.5 text-right">
-                <Money value={list.reduce((s, p) => s + p.valueBase, 0)} decimals />
-              </td>
-              <td colSpan={2} />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+      <DataTable
+        label="Other savings"
+        rows={sorted}
+        rowKey={(p) => p.investment.id}
+        columns={[
+          { key: "n", header: "Name", cell: (p) => <Cell2 main={p.investment.name} sub={INVESTMENT_TYPE_LABEL[p.investment.type] ?? "Other"} /> },
+          { key: "v", header: "Value today", align: "right", cell: (p) => <Money value={p.value} decimals currency={p.investment.currency} className="font-semibold" /> },
+        ]}
+        details={(p) => {
+          const i = p.investment;
+          const monthly = i.employee_contribution + i.employer_contribution;
+          return (
+            <Details
+              items={[
+                ["Money put in", m(p.invested)],
+                ["Last updated", i.value_as_of ? formatDate(i.value_as_of, "short") : "–"],
+                ...(retirement(i.type) ? ([["Goes in each month", monthly > 0 ? m(monthly) : "–"]] as [string, string][]) : []),
+                ...(i.institution ? ([["Where", i.institution]] as [string, string][]) : []),
+              ]}
+              actions={
+                <>
+                  <Button size="sm" variant="primary" onClick={() => ui.openEditor("valuation", undefined, { investment_id: i.id })}>
+                    Update value
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => ui.openEditor("investment", i.id)}>
+                    Edit
+                  </Button>
+                </>
+              }
+            />
+          );
+        }}
+        footer={["Total", <Money key="v" value={list.reduce((s, p) => s + p.valueBase, 0)} decimals className="font-bold" />]}
+      />
     </div>
   );
 }

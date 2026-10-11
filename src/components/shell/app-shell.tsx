@@ -2,11 +2,11 @@
 
 import {
   BarChart3, Bell, CalendarDays, Eye, EyeOff, Home, Landmark, LayoutGrid, LogOut, Moon, Plus, Search, Settings, Sparkles, Sun, Target,
-  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins, Menu as MenuIcon, Receipt,
+  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins, Menu as MenuIcon, Receipt, CalendarCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { Suspense, useEffect, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { APP_NAME, BMC_URL } from "@/lib/config";
 import { Brand } from "../brand";
@@ -28,7 +28,8 @@ import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
 import { useViewMode } from "@/lib/view-mode";
 import { useAppVersion } from "@/lib/app-version";
-import { V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
+import { V2_DAILY, V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
+import { Breadcrumbs } from "../v2/breadcrumbs";
 import { V2QuickAddSheet } from "../v2/quick-add";
 
 /** `section` is the id used by Settings → Sections to hide an entry (data and calculations are unaffected). */
@@ -49,7 +50,7 @@ export const NAV: { href: string; label: string; icon: typeof Home; section?: st
 ];
 
 /** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
-const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/savings": TrendingUp, "/menu": MenuIcon };
+const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/savings": TrendingUp, "/daily": CalendarCheck, "/menu": MenuIcon };
 
 /** Menu entries kept in the Simple look. */
 const SIMPLE_NAV = ["/", "/plan", "/goals"];
@@ -148,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {sideNav.map((n) => {
             // In the Simple look, "Menu" stays lit on any section it leads to.
             const active = v2 ? isActiveV2(pathname, n.href) : simple && n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
-            return (
+            const link = (
               <Link
                 key={n.href}
                 href={n.href}
@@ -162,6 +163,21 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {n.label}
               </Link>
             );
+            // Version 2: the Daily section's parts sit right under it in the sidebar.
+            if (v2 && n.href === "/daily")
+              return (
+                <div key={n.href}>
+                  {link}
+                  <div className="ml-6 mt-0.5 flex flex-col border-l border-line pl-2">
+                    {V2_DAILY.map((d) => (
+                      <Link key={d.tab} href={`/daily?tab=${d.tab}`} className="rounded-lg px-2 py-1.5 text-[13px] text-ink-2 hover:bg-surface-3/70 hover:text-ink">
+                        {d.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            return link;
           })}
         </nav>
         <div className="mt-4 flex flex-col gap-0.5 border-t border-line pt-4">
@@ -236,7 +252,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1240px] px-4 pb-32 pt-4 sm:px-6 sm:pt-6 lg:pb-16">{children}</main>
+        <main className="mx-auto max-w-[1240px] px-4 pb-32 pt-4 sm:px-6 sm:pt-6 lg:pb-16">
+          {v2 && (
+            <Suspense>
+              <Breadcrumbs />
+            </Suspense>
+          )}
+          {children}
+        </main>
       </div>
 
       {/* Global add button */}
@@ -252,7 +275,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom navigation */}
       <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
-        <div className={cn("mx-auto grid max-w-lg", mobileNav.length >= 5 ? "grid-cols-5" : mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
+        <div className={cn("mx-auto grid max-w-lg", mobileNav.length >= 6 ? "grid-cols-6" : mobileNav.length === 5 ? "grid-cols-5" : mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
           {mobileNav.map((n) => {
             const active = v2 ? isActiveV2(pathname, n.href) : n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (

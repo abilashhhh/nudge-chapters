@@ -17,6 +17,7 @@ import { Button } from "../ui/button";
 import { AmountInput } from "../ui/form";
 import { EmptyState } from "../ui/misc";
 import { MonthPicker } from "../ui/month-picker";
+import { Cell2, DataTable, Details } from "./data-table";
 import { V2PageHeader } from "./ui";
 
 function nextDate(r: RecurringRule, today: string): string | null {
@@ -26,6 +27,26 @@ function nextDate(r: RecurringRule, today: string): string | null {
   const n = nextOccurrenceAfter(r, addDays(today, -1));
   if (n && r.end_date && n > r.end_date) return null;
   return n;
+}
+
+function budgetState(b: FinEvent) {
+  const limit = b.budget?.limit ?? 0;
+  const spent = b.budget?.spent ?? 0;
+  const used = limit > 0 ? spent / limit : 0;
+  return { limit, spent, left: limit - spent, used, state: used > 1 ? "over" : used >= 0.85 ? "near" : "ok" };
+}
+
+function BudgetStatus({ b }: { b: FinEvent }) {
+  const { state } = budgetState(b);
+  return state === "ok" ? (
+    <span className="inline-flex items-center gap-1 text-[12px] font-medium text-ok">
+      <Check className="h-3.5 w-3.5" aria-hidden /> OK
+    </span>
+  ) : (
+    <span className={cn("inline-flex items-center gap-1 text-[12px] font-medium", state === "over" ? "text-danger" : "text-warn")}>
+      <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> {state === "over" ? "Over" : "Nearly used"}
+    </span>
+  );
 }
 
 export function BudgetsScreen() {
@@ -39,6 +60,7 @@ export function BudgetsScreen() {
   const repeating = ds.recurring_rules.filter((r) => (r.kind === "expense" && r.is_fixed && r.frequency !== "once") || r.kind === "transfer");
   const where = (r: RecurringRule) => (r.card_id ? ds.credit_cards.find((c) => c.id === r.card_id)?.name : ds.accounts.find((a) => a.id === r.account_id)?.name) ?? "Choose when paying";
   const m = (n: number) => formatMoney(n, ctx);
+  const ruleOf = (b: FinEvent) => ds.recurring_rules.find((r) => r.id === b.sourceId);
 
   return (
     <>
@@ -57,38 +79,23 @@ export function BudgetsScreen() {
       {budgets.length === 0 ? (
         <EmptyState icon={PiggyBank} title="No budgets for this month" body="Set a monthly limit for groceries, eating out, fuel or shopping — e.g. Groceries ₹8,000 a month." />
       ) : (
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[46rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">Category</th>
-                <th className="px-3 py-2.5 text-right font-medium">Monthly limit</th>
-                <th className="px-3 py-2.5 text-right font-medium">Spent</th>
-                <th className="px-3 py-2.5 text-right font-medium">Left</th>
-                <th className="px-3 py-2.5 text-right font-medium">Used</th>
-                <th className="px-3 py-2.5 font-medium">Status</th>
-                <th className="px-3 py-2.5 font-medium">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="num">
-              {budgets.map((b) => (
-                <BudgetRow key={b.key} b={b} />
-              ))}
-            </tbody>
-            <tfoot className="num">
-              <tr className="border-t-2 border-ink font-bold">
-                <td className="px-3 py-2.5">Total</td>
-                <td className="px-3 py-2.5 text-right">{m(limit)}</td>
-                <td className="px-3 py-2.5 text-right">{m(spent)}</td>
-                <td className={cn("px-3 py-2.5 text-right", limit - spent < 0 && "text-danger")}>{m(limit - spent)}</td>
-                <td className="px-3 py-2.5 text-right">{limit > 0 ? `${Math.round((spent / limit) * 100)}%` : "–"}</td>
-                <td colSpan={2} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <DataTable
+          label="Budgets"
+          rows={budgets}
+          rowKey={(b) => b.key}
+          columns={[
+            { key: "c", header: "Category", cell: (b) => <Cell2 main={ruleOf(b)?.category ?? b.title} sub={<BudgetStatus b={b} />} /> },
+            { key: "u", header: "Used", align: "right", cell: (b) => `${Math.round(budgetState(b).used * 100)}%` },
+            {
+              key: "l",
+              header: "Left",
+              align: "right",
+              cell: (b) => <span className={cn("font-semibold", budgetState(b).left < 0 && "text-danger")}>{m(budgetState(b).left)}</span>,
+            },
+          ]}
+          details={(b) => <BudgetDetails b={b} />}
+          footer={["Total", limit > 0 ? `${Math.round((spent / limit) * 100)}%` : "–", <span key="l" className={cn(limit - spent < 0 && "text-danger")}>{m(limit - spent)}</span>]}
+        />
       )}
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-2">
@@ -97,45 +104,35 @@ export function BudgetsScreen() {
           Add a repeating bill
         </Button>
       </div>
-      <p className="mb-2 text-[13px] text-ink-3">Rent, phone, Netflix, insurance — and money you move between your accounts every month.</p>
+      <p className="mb-2 text-[13px] text-ink-3">Rent, phone, subscriptions, insurance — and money you move between your accounts every month.</p>
       {repeating.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">No repeating bills yet.</p>
       ) : (
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[40rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">What</th>
-                <th className="px-3 py-2.5 text-right font-medium">Amount</th>
-                <th className="px-3 py-2.5 font-medium">Repeats</th>
-                <th className="px-3 py-2.5 font-medium">Next</th>
-                <th className="px-3 py-2.5 font-medium">Pay from</th>
-              </tr>
-            </thead>
-            <tbody>
-              {repeating.map((r) => {
-                const nd = nextDate(r, today);
-                return (
-                  <tr key={r.id} className={cn("border-t border-line", !r.active && "text-ink-3")}>
-                    <td className="px-3 py-2.5">
-                      <button type="button" className={cn("text-left font-medium hover:underline", !r.active && "line-through")} onClick={() => ui.openEditor("rule", r.id)}>
-                        {r.name}
-                      </button>
-                      {r.kind === "transfer" && <span className="block text-[11.5px] text-ink-3">Move money between my accounts</span>}
-                      {!r.active && <span className="block text-[11.5px]">Paused</span>}
-                    </td>
-                    <td className="num px-3 py-2.5 text-right">
-                      <Money value={r.amount} decimals />
-                    </td>
-                    <td className="px-3 py-2.5">{FREQUENCY_LABEL[r.frequency] ?? r.frequency}</td>
-                    <td className="num px-3 py-2.5">{nd ? formatDate(nd, "short") : "–"}</td>
-                    <td className="px-3 py-2.5 text-ink-2">{where(r)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          label="Bills that repeat"
+          rows={repeating}
+          rowKey={(r) => r.id}
+          rowClassName={(r) => (!r.active ? "text-ink-3" : undefined)}
+          columns={[
+            { key: "w", header: "What", cell: (r) => <Cell2 main={<span className={cn(!r.active && "line-through")}>{r.name}</span>} sub={!r.active ? "Paused" : r.kind === "transfer" ? "Move money" : undefined} /> },
+            { key: "n", header: "Next", cell: (r) => (nextDate(r, today) ? formatDate(nextDate(r, today), "short") : "–") },
+            { key: "a", header: "Amount", align: "right", cell: (r) => <Money value={r.amount} decimals className="font-semibold" /> },
+          ]}
+          details={(r) => (
+            <Details
+              items={[
+                ["Repeats", FREQUENCY_LABEL[r.frequency] ?? r.frequency],
+                ["Pay from", where(r)],
+                ...(r.category ? ([["What for", r.category]] as [string, string][]) : []),
+              ]}
+              actions={
+                <Button size="sm" variant="ghost" onClick={() => ui.openEditor("rule", r.id)}>
+                  Edit
+                </Button>
+              }
+            />
+          )}
+        />
       )}
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-2">
@@ -144,52 +141,40 @@ export function BudgetsScreen() {
           Plan a spend
         </Button>
       </div>
-      <p className="mb-2 text-[13px] text-ink-3">Something you'll pay once — a trip, a gift, a repair. It's kept aside in that month.</p>
+      <p className="mb-2 text-[13px] text-ink-3">Something you&apos;ll pay once — a trip, a gift, a repair. It&apos;s kept aside in that month.</p>
       {planned.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">Nothing planned.</p>
       ) : (
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[30rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">Date</th>
-                <th className="px-3 py-2.5 font-medium">What</th>
-                <th className="px-3 py-2.5 text-right font-medium">Amount</th>
-                <th className="px-3 py-2.5 font-medium">Pay from</th>
-              </tr>
-            </thead>
-            <tbody>
-              {planned.map((r) => (
-                <tr key={r.id} className="border-t border-line">
-                  <td className="num whitespace-nowrap px-3 py-2.5">{formatDate(r.start_date, "short")}</td>
-                  <td className="px-3 py-2.5">
-                    <button type="button" className="text-left font-medium hover:underline" onClick={() => ui.openEditor("rule", r.id)}>
-                      {r.name}
-                    </button>
-                  </td>
-                  <td className="num px-3 py-2.5 text-right">
-                    <Money value={r.amount} decimals projected={r.start_date > today} />
-                  </td>
-                  <td className="px-3 py-2.5 text-ink-2">{where(r)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          label="Planned one-off spends"
+          rows={planned}
+          rowKey={(r) => r.id}
+          columns={[
+            { key: "d", header: "Date", cell: (r) => formatDate(r.start_date, "short") },
+            { key: "w", header: "What", cell: (r) => r.name },
+            { key: "a", header: "Amount", align: "right", cell: (r) => <Money value={r.amount} decimals projected={r.start_date > today} className="font-semibold" /> },
+          ]}
+          details={(r) => (
+            <Details
+              items={[["Pay from", where(r)]]}
+              actions={
+                <Button size="sm" variant="ghost" onClick={() => ui.openEditor("rule", r.id)}>
+                  Edit
+                </Button>
+              }
+            />
+          )}
+        />
       )}
     </>
   );
 }
 
-function BudgetRow({ b }: { b: FinEvent }) {
+function BudgetDetails({ b }: { b: FinEvent }) {
   const { ds, ctx } = useFinance();
   const [editing, setEditing] = useState(false);
-  const [amount, setAmount] = useState<number | null>(b.budget?.limit ?? null);
-  const limit = b.budget?.limit ?? 0;
-  const spent = b.budget?.spent ?? 0;
-  const left = limit - spent;
-  const used = limit > 0 ? spent / limit : 0;
-  const state = used > 1 ? "over" : used >= 0.85 ? "near" : "ok";
+  const { limit, spent } = budgetState(b);
+  const [amount, setAmount] = useState<number | null>(limit);
   const override = ds.event_overrides.find((o) => o.source_type === "rule" && o.source_id === b.sourceId && o.occurrence_date === b.occurrence);
   const rule = ds.recurring_rules.find((r) => r.id === b.sourceId);
   const m = (n: number) => formatMoney(n, ctx);
@@ -204,39 +189,19 @@ function BudgetRow({ b }: { b: FinEvent }) {
   };
 
   return (
-    <tr className="border-t border-line align-top">
-      <td className="px-3 py-2.5">
-        <span className="font-medium">{rule?.category ?? b.title}</span>
-        {override && <span className="block text-[11.5px] text-ink-3">Changed for this month</span>}
-      </td>
-      <td className="px-3 py-2.5 text-right">
-        {editing ? (
-          <div className="flex items-center justify-end gap-1">
-            <div className="w-32">
+    <Details
+      items={[
+        ["Monthly limit", m(limit)],
+        ["Spent", m(spent)],
+        ["Period", `${formatDate(b.date, "short")} – ${formatDate(b.budget?.periodEnd, "short")}`],
+        ...(override ? ([["Note", "Changed for this month"]] as [string, string][]) : []),
+      ]}
+      actions={
+        editing ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-40">
               <AmountInput ariaLabel="Limit for this month" value={amount} onChange={setAmount} currency={ctx.currency} />
             </div>
-          </div>
-        ) : (
-          m(limit)
-        )}
-      </td>
-      <td className="px-3 py-2.5 text-right">{m(spent)}</td>
-      <td className={cn("px-3 py-2.5 text-right font-semibold", left < 0 ? "text-danger" : "")}>{m(left)}</td>
-      <td className="px-3 py-2.5 text-right">{Math.round(used * 100)}%</td>
-      <td className="px-3 py-2.5">
-        {state === "ok" ? (
-          <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ok">
-            <Check className="h-3.5 w-3.5" aria-hidden /> OK
-          </span>
-        ) : (
-          <span className={cn("inline-flex items-center gap-1 text-[12.5px] font-medium", state === "over" ? "text-danger" : "text-warn")}>
-            <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> {state === "over" ? "Over" : "Nearly used"}
-          </span>
-        )}
-      </td>
-      <td className="px-2 py-1.5">
-        {editing ? (
-          <div className="flex gap-1">
             <Button size="sm" variant="primary" onClick={saveMonth}>
               Save
             </Button>
@@ -245,11 +210,11 @@ function BudgetRow({ b }: { b: FinEvent }) {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-1">
-            <Button size="sm" onClick={() => useUI.getState().openTx({ type: "expense", category: rule?.category ?? b.category ?? null })}>
+          <>
+            <Button size="sm" variant="primary" onClick={() => useUI.getState().openTx({ type: "expense", category: rule?.category ?? b.category ?? null })}>
               Add spend
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+            <Button size="sm" onClick={() => setEditing(true)}>
               Change for this month
             </Button>
             {rule && (
@@ -257,9 +222,9 @@ function BudgetRow({ b }: { b: FinEvent }) {
                 Edit
               </Button>
             )}
-          </div>
-        )}
-      </td>
-    </tr>
+          </>
+        )
+      }
+    />
   );
 }

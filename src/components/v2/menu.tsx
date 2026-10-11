@@ -28,20 +28,6 @@ export function MenuScreen() {
 
   const groups: { title: string; tiles: Tile[] }[] = [
     {
-      title: "Daily",
-      tiles: [
-        { href: "/menu/notes", label: "Notes", icon: StickyNote, hint: n("note", open.filter((i) => i.kind === "note").length, "No notes yet") },
-        { href: "/menu/reminders", label: "Reminders", icon: Bell, hint: remindersSoon ? `${remindersSoon} this week` : "Nothing this week" },
-        {
-          href: "/menu/todo",
-          label: "To-do & checklists",
-          icon: CheckSquare,
-          hint: ag.overdue.length ? `${ag.overdue.length} late` : ag.today.length ? `${ag.today.length} due today` : n("thing", ag.upcoming.length, "Nothing due") + (ag.upcoming.length ? " this week" : ""),
-        },
-        { href: "/menu/wishlist", label: "Wishlist", icon: Heart, hint: n("item", open.filter((i) => i.kind === "wishlist").length, "Empty") },
-      ],
-    },
-    {
       title: "Money plans",
       tiles: [
         { href: "/menu/income", label: "My jobs & income", icon: Briefcase, hint: n("source", incomeCount, "Add your salary") },

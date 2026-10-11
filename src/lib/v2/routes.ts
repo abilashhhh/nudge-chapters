@@ -13,15 +13,39 @@ export const V2_NAV: V2NavItem[] = [
   { href: "/my-money", label: "My Money", meaning: "Money in your bank and money others owe you" },
   { href: "/to-pay", label: "To Pay", meaning: "Bills, EMIs and installments you have to pay" },
   { href: "/savings", label: "Savings", meaning: "What your savings and investments are worth" },
+  { href: "/daily", label: "Daily", meaning: "To-do, reminders, notes and your wishlist" },
   { href: "/menu", label: "Menu", meaning: "Planning tools and settings" },
 ];
 
+/** The Daily section's parts (tabs of /daily), also listed under "Daily" in the desktop sidebar. */
+export const V2_DAILY: { tab: string; label: string }[] = [
+  { tab: "todo", label: "To-do & checklists" },
+  { tab: "reminders", label: "Reminders" },
+  { tab: "notes", label: "Notes" },
+  { tab: "wishlist", label: "Wishlist" },
+];
+
+/** Tab names per screen, for breadcrumbs. */
+export const V2_TABS: Record<string, Record<string, string>> = {
+  "/my-money": { accounts: "Bank accounts", owed: "People owe me" },
+  "/to-pay": { cards: "Credit cards", chits: "Chits & SIPs", loans: "Loans & borrowed" },
+  "/savings": { funds: "Mutual funds", chits: "Chits", other: "Other savings" },
+  "/daily": Object.fromEntries(V2_DAILY.map((d) => [d.tab, d.label])),
+  "/menu/settings": {
+    profile: "Profile",
+    categories: "Categories",
+    notifications: "Alerts",
+    data: "Import & export",
+    security: "Security",
+    appearance: "Look & version",
+  },
+};
+
+/** The first tab each screen opens on (so its breadcrumb reads complete). */
+export const V2_DEFAULT_TAB: Record<string, string> = { "/my-money": "accounts", "/to-pay": "cards", "/savings": "funds", "/daily": "todo", "/menu/settings": "profile" };
+
 /** Menu sub-pages (Version 2). */
 export const V2_MENU_PAGES: Record<string, string> = {
-  "/menu/notes": "Notes",
-  "/menu/reminders": "Reminders",
-  "/menu/todo": "To-do & checklists",
-  "/menu/wishlist": "Wishlist",
   "/menu/income": "My jobs & income",
   "/menu/budgets": "Budgets & spending plans",
   "/menu/calendar": "Calendar",
@@ -74,10 +98,8 @@ export function toV2Href(pathname: string, search: string | URLSearchParams = ""
     case "/budgets":
       return "/menu/budgets";
     case "/plan":
-      if (tab === "notes") return "/menu/notes";
-      if (tab === "reminders") return "/menu/reminders";
-      if (tab === "wishlist") return "/menu/wishlist";
-      return "/menu/todo";
+      if (tab === "notes" || tab === "reminders" || tab === "wishlist") return `/daily?tab=${tab}`;
+      return "/daily?tab=todo";
     case "/goals":
       return "/menu/future#goals";
     case "/projection":
@@ -93,6 +115,15 @@ export function toV2Href(pathname: string, search: string | URLSearchParams = ""
       return "/menu";
     case "/support":
       return "/menu/help";
+    // Daily used to live under Menu.
+    case "/menu/notes":
+      return "/daily?tab=notes";
+    case "/menu/reminders":
+      return "/daily?tab=reminders";
+    case "/menu/todo":
+      return "/daily?tab=todo";
+    case "/menu/wishlist":
+      return "/daily?tab=wishlist";
     default:
       return null;
   }
@@ -117,4 +148,26 @@ export function v2Title(pathname: string): string | null {
   const p = strip(pathname);
   if (V2_MENU_PAGES[p]) return V2_MENU_PAGES[p];
   return V2_NAV.find((n) => isActiveV2(p, n.href))?.label ?? null;
+}
+
+export interface Crumb {
+  label: string;
+  href: string;
+}
+
+/** Breadcrumb trail for a Version 2 screen: Home › Section › (Menu page) › Tab. */
+export function v2Crumbs(pathname: string, search: string | URLSearchParams = ""): Crumb[] {
+  const path = strip(pathname);
+  const q = typeof search === "string" ? new URLSearchParams(search.startsWith("?") ? search.slice(1) : search) : search;
+  if (path === "/") return [];
+  const out: Crumb[] = [{ label: "Home", href: "/" }];
+  const top = V2_NAV.find((n) => n.href !== "/" && isActiveV2(path, n.href));
+  if (top) out.push({ label: top.label, href: top.href });
+  if (V2_MENU_PAGES[path]) out.push({ label: V2_MENU_PAGES[path], href: path });
+  const tabs = V2_TABS[path];
+  if (tabs) {
+    const tab = q.get("tab") && tabs[q.get("tab")!] ? q.get("tab")! : V2_DEFAULT_TAB[path];
+    if (tab && tabs[tab]) out.push({ label: tabs[tab], href: `${path}?tab=${tab}` });
+  }
+  return out;
 }

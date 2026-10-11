@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronLeft, ChevronRight, Download, List, Plus, Table2 } from "lucide-react";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { create } from "zustand";
 import { cn } from "@/lib/cn";
@@ -29,7 +29,8 @@ type Ahead = 3 | 6 | 12;
 export const useGridRange = create<{
   offset: number;
   ahead: Ahead;
-  view: "table" | "list";
+  /** null = not chosen yet: list on phones, table on larger screens. */
+  view: "table" | "list" | null;
   listMonth: string | null;
   setOffset(n: number): void;
   setAhead(a: Ahead): void;
@@ -38,13 +39,26 @@ export const useGridRange = create<{
 }>((set) => ({
   offset: 0,
   ahead: 6,
-  view: "table",
+  view: null,
   listMonth: null,
   setOffset: (offset) => set({ offset }),
   setAhead: (ahead) => set({ ahead }),
   setView: (view) => set({ view }),
   setListMonth: (listMonth) => set({ listMonth }),
 }));
+
+/** True on phone-sized screens (under 640 px). */
+function usePhone(): boolean {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const q = window.matchMedia("(max-width: 639px)");
+    const on = () => setPhone(q.matches);
+    on();
+    q.addEventListener("change", on);
+    return () => q.removeEventListener("change", on);
+  }, []);
+  return phone;
+}
 
 /** Months shown: the current month + the next 3 / 6 / 12, shifted by Earlier / Later. */
 export function useGridMonths(): string[] {
@@ -55,7 +69,11 @@ export function useGridMonths(): string[] {
 
 function openCell(cell: GridCell | undefined) {
   if (!cell?.eventKeys.length) return;
-  const key = cell.eventKeys[0];
+  const key = cell.eventKeys.find((k) => !k.startsWith("before:"));
+  if (!key) {
+    toast("Paid before you started tracking — it's already in your balances.");
+    return;
+  }
   if (key.startsWith("tx:")) {
     const id = key.slice(3);
     const t = useStore.getState().ds?.transactions.find((x) => x.id === id);
@@ -123,6 +141,8 @@ export interface MonthGridProps {
 export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "Grand total", onRow, groupDetails, groupAdd, bottomAdd, exportName, empty, incoming, footnote }: MonthGridProps) {
   const { today, ctx } = useFinance();
   const range = useGridRange();
+  const phone = usePhone();
+  const view = range.view ?? (phone ? "list" : "table");
   const cur = monthKey(today);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const months = data.months;
@@ -154,53 +174,55 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
   const controls = (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <div className="flex items-center rounded-xl border border-line bg-surface">
-        <button type="button" onClick={() => range.setOffset(range.offset - 3)} className="inline-flex h-9 items-center gap-1 rounded-l-xl px-2.5 text-[13px] font-medium text-ink-2 hover:bg-surface-3">
-          <ChevronLeft className="h-4 w-4" aria-hidden /> Earlier
+        <button type="button" aria-label="Earlier months" onClick={() => range.setOffset(range.offset - 3)} className="inline-flex h-9 items-center gap-1 rounded-l-xl px-2.5 text-[13px] font-medium text-ink-2 hover:bg-surface-3">
+          <ChevronLeft className="h-4 w-4" aria-hidden /> <span className="hidden sm:inline">Earlier</span>
         </button>
         {range.offset !== 0 && (
           <button type="button" onClick={() => range.setOffset(0)} className="h-9 border-x border-line px-2.5 text-[13px] font-medium text-ink-2 hover:bg-surface-3">
-            This month
+            Now
           </button>
         )}
-        <button type="button" onClick={() => range.setOffset(range.offset + 3)} className="inline-flex h-9 items-center gap-1 rounded-r-xl px-2.5 text-[13px] font-medium text-ink-2 hover:bg-surface-3">
-          Later <ChevronRight className="h-4 w-4" aria-hidden />
+        <button type="button" aria-label="Later months" onClick={() => range.setOffset(range.offset + 3)} className="inline-flex h-9 items-center gap-1 rounded-r-xl px-2.5 text-[13px] font-medium text-ink-2 hover:bg-surface-3">
+          <span className="hidden sm:inline">Later</span> <ChevronRight className="h-4 w-4" aria-hidden />
         </button>
       </div>
-      <ChipGroup
-        label="How many months"
-        value={range.ahead}
-        onChange={range.setAhead}
-        options={[
-          { id: 3, label: "3 months" },
-          { id: 6, label: "6 months" },
-          { id: 12, label: "12 months" },
-        ]}
-      />
+      {view === "table" && (
+        <ChipGroup
+          label="How many months"
+          value={range.ahead}
+          onChange={range.setAhead}
+          options={[
+            { id: 3, label: "3 mo" },
+            { id: 6, label: "6 mo" },
+            { id: 12, label: "12 mo" },
+          ]}
+        />
+      )}
       <div className="ml-auto flex items-center gap-1">
         <div className="inline-flex rounded-xl bg-surface-3 p-1" role="radiogroup" aria-label="Show as">
           {(
             [
+              ["list", "Month", List],
               ["table", "Table", Table2],
-              ["list", "List", List],
             ] as const
           ).map(([id, label, Icon]) => (
             <button
               key={id}
               type="button"
               role="radio"
-              aria-checked={range.view === id}
+              aria-checked={view === id}
               onClick={() => range.setView(id)}
-              className={cn("inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12.5px] font-medium", range.view === id ? "bg-surface text-ink shadow-sm" : "text-ink-2")}
+              className={cn("inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12.5px] font-medium", view === id ? "bg-surface text-ink shadow-sm" : "text-ink-2")}
             >
               <Icon className="h-3.5 w-3.5" aria-hidden />
               {label}
             </button>
           ))}
         </div>
-        <Button size="sm" variant="ghost" icon={<Download className="h-4 w-4" />} onClick={exportExcel} disabled={!data.groups.length}>
-          <span className="hidden sm:inline">Download Excel</span>
-          <span className="sm:hidden">Excel</span>
-        </Button>
+        <button type="button" aria-label="Download Excel" title="Download Excel" onClick={exportExcel} disabled={!data.groups.length} className="inline-flex h-9 items-center gap-1 rounded-xl px-2.5 text-[13px] font-medium text-ink-2 hover:bg-surface-3 disabled:opacity-50">
+          <Download className="h-4 w-4" aria-hidden />
+          <span className="hidden sm:inline">Excel</span>
+        </button>
       </div>
     </div>
   );
@@ -232,69 +254,101 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
     </div>
   );
 
-  if (range.view === "list") {
+  if (view === "list") {
     const lm = range.listMonth && months.includes(range.listMonth) ? range.listMonth : months.includes(cur) ? cur : months[0];
+    const withAmount = data.groups.filter((g) => g.total.cells[lm] && Math.abs(g.total.cells[lm].amount) > 0.005);
+    const nothing = data.groups.filter((g) => !withAmount.includes(g));
     return (
       <div>
         {controls}
-        <ChipGroup label="Month" value={lm} onChange={(m) => range.setListMonth(m)} options={months.map((m) => ({ id: m, label: monthLabel(m) }))} className="mb-3" />
-        <div className="flex flex-col gap-3">
-          {data.groups.map((g) => {
+        <div className="no-scrollbar -mx-4 mb-3 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="radiogroup" aria-label="Month">
+          {months.map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={lm === m}
+              onClick={() => range.setListMonth(m)}
+              className={cn("h-8 shrink-0 whitespace-nowrap rounded-full px-3 text-[12.5px] font-medium", lm === m ? "bg-ink text-paper" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+            >
+              {monthLabel(m)}
+              {m === cur ? " · now" : ""}
+            </button>
+          ))}
+        </div>
+        {data.groups.length > 1 && (
+          <div className="mb-3 flex items-center justify-between rounded-2xl bg-ink px-4 py-3 text-paper">
+            <span className="text-[14px] font-semibold">
+              {grandLabel} · {monthLabel(lm)}
+            </span>
+            {data.grand[lm] ? <Money value={data.grand[lm].amount} decimals className="text-[18px] font-semibold text-inherit" /> : <span>–</span>}
+          </div>
+        )}
+        <div className="flex flex-col gap-2">
+          {withAmount.map((g) => {
             const t = g.total.cells[lm];
+            const isOpen = !!open[g.id];
+            const rows = g.rows.filter((r) => r.cells[lm]);
             return (
-              <section key={g.id} className="rounded-2xl border border-line bg-surface" aria-label={g.label}>
-                <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[15px] font-semibold">{g.label}</p>
-                    <p className="text-[12.5px] text-ink-3">{g.total.label}</p>
-                  </div>
-                  <button type="button" className="text-right" onClick={() => openCell(t)} disabled={!t}>
-                    {t ? <Money value={t.amount} decimals projected={t.estimated} className="text-[16px] font-semibold" /> : <span className="text-ink-3">–</span>}
-                    {t && (
-                      <span className="block">
-                        <StatusText status={t.status} incoming={t.incoming ?? incoming} />
-                      </span>
+              <section key={g.id} className="overflow-hidden rounded-2xl border border-line bg-surface" aria-label={g.label}>
+                <button type="button" onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))} aria-expanded={isOpen} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-2">
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] font-semibold">{g.label}</span>
+                    <StatusText status={t.status} incoming={t.incoming ?? incoming} className="text-[12px]" />
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Money value={t.amount} decimals projected={t.estimated} className="text-[16px] font-semibold" />
+                    <ChevronDown className={cn("h-4 w-4 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="border-t border-line bg-surface-2/60">
+                    {rows.length > 0 && (
+                      <ul className="divide-y divide-line">
+                        {rows.map((r) => {
+                          const c = r.cells[lm];
+                          return (
+                            <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                              <button type="button" className="min-w-0 text-left" onClick={() => onRow?.(r, g)}>
+                                <span className="block truncate text-[14px]">{r.label}</span>
+                                {r.note && r.note !== "Me" && <span className="block truncate text-[12px] text-ink-3">For {r.note}</span>}
+                              </button>
+                              <button type="button" className="shrink-0 text-right" onClick={() => openCell(c)}>
+                                <Money value={c.amount} decimals projected={c.estimated} className="text-[14px] font-medium" />
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     )}
-                  </button>
-                </div>
-                <ul className="divide-y divide-line">
-                  {g.rows.map((r) => {
-                    const c = r.cells[lm];
-                    return (
-                      <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                        <button type="button" className="min-w-0 text-left" onClick={() => onRow?.(r, g)}>
-                          <span className="block truncate text-[14px]">{r.label}</span>
-                          {r.note && <span className="block truncate text-[12px] text-ink-3">{r.note}</span>}
-                        </button>
-                        <button type="button" className="shrink-0 text-right" onClick={() => openCell(c)} disabled={!c}>
-                          {c ? <Money value={c.amount} decimals projected={c.estimated} className="text-[14px] font-medium" /> : <span className="text-ink-3">–</span>}
-                          {c && (
-                            <span className="block">
-                              <StatusText status={c.status} incoming={c.incoming ?? incoming} className="text-[11.5px]" />
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {groupDetails && <div className="border-t border-line px-4 py-3">{groupDetails(g)}</div>}
+                    <div className="flex flex-wrap gap-2 border-t border-line px-4 py-3">
+                      <Button size="sm" variant="primary" onClick={() => openCell(t)}>
+                        {t.incoming ? "Mark received" : "Pay / mark paid"}
+                      </Button>
+                      {groupAdd && (
+                        <Button size="sm" variant="ghost" icon={<Plus className="h-4 w-4" />} onClick={() => groupAdd.run(g)}>
+                          {typeof groupAdd.label === "function" ? groupAdd.label(g) : groupAdd.label}
+                        </Button>
+                      )}
+                    </div>
+                    {groupDetails && <div className="border-t border-line px-4 py-3">{groupDetails(g)}</div>}
+                  </div>
+                )}
               </section>
             );
           })}
-          {data.groups.length > 1 && (
-            <div className="flex items-center justify-between rounded-2xl bg-ink px-4 py-3 text-paper">
-              <span className="text-[14px] font-semibold">{grandLabel}</span>
-              {data.grand[lm] ? <Money value={data.grand[lm].amount} decimals className="text-[17px] font-semibold text-inherit" /> : <span>–</span>}
-            </div>
+          {withAmount.length === 0 && <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">Nothing in {monthLabel(lm)}.</p>}
+          {nothing.length > 0 && withAmount.length > 0 && (
+            <p className="px-1 text-[12.5px] text-ink-3">
+              Nothing in {monthLabel(lm)}: {nothing.map((g) => g.label).join(", ")}
+            </p>
           )}
         </div>
         {bottomAdd && (
-          <Button className="mt-3" icon={<Plus className="h-4 w-4" />} onClick={bottomAdd.run}>
+          <Button className="mt-3" size="sm" icon={<Plus className="h-4 w-4" />} onClick={bottomAdd.run}>
             {bottomAdd.label}
           </Button>
         )}
-        {legend}
         {footnote && <p className="mt-2 text-[12.5px] text-ink-3">{footnote}</p>}
       </div>
     );

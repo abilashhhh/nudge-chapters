@@ -14,6 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/form";
 import { EmptyState } from "../ui/misc";
 import { StatusText, V2PageHeader } from "./ui";
+import { Cell2, DataTable, Details } from "./data-table";
 
 const REPEAT: Record<LifeItem["repeat"], string> = { none: "Once", daily: "Every day", weekly: "Every week", monthly: "Every month", yearly: "Every year" };
 
@@ -50,13 +51,13 @@ function Toolbar({ q, setQ, showDone, setShowDone, doneLabel, kind, addLabel }: 
 
 // ---------------------------------------------------------------------------
 
-export function NotesScreen() {
+export function NotesScreen({ embedded }: { embedded?: boolean } = {}) {
   const [q, setQ] = useState("");
   const [showDone, setShowDone] = useState(false);
   const items = useItems(["note"], showDone, q);
   return (
     <>
-      <V2PageHeader title="Notes" meaning="Free text notes. Pin the important ones to the top." />
+      {!embedded && <V2PageHeader title="Notes" meaning="Free text notes. Pin the important ones to the top." />}
       <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show archived" kind="note" addLabel="New note" />
       {items.length === 0 ? (
         <EmptyState icon={StickyNote} title={q ? "Nothing matches" : "No notes yet"} body="Ideas, research, account details you need to remember — anything." />
@@ -73,7 +74,7 @@ export function NotesScreen() {
 
 // ---------------------------------------------------------------------------
 
-export function RemindersScreen() {
+export function RemindersScreen({ embedded }: { embedded?: boolean } = {}) {
   const { today } = useFinance();
   const [q, setQ] = useState("");
   const [showDone, setShowDone] = useState(false);
@@ -82,58 +83,62 @@ export function RemindersScreen() {
   const sorted = [...items].sort((a, b) => (a.status !== b.status ? (a.status === "open" ? -1 : 1) : (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : 1));
   return (
     <>
-      <V2PageHeader title="Reminders" meaning="A date, a time and how often it repeats. It rings an alarm when it's due." />
+      {!embedded && <V2PageHeader title="Reminders" meaning="A date, a time and how often it repeats. It rings an alarm when it's due." />}
       <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show done" kind="reminder" addLabel="New reminder" />
       {sorted.length === 0 ? (
         <EmptyState icon={Bell} title={q ? "Nothing matches" : "No reminders yet"} body="Insurance renewal, a document that expires, a monthly money check — set it once and get an alarm." />
       ) : (
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[34rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">When</th>
-                <th className="px-3 py-2.5 font-medium">What</th>
-                <th className="px-3 py-2.5 font-medium">Repeats</th>
-                <th className="px-3 py-2.5 font-medium">Status</th>
-                <th className="px-3 py-2.5 font-medium">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((i) => {
+        <DataTable
+          label="Reminders"
+          rows={sorted}
+          rowKey={(i) => i.id}
+          rowClassName={(i) => (i.status !== "open" ? "text-ink-3" : undefined)}
+          columns={[
+            {
+              key: "w",
+              header: "What",
+              cell: (i) => (
+                <Cell2
+                  main={<span className={cn(i.status !== "open" && "line-through")}>{i.title}</span>}
+                  sub={`${i.due_date ? formatDate(i.due_date, "short") : "No date"}${i.due_time ? ` · ${i.due_time}` : ""}`}
+                />
+              ),
+            },
+            {
+              key: "s",
+              header: "Status",
+              cell: (i) => {
                 const done = i.status !== "open";
-                const st = done ? "paid" : !i.due_date ? "upcoming" : i.due_date < today ? "late" : i.due_date <= addDays(today, 7) ? "due" : "upcoming";
-                return (
-                  <tr key={i.id} className={cn("border-t border-line", done && "text-ink-3")}>
-                    <td className="num whitespace-nowrap px-3 py-2.5">
-                      {i.due_date ? formatDate(i.due_date, "short") : "No date"}
-                      {i.due_time ? ` · ${i.due_time}` : ""}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <button type="button" className={cn("text-left font-medium hover:underline", done && "line-through")} onClick={() => useUI.getState().openLife("reminder", i.id)}>
-                        {i.title}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2.5">{REPEAT[i.repeat]}</td>
-                    <td className="px-3 py-2.5">{done ? (
-                        <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ok">
-                          <Check className="h-3.5 w-3.5" aria-hidden /> Done
-                        </span>
-                      ) : (
-                        <StatusText status={st} />
-                      )}</td>
-                    <td className="px-2 py-1.5">
-                      <Button size="sm" variant="ghost" onClick={() => (done ? act.reopen(i) : act.complete(i))}>
-                        {done ? "Not done" : "Done"}
-                      </Button>
-                    </td>
-                  </tr>
+                const st = !i.due_date ? "upcoming" : i.due_date < today ? "late" : i.due_date <= addDays(today, 7) ? "due" : "upcoming";
+                return done ? (
+                  <span className="inline-flex items-center gap-1 text-[12.5px] font-medium text-ok">
+                    <Check className="h-3.5 w-3.5" aria-hidden /> Done
+                  </span>
+                ) : (
+                  <StatusText status={st} />
                 );
-              })}
-            </tbody>
-          </table>
-        </div>
+              },
+            },
+          ]}
+          details={(i) => (
+            <Details
+              items={[
+                ["Repeats", REPEAT[i.repeat]],
+                ...(i.body ? ([["Note", i.body]] as [string, string][]) : []),
+              ]}
+              actions={
+                <>
+                  <Button size="sm" variant="primary" onClick={() => (i.status !== "open" ? act.reopen(i) : act.complete(i))}>
+                    {i.status !== "open" ? "Not done" : "Done"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => useUI.getState().openLife("reminder", i.id)}>
+                    Edit
+                  </Button>
+                </>
+              }
+            />
+          )}
+        />
       )}
     </>
   );
@@ -141,7 +146,7 @@ export function RemindersScreen() {
 
 // ---------------------------------------------------------------------------
 
-export function TodoScreen() {
+export function TodoScreen({ embedded }: { embedded?: boolean } = {}) {
   const { today } = useFinance();
   const [q, setQ] = useState("");
   const [showDone, setShowDone] = useState(false);
@@ -159,15 +164,23 @@ export function TodoScreen() {
   const lists = items.filter((i) => i.kind === "checklist");
   return (
     <>
-      <V2PageHeader
-        title="To-do & checklists"
-        meaning="Things to get done, and lists with steps."
-        actions={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife("checklist")}>
+      {embedded ? (
+        <div className="mb-2 flex justify-end">
+          <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife("checklist")}>
             New checklist
           </Button>
-        }
-      />
+        </div>
+      ) : (
+        <V2PageHeader
+          title="To-do & checklists"
+          meaning="Things to get done, and lists with steps."
+          actions={
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife("checklist")}>
+              New checklist
+            </Button>
+          }
+        />
+      )}
       <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show done" kind="task" addLabel="New to-do" />
       {tasks.length === 0 && lists.length === 0 && !showDone ? (
         <EmptyState title={q ? "Nothing matches" : "Nothing to do"} body="Add a to-do with a date, or a checklist with steps (a travel list, a monthly bike check)." />
@@ -206,7 +219,7 @@ export function TodoScreen() {
 const VERDICT_WORD = { buy: "Buy now", wait: "Wait", save_first: "Save first", consider: "Buy now — check your safety net", unknown: "Add a price" } as const;
 const VERDICT_CLS = { buy: "text-ok", wait: "text-warn", save_first: "text-future-ink", consider: "text-warn", unknown: "text-ink-3" } as const;
 
-export function WishlistScreen() {
+export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
   const { month, norms, ef, ctx } = useFinance();
   const [q, setQ] = useState("");
   const [showDone, setShowDone] = useState(false);
@@ -214,53 +227,57 @@ export function WishlistScreen() {
   const m = (n: number) => formatMoney(n, ctx);
   return (
     <>
-      <V2PageHeader title="Wishlist" meaning="Things you want to buy, with a simple “Buy now / Wait / Save first” for each." />
+      {!embedded && <V2PageHeader title="Wishlist" meaning="Things you want to buy, with a simple “Buy now / Wait / Save first” for each." />}
       <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show bought" kind="wishlist" addLabel="Add an item" />
       {items.length === 0 ? (
         <EmptyState title={q ? "Nothing matches" : "Your wishlist is empty"} body="Add the price now and then — you'll see whether to buy, wait for a better price or save first." />
       ) : (
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[38rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">Item</th>
-                <th className="px-3 py-2.5 text-right font-medium">Price</th>
-                <th className="px-3 py-2.5 text-right font-medium">Target</th>
-                <th className="px-3 py-2.5 font-medium">Verdict</th>
-                <th className="px-3 py-2.5 font-medium">Link</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => {
+        <DataTable
+          label="Wishlist"
+          rows={items}
+          rowKey={(i) => i.id}
+          rowClassName={(i) => (i.status !== "open" ? "text-ink-3" : undefined)}
+          columns={[
+            {
+              key: "i",
+              header: "Item",
+              cell: (i) => {
                 const bw = buyOrWait(i, { month, norms, ef, ctx });
-                return (
-                  <tr key={i.id} className={cn("border-t border-line align-top", i.status !== "open" && "text-ink-3")}>
-                    <td className="px-3 py-2.5">
-                      <button type="button" className="text-left font-medium hover:underline" onClick={() => useUI.getState().openLife("wishlist", i.id)}>
-                        {i.title}
-                      </button>
-                    </td>
-                    <td className="num px-3 py-2.5 text-right">{i.data?.current_price != null ? m(i.data.current_price) : "–"}</td>
-                    <td className="num px-3 py-2.5 text-right">{i.data?.target_price != null ? m(i.data.target_price) : "–"}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={cn("font-semibold", VERDICT_CLS[bw.verdict])}>{VERDICT_WORD[bw.verdict]}</span>
-                      <span className="block max-w-xs text-[12px] text-ink-3">{bw.reasons[bw.reasons.length - 1]}</span>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {i.data?.url ? (
-                        <a href={i.data.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] font-medium underline">
-                          Open <ExternalLink className="h-3 w-3" aria-hidden />
-                        </a>
-                      ) : (
-                        "–"
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                return <Cell2 main={i.title} sub={<span className={cn("font-semibold", VERDICT_CLS[bw.verdict])}>{VERDICT_WORD[bw.verdict]}</span>} />;
+              },
+            },
+            { key: "p", header: "Price", align: "right", cell: (i) => (i.data?.current_price != null ? m(i.data.current_price) : "–") },
+          ]}
+          details={(i) => {
+            const bw = buyOrWait(i, { month, norms, ef, ctx });
+            return (
+              <Details
+                items={[
+                  ["Target price", i.data?.target_price != null ? m(i.data.target_price) : "–"],
+                  ["Suggestion", VERDICT_WORD[bw.verdict]],
+                ]}
+                actions={
+                  <>
+                    {i.data?.url && (
+                      <a href={i.data.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 rounded-xl border border-line px-3 text-[13px] font-medium">
+                        Open link <ExternalLink className="h-3 w-3" aria-hidden />
+                      </a>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => useUI.getState().openLife("wishlist", i.id)}>
+                      Edit
+                    </Button>
+                  </>
+                }
+              >
+                <ul className="mt-2 space-y-1 text-[12.5px] text-ink-2">
+                  {bw.reasons.map((r) => (
+                    <li key={r}>• {r}</li>
+                  ))}
+                </ul>
+              </Details>
+            );
+          }}
+        />
       )}
       <p className="mt-2 text-[12px] text-ink-3">A suggestion based on your plans, not advice.</p>
     </>
