@@ -126,7 +126,6 @@ export function V2Home() {
             {greeting()}
             {name ? `, ${name}` : ""}
           </h1>
-          <p className="text-[13.5px] text-ink-2">Your money at a glance</p>
         </div>
         <div className="flex items-center rounded-xl border border-line bg-surface">
           <button type="button" aria-label="Previous month" onClick={() => go(-1)} className="inline-flex h-10 w-10 items-center justify-center rounded-l-xl text-ink-2 hover:bg-surface-3">

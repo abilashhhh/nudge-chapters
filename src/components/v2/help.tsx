@@ -35,7 +35,7 @@ export function HelpScreen() {
   };
   return (
     <>
-      <V2PageHeader title="Help & support" meaning="Answers to common questions, and ways to get in touch." />
+      <V2PageHeader title="Help & support" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <Panel title="Questions">
           <div className="divide-y divide-line">

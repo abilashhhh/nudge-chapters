@@ -45,7 +45,7 @@ function Settings() {
   return (
     <>
       {v2 ? (
-        <V2PageHeader title="Settings" meaning="Profile, categories, alerts, import & export, security and how the app looks." />
+        <V2PageHeader title="Settings" />
       ) : (
         <PageHeader title="Settings" description="Your profile, categories, alerts, data and security." />
       )}

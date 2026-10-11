@@ -66,16 +66,17 @@ export function BudgetsScreen() {
     <>
       <V2PageHeader
         title="Budgets & spending plans"
-        meaning="Monthly limits per category, bills that repeat, and one-off spends you're planning."
+        shortTitle="Budgets"
         actions={
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => ui.openEditor("rule", undefined, { kind: "expense", is_fixed: false, name: "Groceries", category: "Groceries", frequency: "monthly" })}>
-            New budget
+            <span className="sm:hidden">New</span>
+            <span className="hidden sm:inline">New budget</span>
           </Button>
         }
       />
-      <MonthPicker today={today} className="mb-4" />
+      <MonthPicker today={today} compact className="mb-4" />
 
-      <h2 className="mb-2 text-[16px] font-semibold">Budgets</h2>
+      <h2 className="mb-2 hidden text-[16px] font-semibold sm:block">Budgets</h2>
       {budgets.length === 0 ? (
         <EmptyState icon={PiggyBank} title="No budgets for this month" body="Set a monthly limit for groceries, eating out, fuel or shopping — e.g. Groceries ₹8,000 a month." />
       ) : (
@@ -104,7 +105,7 @@ export function BudgetsScreen() {
           Add a repeating bill
         </Button>
       </div>
-      <p className="mb-2 text-[13px] text-ink-3">Rent, phone, subscriptions, insurance — and money you move between your accounts every month.</p>
+      <p className="mb-2 hidden text-[13px] text-ink-3 lg:block">Rent, phone, subscriptions, insurance — and money you move between your accounts every month.</p>
       {repeating.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">No repeating bills yet.</p>
       ) : (
@@ -141,7 +142,7 @@ export function BudgetsScreen() {
           Plan a spend
         </Button>
       </div>
-      <p className="mb-2 text-[13px] text-ink-3">Something you&apos;ll pay once — a trip, a gift, a repair. It&apos;s kept aside in that month.</p>
+      <p className="mb-2 hidden text-[13px] text-ink-3 lg:block">Something you&apos;ll pay once — a trip, a gift, a repair. It&apos;s kept aside in that month.</p>
       {planned.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">Nothing planned.</p>
       ) : (

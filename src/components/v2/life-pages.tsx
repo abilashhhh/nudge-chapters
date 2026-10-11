@@ -1,7 +1,7 @@
 "use client";
 
-import { Bell, Check, ExternalLink, Plus, Search, StickyNote } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Bell, Check, ExternalLink, History, ListChecks, Plus, Search, StickyNote } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addDays, formatDate } from "@/lib/dates";
 import { buyOrWait } from "@/lib/engine/life";
@@ -31,20 +31,35 @@ function useItems(kinds: LifeKind[], showDone: boolean, q: string) {
   }, [ds.life_items, kinds, showDone, q]);
 }
 
-function Toolbar({ q, setQ, showDone, setShowDone, doneLabel, kind, addLabel }: { q: string; setQ: (s: string) => void; showDone: boolean; setShowDone: (b: boolean) => void; doneLabel: string; kind: LifeKind; addLabel: string }) {
+/** One row: add, (an extra add), search, and a show-done switch. Labels shorten on phones. */
+function Toolbar({
+  q, setQ, showDone, setShowDone, doneLabel, kind, addLabel, extra,
+}: { q: string; setQ: (s: string) => void; showDone: boolean; setShowDone: (b: boolean) => void; doneLabel: string; kind: LifeKind; addLabel: string; extra?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife(kind)}>
-        {addLabel}
+    <div className="mb-4 flex items-center gap-2">
+      <Button variant="primary" aria-label={addLabel} icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife(kind)} className="shrink-0 px-3 sm:px-4">
+        <span className="hidden sm:inline">{addLabel}</span>
+        <span className="sm:hidden">New</span>
       </Button>
-      <div className="relative min-w-[12rem] flex-1">
+      {extra}
+      <div className="relative min-w-0 flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
-        <Input aria-label="Search" placeholder="Search" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input aria-label="Search" placeholder="Search" className="h-10 pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      <label className="flex h-11 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-[13.5px] text-ink-2">
-        <input type="checkbox" className="h-4 w-4 accent-[var(--brand)]" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
-        {doneLabel}
-      </label>
+      <button
+        type="button"
+        aria-pressed={showDone}
+        aria-label={doneLabel}
+        title={doneLabel}
+        onClick={() => setShowDone(!showDone)}
+        className={cn(
+          "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[13.5px] font-medium transition-colors",
+          showDone ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink-2 hover:border-line-strong",
+        )}
+      >
+        <History className="h-4 w-4" aria-hidden />
+        <span className="hidden sm:inline">{doneLabel}</span>
+      </button>
     </div>
   );
 }
@@ -57,7 +72,7 @@ export function NotesScreen({ embedded }: { embedded?: boolean } = {}) {
   const items = useItems(["note"], showDone, q);
   return (
     <>
-      {!embedded && <V2PageHeader title="Notes" meaning="Free text notes. Pin the important ones to the top." />}
+      {!embedded && <V2PageHeader title="Notes" />}
       <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show archived" kind="note" addLabel="New note" />
       {items.length === 0 ? (
         <EmptyState icon={StickyNote} title={q ? "Nothing matches" : "No notes yet"} body="Ideas, research, account details you need to remember — anything." />
@@ -83,7 +98,7 @@ export function RemindersScreen({ embedded }: { embedded?: boolean } = {}) {
   const sorted = [...items].sort((a, b) => (a.status !== b.status ? (a.status === "open" ? -1 : 1) : (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : 1));
   return (
     <>
-      {!embedded && <V2PageHeader title="Reminders" meaning="A date, a time and how often it repeats. It rings an alarm when it's due." />}
+      {!embedded && <V2PageHeader title="Reminders" />}
       <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show done" kind="reminder" addLabel="New reminder" />
       {sorted.length === 0 ? (
         <EmptyState icon={Bell} title={q ? "Nothing matches" : "No reminders yet"} body="Insurance renewal, a document that expires, a monthly money check — set it once and get an alarm." />
@@ -164,24 +179,21 @@ export function TodoScreen({ embedded }: { embedded?: boolean } = {}) {
   const lists = items.filter((i) => i.kind === "checklist");
   return (
     <>
-      {embedded ? (
-        <div className="mb-2 flex justify-end">
-          <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife("checklist")}>
-            New checklist
+      {!embedded && <V2PageHeader title="To-do & checklists" />}
+      <Toolbar
+        q={q}
+        setQ={setQ}
+        showDone={showDone}
+        setShowDone={setShowDone}
+        doneLabel="Show done"
+        kind="task"
+        addLabel="New to-do"
+        extra={
+          <Button aria-label="New checklist" icon={<ListChecks className="h-4 w-4" />} onClick={() => useUI.getState().openLife("checklist")} className="shrink-0 px-3 sm:px-4">
+            <span className="hidden sm:inline">Checklist</span>
           </Button>
-        </div>
-      ) : (
-        <V2PageHeader
-          title="To-do & checklists"
-          meaning="Things to get done, and lists with steps."
-          actions={
-            <Button icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife("checklist")}>
-              New checklist
-            </Button>
-          }
-        />
-      )}
-      <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show done" kind="task" addLabel="New to-do" />
+        }
+      />
       {tasks.length === 0 && lists.length === 0 && !showDone ? (
         <EmptyState title={q ? "Nothing matches" : "Nothing to do"} body="Add a to-do with a date, or a checklist with steps (a travel list, a monthly bike check)." />
       ) : (
@@ -227,7 +239,7 @@ export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
   const m = (n: number) => formatMoney(n, ctx);
   return (
     <>
-      {!embedded && <V2PageHeader title="Wishlist" meaning="Things you want to buy, with a simple “Buy now / Wait / Save first” for each." />}
+      {!embedded && <V2PageHeader title="Wishlist" />}
       <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show bought" kind="wishlist" addLabel="Add an item" />
       {items.length === 0 ? (
         <EmptyState title={q ? "Nothing matches" : "Your wishlist is empty"} body="Add the price now and then — you'll see whether to buy, wait for a better price or save first." />
@@ -279,7 +291,7 @@ export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
           }}
         />
       )}
-      <p className="mt-2 text-[12px] text-ink-3">A suggestion based on your plans, not advice.</p>
+      <p className="mt-2 hidden text-[12px] text-ink-3 lg:block">A suggestion based on your plans, not advice.</p>
     </>
   );
 }

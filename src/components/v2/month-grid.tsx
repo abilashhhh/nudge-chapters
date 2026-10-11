@@ -339,7 +339,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
           })}
           {withAmount.length === 0 && <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">Nothing in {monthLabel(lm)}.</p>}
           {nothing.length > 0 && withAmount.length > 0 && (
-            <p className="px-1 text-[12.5px] text-ink-3">
+            <p className="hidden px-1 text-[12.5px] text-ink-3 lg:block">
               Nothing in {monthLabel(lm)}: {nothing.map((g) => g.label).join(", ")}
             </p>
           )}
@@ -349,7 +349,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
             {bottomAdd.label}
           </Button>
         )}
-        {footnote && <p className="mt-2 text-[12.5px] text-ink-3">{footnote}</p>}
+        {footnote && <p className="mt-2 hidden text-[12.5px] text-ink-3 lg:block">{footnote}</p>}
       </div>
     );
   }
@@ -470,7 +470,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
         </Button>
       )}
       {legend}
-      {footnote && <p className="mt-2 text-[12.5px] text-ink-3">{footnote}</p>}
+      {footnote && <p className="mt-2 hidden text-[12.5px] text-ink-3 lg:block">{footnote}</p>}
       <p className="sr-only">Amounts in {formatMoney(0, ctx).replace(/[\d.,\s]/g, "") || ctx.currency}.</p>
     </div>
   );

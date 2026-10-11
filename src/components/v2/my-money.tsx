@@ -32,8 +32,8 @@ export function MyMoneyScreen() {
   const { positions } = useFinance();
   return (
     <>
-      <V2PageHeader title="My Money" meaning="Money in your bank and money others owe you" />
-      <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 lg:max-w-xl">
+      <V2PageHeader title="My Money" />
+      <div className="mb-5 hidden max-w-xl grid-cols-2 gap-3 lg:grid">
         <StatTile label="Money in bank" value={positions.totals.cash} onClick={() => setTab("accounts")} />
         <StatTile label="People owe me" value={positions.totals.receivables} onClick={() => setTab("owed")} />
       </div>

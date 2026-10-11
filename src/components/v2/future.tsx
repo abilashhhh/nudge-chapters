@@ -68,7 +68,7 @@ export function FutureScreen() {
 
   return (
     <>
-      <V2PageHeader title="Future" meaning="An estimate of your money on a date you choose, your goals, and whether you can afford something." />
+      <V2PageHeader title="Future" />
 
       <section aria-labelledby="pick" className="mb-8">
         <h2 id="pick" className="mb-2 text-[16px] font-semibold">
@@ -104,7 +104,7 @@ export function FutureScreen() {
             Your bank money could go below zero on {formatDate(res.negativeOn)}. Lowest: {formatMoney(res.lowest.cash, { currency: ds.profile.currency, locale: ds.profile.locale })}.
           </p>
         )}
-        <p className="mt-2 text-[12px] text-ink-3">Based on your salary, bills, EMIs and savings plans as they are today. Violet numbers are estimates, not promises.</p>
+        <p className="mt-2 hidden text-[12px] text-ink-3 lg:block">Based on your salary, bills, EMIs and savings plans as they are today. Violet numbers are estimates, not promises.</p>
       </section>
 
       <section aria-labelledby="next12" className="mb-8">
@@ -261,7 +261,7 @@ function Afford() {
             )}
           </div>
         )}
-        <p className="mt-3 text-[12px] text-ink-3">An estimate from your plans — not advice.</p>
+        <p className="mt-3 hidden text-[12px] text-ink-3 lg:block">An estimate from your plans — not advice.</p>
       </div>
     </section>
   );

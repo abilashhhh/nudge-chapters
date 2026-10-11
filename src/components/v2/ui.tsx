@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertTriangle, Check, CircleDashed, Clock, Minus, PieChart, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, CircleDashed, Clock, Minus, PieChart, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addMonths, endOfMonth, startOfMonth } from "@/lib/dates";
@@ -10,15 +11,37 @@ import { useFinance } from "@/lib/finance";
 import type { CellStatus } from "@/lib/v2/grids";
 import { Money } from "../money";
 
-/** Page title + the one-line meaning shown under it (Version 2). */
-export function V2PageHeader({ title, meaning, actions }: { title: string; meaning?: ReactNode; actions?: ReactNode }) {
+/** Sections reached from the bottom bar: on phones the bar already says where you are. */
+const BAR_SECTIONS = ["/my-money", "/to-pay", "/savings", "/daily", "/menu"];
+
+/**
+ * Page title (Version 2). Menu pages get a back button to Menu. On phones, the bottom-bar sections show no
+ * title at all (only their actions), so the content starts right at the top.
+ */
+export function V2PageHeader({ title, shortTitle, actions }: { title: string; shortTitle?: string; actions?: ReactNode }) {
+  const path = (usePathname() ?? "/").replace(/\/+$/, "") || "/";
+  const barSection = BAR_SECTIONS.includes(path);
+  const back = path.startsWith("/menu/") ? "/menu" : null;
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="display text-[28px] font-semibold leading-tight sm:text-[32px]">{title}</h1>
-        {meaning && <p className="mt-1 max-w-2xl text-[14px] text-ink-2">{meaning}</p>}
+    <div className={cn("mb-4 flex items-center justify-between gap-3 lg:mb-5", barSection && !actions && "hidden lg:flex")}>
+      <div className={cn("flex min-w-0 items-center gap-2", barSection && "hidden lg:flex")}>
+        {back && (
+          <Link href={back} aria-label="Back to Menu" className="no-print inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:text-ink">
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+          </Link>
+        )}
+        <h1 className="display truncate text-[22px] font-semibold leading-tight lg:text-[30px]">
+          {shortTitle ? (
+            <>
+              <span className="sm:hidden">{shortTitle}</span>
+              <span className="hidden sm:inline">{title}</span>
+            </>
+          ) : (
+            title
+          )}
+        </h1>
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="ml-auto flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
@@ -45,18 +68,18 @@ export function StatTile({
 }) {
   const body = (
     <>
-      <span className={cn("block text-[12.5px]", dark ? "opacity-75" : "text-ink-3")}>{label}</span>
+      <span className={cn("block truncate text-[12px] sm:text-[12.5px]", dark ? "opacity-75" : "text-ink-3")}>{label}</span>
       <Money
         value={value}
         projected={projected}
         tone={tone === "auto" ? "auto" : undefined}
-        className={cn("display mt-0.5 block text-[20px] font-semibold leading-tight sm:text-[22px]", tone === "danger" && value > 0.5 && "text-danger", dark && "text-inherit")}
+        className={cn("display mt-0.5 block truncate text-[17px] font-semibold leading-tight sm:text-[22px]", tone === "danger" && value > 0.5 && "text-danger", dark && "text-inherit")}
       />
-      {note && <span className={cn("mt-0.5 block text-[11.5px]", dark ? "opacity-70" : "text-ink-3")}>{note}</span>}
+      {note && <span className={cn("mt-0.5 block truncate text-[11.5px]", dark ? "opacity-70" : "text-ink-3")}>{note}</span>}
     </>
   );
   const cls = cn(
-    "block min-w-0 rounded-2xl border p-4 text-left transition-colors",
+    "block min-w-0 rounded-2xl border p-3 text-left transition-colors sm:p-4",
     dark ? "border-transparent bg-ink text-paper" : "border-line bg-surface",
     (href || onClick) && (dark ? "hover:opacity-95" : "hover:border-line-strong"),
   );

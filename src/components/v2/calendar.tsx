@@ -64,7 +64,7 @@ export function CalendarScreen() {
 
   return (
     <>
-      <V2PageHeader title="Calendar" meaning="All your payments and income on a calendar." />
+      <V2PageHeader title="Calendar" />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex items-center rounded-xl border border-line bg-surface">
           <button type="button" aria-label="Previous month" onClick={() => go(-1)} className="inline-flex h-9 w-9 items-center justify-center rounded-l-xl text-ink-2 hover:bg-surface-3">
@@ -158,7 +158,7 @@ export function CalendarScreen() {
         <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-danger" aria-hidden /> Late</span>
         <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-future" aria-hidden /> To pay</span>
         <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-brand" aria-hidden /> Money coming in</span>
-        <span>Tap a day to see its items with their status.</span>
+        <span className="hidden lg:inline">Tap a day to see its items with their status.</span>
       </p>
     </>
   );

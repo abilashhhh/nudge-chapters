@@ -29,10 +29,10 @@ export function IncomeScreen() {
     <>
       <V2PageHeader
         title="My jobs & income"
-        meaning="Your salary and other money that comes in."
         actions={
           <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={add}>
-            Add income
+            <span className="sm:hidden">Add</span>
+            <span className="hidden sm:inline">Add income</span>
           </Button>
         }
       />

@@ -22,10 +22,7 @@ export function DailyScreen() {
   const remindersSoon = open.filter((i) => i.kind === "reminder" && i.due_date && i.due_date <= addDays(today, 7)).length;
   return (
     <>
-      {/* Phones: the bottom bar already shows you're in Daily, so the big title is left out to save space. */}
-      <div className="hidden lg:block">
-        <V2PageHeader title="Daily" meaning="Your daily rhythm, to-do, reminders, notes and wishlist" />
-      </div>
+      <V2PageHeader title="Daily" />
       <Tabs<Tab>
         className="mb-4"
         value={tab}

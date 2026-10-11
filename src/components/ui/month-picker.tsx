@@ -14,7 +14,7 @@ export function useSelectedMonth(today: string): string {
   return m ?? startOfMonth(today);
 }
 
-export function MonthPicker({ today, className }: { today: string; className?: string }) {
+export function MonthPicker({ today, className, compact }: { today: string; className?: string; compact?: boolean }) {
   const sel = useSelectedMonth(today);
   const set = useMonth((s) => s.set);
   const cur = startOfMonth(today);
@@ -40,6 +40,13 @@ export function MonthPicker({ today, className }: { today: string; className?: s
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
+      {compact ? (
+        sel !== cur && (
+          <button type="button" onClick={() => set(null)} className="h-8 whitespace-nowrap rounded-full bg-surface-3/70 px-2.5 text-[12.5px] font-medium text-ink-2 hover:text-ink">
+            This month
+          </button>
+        )
+      ) : (
       <div className="flex flex-wrap gap-1">
         {quick.map((q) => {
           const target = addMonths(cur, q.id);
@@ -56,6 +63,7 @@ export function MonthPicker({ today, className }: { today: string; className?: s
           );
         })}
       </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Suspense, useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { APP_NAME, BMC_URL } from "@/lib/config";
 import { Brand } from "../brand";
@@ -29,8 +29,7 @@ import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
 import { useViewMode } from "@/lib/view-mode";
 import { useAppVersion } from "@/lib/app-version";
-import { V2_DAILY, V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
-import { Breadcrumbs } from "../v2/breadcrumbs";
+import { V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
 import { V2QuickAddSheet } from "../v2/quick-add";
 
 /** `section` is the id used by Settings → Sections to hide an entry (data and calculations are unaffected). */
@@ -164,20 +163,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {n.label}
               </Link>
             );
-            // Version 2: the Daily section's parts sit right under it in the sidebar.
-            if (v2 && n.href === "/daily")
-              return (
-                <div key={n.href}>
-                  {link}
-                  <div className="ml-6 mt-0.5 flex flex-col border-l border-line pl-2">
-                    {V2_DAILY.map((d) => (
-                      <Link key={d.tab} href={`/daily?tab=${d.tab}`} className="rounded-lg px-2 py-1.5 text-[13px] text-ink-2 hover:bg-surface-3/70 hover:text-ink">
-                        {d.label}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              );
             return link;
           })}
         </nav>
@@ -198,7 +183,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link href="/" className="min-w-0 lg:hidden" aria-label={`${APP_NAME} home`}>
               <Brand size="sm" />
             </Link>
-            <span className="hidden text-[15px] font-semibold text-ink lg:inline">{title}</span>
+            {!v2 && <span className="hidden text-[15px] font-semibold text-ink lg:inline">{title}</span>}
             {!simple && <button
               type="button"
               onClick={() => ui.setPalette(true)}
@@ -254,11 +239,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="mx-auto max-w-[1240px] px-4 pb-32 pt-4 sm:px-6 sm:pt-6 lg:pb-16">
-          {v2 && (
-            <Suspense>
-              <Breadcrumbs />
-            </Suspense>
-          )}
           {children}
         </main>
       </div>

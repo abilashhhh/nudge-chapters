@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Briefcase, CalendarDays, CheckSquare, HelpCircle, LayoutGrid, PiggyBank, Search, Settings, Sparkles, StickyNote, Heart } from "lucide-react";
+import { Bell, Briefcase, CalendarDays, CheckSquare, HelpCircle, LayoutGrid, PiggyBank, Settings, Sparkles, StickyNote, Heart } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { addDays } from "@/lib/dates";
@@ -8,7 +8,6 @@ import { agenda } from "@/lib/engine/life";
 import { useAppVersion } from "@/lib/app-version";
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
-import { useUI } from "@/lib/ui";
 import { useRouter } from "next/navigation";
 import { V2PageHeader } from "./ui";
 
@@ -57,7 +56,7 @@ export function MenuScreen() {
   const cls = "group flex min-h-24 flex-col justify-between gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition-all hover:-translate-y-0.5 hover:border-line-strong";
   return (
     <>
-      <V2PageHeader title="Menu" meaning="Planning tools and settings" />
+      <V2PageHeader title="Menu" />
       <div className="flex flex-col gap-6">
         {groups.map((g) => (
           <section key={g.title} aria-label={g.title}>
@@ -87,9 +86,6 @@ export function MenuScreen() {
           </section>
         ))}
       </div>
-      <button type="button" onClick={() => useUI.getState().setPalette(true)} className="mt-6 flex w-full items-center gap-2 rounded-2xl border border-dashed border-line-strong p-4 text-left text-[14px] text-ink-2">
-        <Search className="h-4 w-4" aria-hidden /> Search everything — accounts, cards, loans, notes, entries
-      </button>
     </>
   );
 }

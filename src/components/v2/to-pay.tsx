@@ -27,9 +27,9 @@ export function ToPayScreen() {
   const { month, ds } = useFinance();
   return (
     <>
-      <V2PageHeader title="To Pay" meaning="Bills, EMIs and installments you have to pay" />
+      <V2PageHeader title="To Pay" />
       <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
-        <StatTile label="To pay this month" value={month.unpaidAmount} note={`${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"}`} />
+        <StatTile label="Still to pay" value={month.unpaidAmount} note={`${month.unpaid.length} this month`} />
         <StatTile label="Late" value={month.overdueAmount} tone="danger" note={month.overdue.length ? `${month.overdue.length} late` : "Nothing late"} />
         <StatTile label="Paid this month" value={month.committedPaid} />
       </div>

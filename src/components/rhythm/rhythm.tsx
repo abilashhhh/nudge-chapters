@@ -79,38 +79,35 @@ export function RhythmSection() {
 
   return (
     <div>
-      {/* Phones: no heading here (the Daily tab already says where you are) — just the views. */}
-      <div className="mb-4 hidden flex-wrap items-center justify-between gap-3 lg:flex">
-        <div className="min-w-0">
-          <h2 className="display flex items-center gap-2 text-[22px] font-semibold leading-tight">Daily Rhythm</h2>
-          <p className="text-[13.5px] text-ink-2">Tick off your everyday activities and see how consistent you are, month by month.</p>
+      <div className="mb-4 flex items-center gap-3 lg:mb-5">
+        <nav aria-label="Daily Rhythm views" className="min-w-0 flex-1 lg:flex-none">
+          <div className="grid grid-cols-5 gap-0.5 rounded-2xl bg-surface-3/70 p-1 lg:inline-flex lg:gap-1">
+            {VIEWS.map((v) => {
+              const Icon = VIEW_META[v].icon;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  aria-current={view === v ? "page" : undefined}
+                  onClick={() => set({ view: v })}
+                  className={cn(
+                    "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[11px] font-medium transition-colors lg:h-9 lg:flex-row lg:gap-1.5 lg:px-3 lg:py-0 lg:text-[13.5px]",
+                    view === v ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink",
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="max-w-full truncate">{VIEW_META[v].label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+        <div className="ml-auto hidden lg:block">
+          <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => openEditor(null)}>
+            Add activity
+          </Button>
         </div>
-        <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => openEditor(null)}>
-          Add activity
-        </Button>
       </div>
-      <nav aria-label="Daily Rhythm views" className="mb-4 lg:mb-5">
-        <div className="grid grid-cols-5 gap-0.5 rounded-2xl bg-surface-3/70 p-1 lg:inline-flex lg:gap-1">
-          {VIEWS.map((v) => {
-            const Icon = VIEW_META[v].icon;
-            return (
-              <button
-                key={v}
-                type="button"
-                aria-current={view === v ? "page" : undefined}
-                onClick={() => set({ view: v })}
-                className={cn(
-                  "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[11px] font-medium transition-colors lg:h-9 lg:flex-row lg:gap-1.5 lg:px-3 lg:py-0 lg:text-[13.5px]",
-                  view === v ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="max-w-full truncate">{VIEW_META[v].label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
       {habits.length === 0 && view !== "activities" ? (
         <Welcome onCustom={() => openEditor(null)} />

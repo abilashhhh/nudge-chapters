@@ -34,7 +34,7 @@ export function SavingsScreen() {
   const profit = value - putIn;
   return (
     <>
-      <V2PageHeader title="Savings" meaning="What your savings and investments are worth" />
+      <V2PageHeader title="Savings" />
       <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
         <StatTile label="Total saved" value={value} note="Value today" />
         <StatTile label="Money put in" value={putIn} />
@@ -53,7 +53,7 @@ export function SavingsScreen() {
       {tab === "funds" && <Funds list={invs.filter(isFund)} />}
       {tab === "chits" && <Chits />}
       {tab === "other" && <Other list={invs.filter((p) => !isFund(p))} />}
-      <p className="mt-4 text-[12.5px] text-ink-3">Values are what you type in — this app doesn&apos;t fetch live prices.</p>
+      <p className="mt-4 hidden text-[12.5px] text-ink-3 lg:block">Values are what you type in — this app doesn&apos;t fetch live prices.</p>
     </>
   );
 }
@@ -279,7 +279,7 @@ function Chits() {
           );
         }}
       />
-      <p className="mt-2 text-[12.5px] text-ink-3">
+      <p className="mt-2 hidden text-[12.5px] text-ink-3 lg:block">
         <span className="projected">Violet</span> amounts are estimates: future discounts depend on each month&apos;s auction.
       </p>
     </div>
