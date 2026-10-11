@@ -20,6 +20,7 @@ import { EmptyState, Tabs } from "../ui/misc";
 import { Sheet } from "../ui/sheet";
 import { MonthGrid, useGridMonths } from "./month-grid";
 import { StatTile, StatusText, useRangeEvents, V2PageHeader } from "./ui";
+import { Cell2, DataTable, Details } from "./data-table";
 
 const TABS = ["accounts", "owed"] as const;
 type Tab = (typeof TABS)[number];
@@ -87,85 +88,70 @@ function Accounts() {
           </label>
         )}
       </div>
-      <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-        <table className="v2-table w-full text-[13.5px] sm:min-w-[36rem]">
-          <thead className="text-left text-[12px] text-ink-3">
-            <tr className="border-b border-line">
-              <th className="px-3 py-2.5 font-medium">Account</th>
-              <th className="hidden px-3 py-2.5 font-medium sm:table-cell">Type</th>
-              <th className="px-3 py-2.5 text-right font-medium">Balance</th>
-              <th className="hidden px-3 py-2.5 font-medium sm:table-cell">Last checked</th>
-              <th className="hidden px-3 py-2.5 font-medium sm:table-cell">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="num">
-            {list.map((a) => {
-              const p = positions.accounts.get(a.id);
-              const bal = p?.balance ?? 0;
+      <DataTable
+        label="Bank accounts"
+        rows={list}
+        rowKey={(a) => a.id}
+        rowClassName={(a) => (a.archived ? "text-ink-3" : undefined)}
+        columns={[
+          {
+            key: "name",
+            header: "Account",
+            cell: (a) => {
+              const bal = positions.accounts.get(a.id)?.balance ?? 0;
               return (
-                <tr key={a.id} className={cn("border-t border-line", a.archived && "text-ink-3")}>
-                  <td className="px-3 py-2.5">
-                    <span className="font-medium">{a.name}</span>
-                    {!a.include_in_cash && <span className="block text-[11.5px] text-ink-3">Not counted in money in bank</span>}
-                    {a.min_balance > 0 && bal < a.min_balance && (
-                      <span className="flex items-center gap-1 text-[11.5px] text-warn">
-                        <AlertTriangle className="h-3 w-3" aria-hidden /> Below minimum {formatMoney(a.min_balance, ctx)}
+                <Cell2
+                  main={a.name}
+                  sub={
+                    a.archived ? "Closed" : a.min_balance > 0 && bal < a.min_balance ? (
+                      <span className="inline-flex items-center gap-1 text-warn">
+                        <AlertTriangle className="h-3 w-3" aria-hidden /> Below minimum
                       </span>
-                    )}
-                    {a.archived && <span className="block text-[11.5px]">Closed</span>}
-                    {/* Phone: type, last checked and actions sit under the name. */}
-                    <span className="block text-[11.5px] text-ink-3 sm:hidden">
-                      {TYPE_LABEL[a.type]} · checked {a.last_verified_at ? relativeDays(positions.asOf, a.last_verified_at) : "not yet"}
-                    </span>
-                    <span className="mt-1 flex gap-3 text-[12.5px] font-medium text-ink-2 sm:hidden">
-                      <button type="button" className="underline-offset-2 hover:underline" onClick={() => setFix(a)}>
-                        Fix balance
-                      </button>
-                      <button type="button" className="underline-offset-2 hover:underline" onClick={() => setHistory(a)}>
-                        History
-                      </button>
-                      <button type="button" className="underline-offset-2 hover:underline" onClick={() => ui.openEditor("account", a.id)}>
-                        Edit
-                      </button>
-                    </span>
-                  </td>
-                  <td className="hidden px-3 py-2.5 sm:table-cell">{TYPE_LABEL[a.type]}</td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Money value={bal} decimals currency={a.currency} className={cn("font-semibold", bal < 0 && "text-danger")} />
-                    {a.currency !== ctx.currency && <span className="block text-[11.5px] text-ink-3">≈ {formatMoney(p?.balanceBase ?? 0, ctx)}</span>}
-                  </td>
-                  <td className="hidden px-3 py-2.5 text-ink-2 sm:table-cell">{a.last_verified_at ? relativeDays(positions.asOf, a.last_verified_at) : "Not yet"}</td>
-                  <td className="hidden px-2 py-1.5 sm:table-cell">
-                    <div className="flex flex-wrap gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => setFix(a)}>
-                        Fix balance
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setHistory(a)}>
-                        History
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => ui.openEditor("account", a.id)}>
-                        Edit
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
+                    ) : !a.include_in_cash ? "Not in money in bank" : undefined
+                  }
+                />
               );
-            })}
-          </tbody>
-          <tfoot className="num">
-            <tr className="border-t-2 border-ink">
-              <td className="px-3 py-2.5 font-bold">Total</td>
-              <td className="hidden sm:table-cell" />
-              <td className="px-3 py-2.5 text-right">
-                <Money value={total} decimals className="font-bold" />
-              </td>
-              <td colSpan={2} className="hidden sm:table-cell" />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+            },
+          },
+          {
+            key: "bal",
+            header: "Balance",
+            align: "right",
+            cell: (a) => {
+              const bal = positions.accounts.get(a.id)?.balance ?? 0;
+              return <Money value={bal} decimals currency={a.currency} className={cn("font-semibold", bal < 0 && "text-danger")} />;
+            },
+          },
+        ]}
+        details={(a) => {
+          const p = positions.accounts.get(a.id);
+          return (
+            <Details
+              items={[
+                ["Type", TYPE_LABEL[a.type]],
+                ["Last checked", a.last_verified_at ? relativeDays(positions.asOf, a.last_verified_at) : "Not yet"],
+                ...(a.min_balance > 0 ? ([["Keep at least", formatMoney(a.min_balance, ctx)]] as [string, string][]) : []),
+                ...(a.currency !== ctx.currency ? ([["In " + ctx.currency, formatMoney(p?.balanceBase ?? 0, ctx)]] as [string, string][]) : []),
+                ["Counted in money in bank", a.include_in_cash ? "Yes" : "No"],
+              ]}
+              actions={
+                <>
+                  <Button size="sm" variant="primary" onClick={() => setFix(a)}>
+                    Fix balance
+                  </Button>
+                  <Button size="sm" onClick={() => setHistory(a)}>
+                    History
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => ui.openEditor("account", a.id)}>
+                    Edit
+                  </Button>
+                </>
+              }
+            />
+          );
+        }}
+        footer={["Total", <Money key="t" value={total} decimals className="font-bold" />]}
+      />
       {fix && <FixBalanceSheet a={fix} onClose={() => setFix(null)} />}
       {history && <HistorySheet a={history} onClose={() => setHistory(null)} />}
     </div>
@@ -238,7 +224,7 @@ function HistorySheet({ a, onClose }: { a: Account; onClose: () => void }) {
 // ---------------------------------------------------------------------------
 
 function Owed() {
-  const { ds, positions, today, events: nearEvents } = useFinance();
+  const { ds, positions, today, events: nearEvents, ctx } = useFinance();
   const months = useGridMonths();
   const events = useRangeEvents(months);
   const groups = useMemo(() => reimbursements(ds, positions, today, nearEvents), [ds, positions, today, nearEvents]);
@@ -269,61 +255,58 @@ function Owed() {
             I lent money
           </Button>
         </div>
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[44rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">Person</th>
-                <th className="px-3 py-2.5 font-medium">Reason</th>
-                <th className="px-3 py-2.5 text-right font-medium">Total</th>
-                <th className="px-3 py-2.5 text-right font-medium">Got back</th>
-                <th className="px-3 py-2.5 text-right font-medium">Still to get</th>
-                <th className="px-3 py-2.5 font-medium">Next due</th>
-                <th className="px-3 py-2.5 font-medium">Status</th>
-                <th className="px-3 py-2.5 font-medium">
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="num">
-              {groups.map((g) => (
-                <tr key={g.key} className="border-t border-line align-top">
-                  <td className="px-3 py-2.5 font-medium">{g.person}</td>
-                  <td className="px-3 py-2.5 text-ink-2">
-                    {g.description}
-                    {g.cardRisk && (
-                      <span className="mt-1 flex items-start gap-1 text-[12px] text-warn">
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                        Your {g.cardRisk.card} bill is due {formatDate(g.cardRisk.billDate, "short")}, {g.person} pays {formatDate(g.cardRisk.repaymentDate, "short")} — you pay first.
+        <DataTable
+          label="People who owe me"
+          rows={groups}
+          rowKey={(g) => g.key}
+          columns={[
+            {
+              key: "p",
+              header: "Person",
+              cell: (g) => (
+                <Cell2
+                  main={g.person}
+                  sub={
+                    g.cardRisk ? (
+                      <span className="inline-flex items-center gap-1 text-warn">
+                        <AlertTriangle className="h-3 w-3" aria-hidden /> You pay first
                       </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Money value={g.total} decimals />
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Money value={g.received} decimals />
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Money value={g.outstanding} decimals className="font-semibold" />
-                  </td>
-                  <td className="px-3 py-2.5">{g.next ? formatDate(g.next.date, "short") : "–"}</td>
-                  <td className="px-3 py-2.5">
-                    <StatusText status={STATUS[g.status]} incoming />
-                    {g.status === "written_off" && <span className="block text-[11.5px] text-ink-3">Written off</span>}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    {g.outstanding > 0.5 && (
-                      <Button size="sm" onClick={() => setRepay(g)}>
-                        Got money back
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    ) : (
+                      <StatusText status={STATUS[g.status]} incoming className="text-[11.5px]" />
+                    )
+                  }
+                />
+              ),
+            },
+            { key: "next", header: "Next", cell: (g) => (g.next ? formatDate(g.next.date, "short") : "–") },
+            { key: "left", header: "Still to get", align: "right", cell: (g) => <Money value={g.outstanding} decimals className="font-semibold" /> },
+          ]}
+          details={(g) => (
+            <Details
+              items={[
+                ["Reason", g.description],
+                ["Total", formatMoney(g.total, ctx, { decimals: true })],
+                ["Got back", formatMoney(g.received, ctx, { decimals: true })],
+                ["Next amount", g.next ? formatMoney(g.next.amount, ctx, { decimals: true }) : "–"],
+              ]}
+              actions={
+                g.outstanding > 0.5 ? (
+                  <Button size="sm" variant="primary" onClick={() => setRepay(g)}>
+                    Got money back
+                  </Button>
+                ) : undefined
+              }
+            >
+              {g.cardRisk && (
+                <p className="mt-2 flex items-start gap-1 text-[12.5px] text-warn">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Your {g.cardRisk.card} bill is due {formatDate(g.cardRisk.billDate, "short")}, {g.person} pays {formatDate(g.cardRisk.repaymentDate, "short")} — you pay first.
+                </p>
+              )}
+            </Details>
+          )}
+          footer={["Total", null, <Money key="t" value={groups.reduce((s, g) => s + g.outstanding, 0)} decimals className="font-bold" />]}
+        />
       </div>
       <div>
         <h2 className="mb-2 text-[16px] font-semibold">When they should pay back</h2>

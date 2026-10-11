@@ -3,9 +3,9 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Lightbulb, TrendingDown, TrendingUp, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
-import { addDays, addMonths, formatDate, formatMonthLong, monthKey, startOfMonth } from "@/lib/dates";
+import { addDays, addMonths, endOfMonth, formatDate, formatMonthLong, monthKey, startOfMonth } from "@/lib/dates";
 import { isPending, type FinEvent } from "@/lib/engine/events";
 import { oneThing } from "@/lib/engine/life";
 import { isCommitment } from "@/lib/engine/metrics";
@@ -17,7 +17,7 @@ import { hrefForV2 } from "@/lib/v2/routes";
 import { useExplain } from "../explain";
 import { Money } from "../money";
 import { useMonth, useSelectedMonth } from "../ui/month-picker";
-import { StatTile, StatusIcon, StatusText, greeting } from "./ui";
+import { ChipGroup, StatTile, StatusText, greeting } from "./ui";
 import type { CellStatus } from "@/lib/v2/grids";
 
 export const V2_TYPE_LABEL: Record<FinEvent["kind"], string> = {
@@ -79,15 +79,27 @@ export function V2Home() {
   );
   const change = prevSnap ? positions.totals.netWorth - prevSnap.net_worth : null;
 
-  const upcoming = useMemo(() => {
-    const until = addDays(today, 30);
-    const list = events.filter((e) => isCommitment(e) && isPending(e) && e.date <= until);
-    return list.sort((a, b) => {
+  // Upcoming payments, month by month: this month (late ones on top) and next month.
+  const [upMonth, setUpMonth] = useState<"this" | "next">("this");
+  const byMonth = useMemo(() => {
+    const thisEnd = endOfMonth(today);
+    const nextStart = addDays(thisEnd, 1);
+    const nextEnd = endOfMonth(nextStart);
+    const pending = events.filter((e) => isCommitment(e) && isPending(e));
+    const order = (a: FinEvent, b: FinEvent) => {
       const la = rowStatus(a, today) === "late" ? 0 : 1;
       const lb = rowStatus(b, today) === "late" ? 0 : 1;
       return la - lb || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-    });
+    };
+    return {
+      this: pending.filter((e) => e.date <= thisEnd).sort(order),
+      next: pending.filter((e) => e.date >= nextStart && e.date <= nextEnd).sort(order),
+      thisKey: monthKey(today),
+      nextKey: monthKey(nextStart),
+    };
   }, [events, today]);
+  const upcoming = byMonth[upMonth];
+  const upTotal = upcoming.reduce((s2, e) => s2 + e.remaining, 0);
 
   const dismissed = ds.profile.preferences?.dismissedAlerts ?? {};
   const tip = oneThing(nudges.filter((n) => !dismissed[`tip:${n.key}`]));
@@ -180,59 +192,48 @@ export function V2Home() {
         </Link>
       </div>
 
-      {/* 5 · Upcoming payments */}
+      {/* 5 · Upcoming payments, this month and next */}
       <section aria-labelledby="v2-upcoming" className="rounded-2xl border border-line bg-surface">
-        <div className="flex items-center justify-between px-4 pt-4 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
           <h2 id="v2-upcoming" className="text-[16px] font-semibold">
             Upcoming payments
           </h2>
-          <span className="text-[12.5px] text-ink-3">Next 30 days</span>
+          <ChipGroup
+            label="Month"
+            value={upMonth}
+            onChange={setUpMonth}
+            options={[
+              { id: "this", label: `${formatMonthLong(byMonth.thisKey).split(" ")[0]} · ${byMonth.this.length}` },
+              { id: "next", label: `${formatMonthLong(byMonth.nextKey).split(" ")[0]} · ${byMonth.next.length}` },
+            ]}
+          />
         </div>
+        <p className="px-4 pt-1 text-[12.5px] text-ink-3 sm:px-5">
+          {upMonth === "this" ? "Still to pay this month" : "To pay next month"}: <Money value={upTotal} className="font-semibold text-ink" projected={upcoming.some((e) => e.estimated)} />
+        </p>
         {upcoming.length === 0 ? (
-          <p className="px-4 py-5 text-[14px] text-ink-2 sm:px-5">Nothing to pay in the next 30 days.</p>
+          <p className="px-4 py-5 text-[14px] text-ink-2 sm:px-5">Nothing left to pay {upMonth === "this" ? "this month" : "next month"}.</p>
         ) : (
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full text-[13.5px]">
-              <thead className="text-left text-[12px] text-ink-3">
-                <tr className="border-b border-line">
-                  <th className="px-4 py-2 font-medium sm:pl-5">Date</th>
-                  <th className="px-2 py-2 font-medium">What</th>
-                  <th className="hidden px-2 py-2 font-medium sm:table-cell">Type</th>
-                  <th className="hidden px-2 py-2 font-medium md:table-cell">Pay from</th>
-                  <th className="px-2 py-2 text-right font-medium">Amount</th>
-                  <th className="px-4 py-2 font-medium sm:pr-5">
-                    <span className="hidden sm:inline">Status</span>
-                    <span className="sr-only sm:hidden">Status</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="num">
-                {upcoming.slice(0, 8).map((e) => (
-                  <tr key={e.key} className="cursor-pointer border-t border-line/70 hover:bg-surface-2" onClick={() => useUI.getState().openEvent(e.key)}>
-                    <td className="whitespace-nowrap px-4 py-2.5 sm:pl-5">{formatDate(e.date, "short")}</td>
-                    <td className="max-w-[10rem] px-2 py-2.5 sm:max-w-none">
-                      <button type="button" className="block w-full truncate text-left font-medium" onClick={(ev) => (ev.stopPropagation(), useUI.getState().openEvent(e.key))}>
-                        {e.title.replace(/^EMI · /, "").replace(/^SIP · /, "").replace(/^Chit · /, "")}
-                      </button>
-                      <span className="block text-[11.5px] text-ink-3 sm:hidden">{V2_TYPE_LABEL[e.kind]}</span>
-                    </td>
-                    <td className="hidden px-2 py-2.5 sm:table-cell">{V2_TYPE_LABEL[e.kind]}</td>
-                    <td className="hidden px-2 py-2.5 text-ink-2 md:table-cell">{where(e) ?? "Choose when paying"}</td>
-                    <td className="px-2 py-2.5 text-right">
-                      <Money value={e.remaining} decimals projected={e.estimated} className="font-semibold" />
-                    </td>
-                    <td className="px-4 py-2.5 sm:pr-5">
-                      <StatusText status={rowStatus(e, today)} className="hidden sm:inline-flex" />
-                      <StatusIcon status={rowStatus(e, today)} className="h-4 w-4 sm:hidden" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="mt-2 divide-y divide-line/70 border-t border-line">
+            {upcoming.slice(0, 10).map((e) => (
+              <li key={e.key}>
+                <button type="button" onClick={() => useUI.getState().openEvent(e.key)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 sm:px-5">
+                  <span className="num w-12 shrink-0 text-[13px] text-ink-2">{formatDate(e.date, "short")}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-medium">{e.title.replace(/^(EMI|SIP|Chit) · /, "")}</span>
+                    <span className="block text-[12px] text-ink-3">{V2_TYPE_LABEL[e.kind]}</span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <Money value={e.remaining} decimals projected={e.estimated} className="block text-[14px] font-semibold" />
+                    <StatusText status={rowStatus(e, today)} className="text-[11.5px]" />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
         <div className="flex items-center justify-between border-t border-line px-4 py-2.5 sm:px-5">
-          <span className="text-[12.5px] text-ink-3">{upcoming.length > 8 ? `${upcoming.length - 8} more` : "Tap a row to mark it paid"}</span>
+          <span className="text-[12.5px] text-ink-3">{upcoming.length > 10 ? `${upcoming.length - 10} more` : "Tap one to mark it paid"}</span>
           <Link href="/to-pay" className="inline-flex items-center gap-1 text-[13.5px] font-medium text-ink-2 hover:text-ink">
             See all <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>

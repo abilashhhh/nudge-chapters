@@ -16,6 +16,7 @@ import { AmountInput, DateInput, Field, Input } from "../ui/form";
 import { EmptyState, Progress } from "../ui/misc";
 import { monthLabel } from "./month-grid";
 import { ChipGroup, StatTile, V2PageHeader } from "./ui";
+import { Cell2, DataTable, Details } from "./data-table";
 
 type DatePick = "eom" | "fy" | "1y" | "3y" | "custom";
 
@@ -110,38 +111,33 @@ export function FutureScreen() {
         <h2 id="next12" className="mb-2 text-[16px] font-semibold">
           Next 12 months
         </h2>
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[28rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">Month</th>
-                <th className="px-3 py-2.5 text-right font-medium">Money in</th>
-                <th className="px-3 py-2.5 text-right font-medium">Money out</th>
-                <th className="px-3 py-2.5 text-right font-medium">Left in bank (estimate)</th>
-              </tr>
-            </thead>
-            <tbody className="num">
-              {rows.map((r, i) => (
-                <tr key={r.month} className={cn("border-t border-line", r.left < 0 && "bg-danger-soft")}>
-                  <td className="px-3 py-2.5 font-medium">
-                    {monthLabel(r.month)}
-                    {i === 0 && <span className="ml-1 text-[11.5px] font-normal text-ink-3">rest of month</span>}
-                    {r.left < 0 && <span className="ml-1 text-[11.5px] font-semibold text-danger">⚠ below zero</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Money value={r.in} projected className="text-ok" />
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <Money value={r.out} projected />
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-semibold">
-                    <Money value={r.left} projected className={cn(r.left < 0 && "text-danger")} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          label="Next 12 months"
+          rows={rows.map((r, i) => ({ ...r, i }))}
+          rowKey={(r) => r.month}
+          rowClassName={(r) => (r.left < 0 ? "bg-danger-soft" : undefined)}
+          columns={[
+            {
+              key: "m",
+              header: "Month",
+              cell: (r) => (
+                <Cell2
+                  main={monthLabel(r.month)}
+                  sub={r.left < 0 ? <span className="font-semibold text-danger">⚠ below zero</span> : r.i === 0 ? "rest of month" : undefined}
+                />
+              ),
+            },
+            { key: "l", header: "Left in bank", align: "right", cell: (r) => <Money value={r.left} projected className={cn("font-semibold", r.left < 0 && "text-danger")} /> },
+          ]}
+          details={(r) => (
+            <Details
+              items={[
+                ["Money in", <Money key="i" value={r.in} projected />],
+                ["Money out", <Money key="o" value={r.out} projected />],
+              ]}
+            />
+          )}
+        />
       </section>
 
       <Goals />
@@ -176,40 +172,39 @@ function Goals() {
       {list.length === 0 ? (
         <EmptyState icon={Target} title="No goals yet" body="A trip, a bike, an emergency fund — add a target amount and date and see what to save each month." />
       ) : (
-        <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
-          <table className="v2-table w-full min-w-[42rem] text-[13.5px]">
-            <thead className="text-left text-[12px] text-ink-3">
-              <tr className="border-b border-line">
-                <th className="px-3 py-2.5 font-medium">Goal</th>
-                <th className="px-3 py-2.5 text-right font-medium">Target</th>
-                <th className="px-3 py-2.5 text-right font-medium">Saved</th>
-                <th className="px-3 py-2.5 text-right font-medium">Need per month</th>
-                <th className="px-3 py-2.5 font-medium">Target date</th>
-                <th className="px-3 py-2.5 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="num">
-              {list.map((g) => {
-                const st = GOAL_STATUS[g.status] ?? GOAL_STATUS.no_date;
-                return (
-                  <tr key={g.goal.id} className="border-t border-line align-top">
-                    <td className="px-3 py-2.5">
-                      <button type="button" className="text-left font-medium hover:underline" onClick={() => ui.openEditor("goal", g.goal.id)}>
-                        {g.goal.name}
-                      </button>
-                      <Progress className="mt-1 max-w-[10rem]" value={g.progress} tone={g.status === "off_track" ? "warn" : "brand"} label={`${g.goal.name} saved`} />
-                    </td>
-                    <td className="px-3 py-2.5 text-right">{m(g.goal.target_amount)}</td>
-                    <td className="px-3 py-2.5 text-right">{m(g.value)}</td>
-                    <td className="px-3 py-2.5 text-right">{g.requiredMonthly != null && g.status !== "done" ? <Money value={g.requiredMonthly} projected /> : "–"}</td>
-                    <td className="px-3 py-2.5">{g.goal.target_date ? formatDate(g.goal.target_date) : "–"}</td>
-                    <td className={cn("px-3 py-2.5 font-medium", st.cls)}>{st.word}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          label="Goals"
+          rows={list}
+          rowKey={(g) => g.goal.id}
+          columns={[
+            {
+              key: "g",
+              header: "Goal",
+              cell: (g) => (
+                <span className="block min-w-0">
+                  <span className="block font-medium">{g.goal.name}</span>
+                  <Progress className="mt-1 max-w-[10rem]" value={g.progress} tone={g.status === "off_track" ? "warn" : "brand"} label={`${g.goal.name} saved`} />
+                </span>
+              ),
+            },
+            { key: "s", header: "Status", cell: (g) => <span className={cn("text-[12.5px] font-medium", (GOAL_STATUS[g.status] ?? GOAL_STATUS.no_date).cls)}>{(GOAL_STATUS[g.status] ?? GOAL_STATUS.no_date).word}</span> },
+          ]}
+          details={(g) => (
+            <Details
+              items={[
+                ["Target", m(g.goal.target_amount)],
+                ["Saved", m(g.value)],
+                ["Need per month", g.requiredMonthly != null && g.status !== "done" ? <Money key="r" value={g.requiredMonthly} projected /> : "–"],
+                ["Target date", g.goal.target_date ? formatDate(g.goal.target_date) : "–"],
+              ]}
+              actions={
+                <Button size="sm" variant="ghost" onClick={() => ui.openEditor("goal", g.goal.id)}>
+                  Edit
+                </Button>
+              }
+            />
+          )}
+        />
       )}
     </section>
   );

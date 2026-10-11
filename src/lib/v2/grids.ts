@@ -118,6 +118,51 @@ export function sumCells(rows: Record<string, GridCell>[], months: string[]): Re
   return out;
 }
 
+/**
+ * Payments made before you started tracking in the app (EMIs before `emis_paid_offset`, chit installments marked
+ * paid earlier, SIPs before `track_from`). Their cash is already in today's balances, so the engine has no event
+ * for them; the month tables still show them as paid so each month reads complete.
+ */
+function paidBefore(base: Pick<FinEvent, "key" | "source" | "sourceId" | "kind" | "title"> & Partial<FinEvent>, date: ISODate, amount: number): FinEvent {
+  return {
+    occurrence: date,
+    date,
+    amount,
+    paid: amount,
+    remaining: 0,
+    status: "paid",
+    flow: "out",
+    isFixed: true,
+    isEssential: false,
+    certainty: "known",
+    excluded: false,
+    estimated: false,
+    txIds: [],
+    ...base,
+  };
+}
+
+/** EMIs of a loan that were paid before tracking began, as paid events. */
+function emisPaidBefore(ds: Dataset, positions: Positions, loanId: string): FinEvent[] {
+  const lp = positions.loans.get(loanId);
+  const loan = ds.loans.find((l) => l.id === loanId);
+  if (!lp || !loan) return [];
+  return lp.state.schedule
+    .slice(0, Math.max(0, loan.emis_paid_offset))
+    .map((inst, i) => paidBefore({ key: `before:loan:${loanId}:${inst.date}`, source: "loan", sourceId: loanId, loanId, cardId: loan.card_id, kind: "emi", title: `EMI · ${loan.name}`, installment: i + 1 }, inst.date, inst.emi));
+}
+
+/** Most urgent first: groups that have something due in the first month shown, then any amount, then empty ones. */
+function billsFirst(groups: GridGroup[], months: string[]): GridGroup[] {
+  const rank = (g: GridGroup) => (g.total.cells[months[0]]?.amount ? 0 : months.some((m) => g.total.cells[m]?.amount) ? 1 : 2);
+  // Within the same rank, the bill that's due first comes first.
+  const due = (g: GridGroup) => String(g.meta?.firstDue ?? "9999");
+  return groups
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => rank(a.g) - rank(b.g) || (due(a.g) < due(b.g) ? -1 : due(a.g) > due(b.g) ? 1 : 0) || a.i - b.i)
+    .map((x) => x.g);
+}
+
 export function rowTotal(cells: Record<string, GridCell>, months: string[]): number {
   return round2(months.reduce((s, m) => s + (cells[m]?.amount ?? 0), 0));
 }
@@ -137,7 +182,10 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
     if (card.archived) continue;
     const cp = positions.cards.get(card.id);
     const bills = events.filter((e) => e.kind === "card_bill" && e.cardId === card.id);
-    const emis = events.filter((e) => e.kind === "emi" && e.cardId === card.id);
+    const emis = [
+      ...events.filter((e) => e.kind === "emi" && e.cardId === card.id),
+      ...ds.loans.filter((l) => l.card_id === card.id && l.emis_paid_offset > 0).flatMap((l) => emisPaidBefore(ds, positions, l.id)),
+    ];
 
     // Statement → due date, for recorded statements and the engine's projected ones.
     const cycles: { s: ISODate; due: ISODate }[] = [
@@ -184,7 +232,13 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
       }
     }
     const rows: GridRow[] = [...emiRows];
-    if (Object.keys(spendCells).length) rows.push({ id: `spends:${card.id}`, label: "Spends (bill)", note: "Me", cells: spendCells, ref: { kind: "card-spends", id: card.id } });
+    // What the non-EMI part of a recorded bill is (e.g. "Annual charges"), from the bill's note.
+    const billNote = [...months]
+      .map((m) => bills.find((b) => monthKey(b.date) === m && b.statementId))
+      .map((b) => (b ? ds.card_statements.find((x) => x.id === b.statementId)?.notes?.trim() : null))
+      .find((n) => n && n.length <= 28 && !/emi/i.test(n));
+    if (Object.keys(spendCells).length)
+      rows.push({ id: `spends:${card.id}`, label: billNote && billNote.toLowerCase() !== "spends" ? billNote : "Spends (bill)", note: "Me", cells: spendCells, ref: { kind: "card-spends", id: card.id } });
     groups.push({
       id: `card:${card.id}`,
       label: card.name,
@@ -198,28 +252,49 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
         limit: card.credit_limit,
         utilization: cp?.utilization ?? 0,
         statementDay: card.statement_day,
+        firstDue: months.map((m) => bills.filter((e) => monthKey(e.date) === m).map((e) => e.date).sort()[0]).find(Boolean) ?? null,
         dueDay: card.due_day,
       },
     });
   }
-  return { months, groups, grand: sumCells(groups.map((g) => g.total.cells), months) };
+  const ordered = billsFirst(groups, months);
+  return { months, groups: ordered, grand: sumCells(ordered.map((g) => g.total.cells), months) };
 }
 
 // ---------------------------------------------------------------------------
 // To Pay → Chits & SIPs
 // ---------------------------------------------------------------------------
 
-export function chitSipGrid(ds: Dataset, events: FinEvent[], months: string[], today: ISODate): MonthGridData {
+export function chitSipGrid(ds: Dataset, positions: Positions, events: FinEvent[], months: string[], today: ISODate): MonthGridData {
   const groups: GridGroup[] = [];
-  const acct = (id?: string | null) => (id ? ds.accounts.find((a) => a.id === id)?.name : undefined);
+  // Installments paid before tracking, shown as paid in their own month.
+  const chitBefore = (chitId: string): FinEvent[] =>
+    (positions.chits.get(chitId)?.summary.rows ?? [])
+      .filter((r) => !r.tracked && r.paid != null && r.paid > 0)
+      .map((r) => paidBefore({ key: `before:chit:${chitId}:${r.scheduledDate}`, source: "chit", sourceId: chitId, chitId, kind: "chit", title: "Chit", installment: r.no }, r.scheduledDate, r.paid!));
+  const sipBefore = (inv: Dataset["investments"][number]): FinEvent[] => {
+    const out: FinEvent[] = [];
+    if (!inv.start_date || !inv.sip_amount) return out;
+    const [y, m] = inv.start_date.split("-").map(Number);
+    for (let i = 0; i < 240; i++) {
+      const mm = m - 1 + i;
+      const yy = y + Math.floor(mm / 12);
+      const mo = (mm % 12) + 1;
+      const day = Math.min(inv.sip_day ?? Number(inv.start_date.slice(8, 10)), new Date(Date.UTC(yy, mo, 0)).getUTCDate());
+      const d = `${yy}-${String(mo).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      if (d < inv.start_date) continue;
+      if (d >= inv.track_from || d > today) break;
+      out.push(paidBefore({ key: `before:sip:${inv.id}:${d}`, source: "sip", sourceId: inv.id, investmentId: inv.id, kind: "sip", title: `SIP · ${inv.name}` }, d, inv.sip_amount));
+    }
+    return out;
+  };
 
   const chitRows: GridRow[] = ds.chits
     .filter((c) => c.status === "active")
     .map((c) => ({
       id: `chit:${c.id}`,
       label: c.name,
-      note: acct(c.account_id) ?? "",
-      cells: cellsFrom(events.filter((e) => e.kind === "chit" && e.chitId === c.id), months, today),
+      cells: cellsFrom([...chitBefore(c.id), ...events.filter((e) => e.kind === "chit" && e.chitId === c.id)], months, today),
       ref: { kind: "chit" as const, id: c.id },
     }));
   if (chitRows.length) groups.push({ id: "chits", label: "Chits", total: { id: "chits-total", label: "All chits", cells: sumCells(chitRows.map((r) => r.cells), months) }, rows: chitRows });
@@ -229,8 +304,7 @@ export function chitSipGrid(ds: Dataset, events: FinEvent[], months: string[], t
     .map((i) => ({
       id: `sip:${i.id}`,
       label: i.name,
-      note: acct(i.sip_account_id) ?? "",
-      cells: cellsFrom(events.filter((e) => e.kind === "sip" && e.investmentId === i.id), months, today),
+      cells: cellsFrom([...sipBefore(i), ...events.filter((e) => e.kind === "sip" && e.investmentId === i.id)], months, today),
       ref: { kind: "sip" as const, id: i.id },
     }));
   if (sipRows.length)
@@ -243,15 +317,14 @@ export function chitSipGrid(ds: Dataset, events: FinEvent[], months: string[], t
 // To Pay → Loans & borrowed (card EMIs stay with their card)
 // ---------------------------------------------------------------------------
 
-export function loanGrid(ds: Dataset, events: FinEvent[], months: string[], today: ISODate): MonthGridData {
+export function loanGrid(ds: Dataset, positions: Positions, events: FinEvent[], months: string[], today: ISODate): MonthGridData {
   const groups: GridGroup[] = [];
   const loanRows: GridRow[] = ds.loans
     .filter((l) => l.status === "active" && !l.card_id)
     .map((l) => ({
       id: `loan:${l.id}`,
       label: l.name,
-      note: l.lender ?? "",
-      cells: cellsFrom(events.filter((e) => e.kind === "emi" && e.loanId === l.id && !e.cardId), months, today),
+      cells: cellsFrom([...emisPaidBefore(ds, positions, l.id), ...events.filter((e) => e.kind === "emi" && e.loanId === l.id && !e.cardId)], months, today),
       ref: { kind: "loan" as const, id: l.id },
     }));
   if (loanRows.length) groups.push({ id: "loans", label: "Loans", total: { id: "loans-total", label: "All loans", cells: sumCells(loanRows.map((r) => r.cells), months) }, rows: loanRows });
@@ -261,7 +334,6 @@ export function loanGrid(ds: Dataset, events: FinEvent[], months: string[], toda
     .map((l) => ({
       id: `borrow:${l.id}`,
       label: l.person,
-      note: l.notes ?? "",
       cells: cellsFrom(events.filter((e) => e.kind === "borrow_due" && e.lendingId === l.id), months, today),
       ref: { kind: "lending" as const, id: l.id },
     }))

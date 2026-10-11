@@ -4,7 +4,7 @@ import { buildEvents } from "../engine/events";
 import { computePositions } from "../engine/ledger";
 import type { CardStatement, CreditCard, Dataset, Lending, Loan, Transaction } from "../types";
 import { cardGrid, monthRange, owedGrid, rowTotal } from "./grids";
-import { hrefForV2, toV2Href } from "./routes";
+import { hrefForV2, toV2Href, v2Crumbs } from "./routes";
 
 const TODAY = "2026-10-11";
 
@@ -90,29 +90,31 @@ describe("Version 2 month tables", () => {
     expect(g.months).toEqual(["2026-10", "2026-11", "2026-12", "2027-01", "2027-02", "2027-03", "2027-04"]);
 
     // Every card is listed, even with nothing due.
-    expect(g.groups.map((x) => x.label)).toEqual(["IDFC First Bank", "Axis Flipkart", "Amazon ICICI", "Axis Neo", "HDFC Swiggy", "Yes ACE", "Axis Amex", "BOB OneCard"]);
+    // Cards with a bill this month come first (earliest due date first), then later bills, then cards with nothing due.
+    expect(g.groups.map((x) => x.label)).toEqual(["IDFC First Bank", "Axis Neo", "HDFC Swiggy", "Axis Flipkart", "Amazon ICICI", "Yes ACE", "Axis Amex", "BOB OneCard"]);
+    const grp = (label: string) => g.groups.find((x) => x.label === label)!;
 
-    const idfc = g.groups[0];
+    const idfc = grp("IDFC First Bank");
     for (const m of g.months) expect(idfc.total.cells[m]?.amount).toBe(10_222.64);
     expect(idfc.rows.map((r) => [r.label, r.note])).toEqual([["Laptop", "Surya"]]);
     expect(rowTotal(idfc.total.cells, g.months)).toBe(71_558.48);
 
-    const flip = g.groups[1];
+    const flip = grp("Axis Flipkart");
     expect(flip.total.cells["2026-10"].amount).toBe(3_128.16);
     expect(flip.rows.find((r) => r.label === "Bill")!.cells["2026-10"].amount).toBe(1_699.16);
     expect(flip.rows.find((r) => r.label === "Spends (bill)")!.cells["2026-10"].amount).toBe(1_429);
     expect(flip.total.cells["2026-11"]).toBeUndefined();
 
-    const icici = g.groups[2];
+    const icici = grp("Amazon ICICI");
     expect(icici.total.cells["2026-10"]).toBeUndefined();
     expect(icici.total.cells["2026-11"].amount).toBe(2_783.7);
 
-    const neo = g.groups[3];
+    const neo = grp("Axis Neo");
     expect(neo.total.cells["2026-10"].amount).toBe(3_465.8);
     expect(neo.rows.find((r) => r.label === "Spends (bill)")!.cells["2026-10"].amount).toBe(2_213.86);
     expect(neo.total.cells["2026-11"].amount).toBe(1_251.94);
 
-    expect(g.groups[4].total.cells["2026-10"].amount).toBe(998.97);
+    expect(grp("HDFC Swiggy").total.cells["2026-10"].amount).toBe(998.97);
     for (const empty of g.groups.slice(5)) expect(Object.keys(empty.total.cells)).toHaveLength(0);
 
     // Grand total = card totals only (EMIs are inside them).
@@ -194,7 +196,13 @@ describe("Version 2 redirects", () => {
     expect(toV2Href("/assets", "?tab=retirement")).toBe("/savings?tab=other");
     expect(toV2Href("/assets", "?tab=property")).toBe("/savings?tab=other");
     expect(toV2Href("/budgets", "")).toBe("/menu/budgets");
-    expect(toV2Href("/plan", "")).toBe("/menu/todo");
+    expect(toV2Href("/plan", "")).toBe("/daily?tab=todo");
+    expect(toV2Href("/plan", "?tab=notes")).toBe("/daily?tab=notes");
+    expect(toV2Href("/menu/wishlist", "")).toBe("/daily?tab=wishlist");
+    expect(v2Crumbs("/to-pay", "?tab=chits").map((c) => c.label)).toEqual(["Home", "To Pay", "Chits & SIPs"]);
+    expect(v2Crumbs("/menu/budgets", "").map((c) => c.label)).toEqual(["Home", "Menu", "Budgets & spending plans"]);
+    expect(v2Crumbs("/daily", "").map((c) => c.href)).toEqual(["/", "/daily", "/daily?tab=todo"]);
+    expect(v2Crumbs("/", "")).toEqual([]);
     expect(toV2Href("/goals", "")).toBe("/menu/future#goals");
     expect(toV2Href("/projection", "?date=2027-12-31")).toBe("/menu/future?date=2027-12-31");
     expect(toV2Href("/calendar", "")).toBe("/menu/calendar");

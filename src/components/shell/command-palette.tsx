@@ -14,7 +14,7 @@ import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { NAV } from "./app-shell";
 import { useAppVersion } from "@/lib/app-version";
-import { V2_MENU_PAGES, V2_NAV, hrefForV2 } from "@/lib/v2/routes";
+import { V2_DAILY, V2_MENU_PAGES, V2_NAV, hrefForV2 } from "@/lib/v2/routes";
 
 /** Version 2 uses plain words for a few actions. */
 const V2_ACTION_LABEL: Record<string, string> = {
@@ -196,6 +196,7 @@ export function CommandPalette() {
       ? [
           ...V2_NAV.map((n) => ({ id: `p-${n.href}`, group: "Go to", label: n.label, hint: n.meaning, run: go(n.href) })),
           ...Object.entries(V2_MENU_PAGES).map(([href, label]) => ({ id: `p-${href}`, group: "Go to", label, hint: "Menu", run: go(href) })),
+          ...V2_DAILY.map((d) => ({ id: `p-daily-${d.tab}`, group: "Go to", label: d.label, hint: "Daily", run: go(`/daily?tab=${d.tab}`) })),
         ]
       : [
           ...NAV.map((n) => ({ id: `p-${n.href}`, group: "Go to", label: n.label, run: go(n.href) })),
