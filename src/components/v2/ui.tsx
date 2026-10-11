@@ -80,7 +80,7 @@ export function StatTile({
   );
   const cls = cn(
     "block min-w-0 rounded-2xl border p-3 text-left transition-colors sm:p-4",
-    dark ? "border-transparent bg-ink text-paper" : "border-line bg-surface",
+    dark ? "border-transparent bg-inverse text-on-inverse" : "border-line bg-surface",
     (href || onClick) && (dark ? "hover:opacity-95" : "hover:border-line-strong"),
   );
   if (href)
@@ -167,7 +167,7 @@ export function ChipGroup<T extends string | number>({
           role="radio"
           aria-checked={value === o.id}
           onClick={() => onChange(o.id)}
-          className={cn("h-8 whitespace-nowrap rounded-full px-3 text-[12.5px] font-medium transition-colors", value === o.id ? "bg-ink text-paper" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+          className={cn("h-8 whitespace-nowrap rounded-full px-3 text-[12.5px] font-medium transition-colors", value === o.id ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
         >
           {o.label}
         </button>

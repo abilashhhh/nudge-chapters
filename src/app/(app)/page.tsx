@@ -68,7 +68,7 @@ function AdvancedToday() {
       </div>
 
       {consider && (
-        <section aria-labelledby="consider" className="rounded-3xl bg-ink p-5 text-paper sm:p-6">
+        <section aria-labelledby="consider" className="rounded-3xl bg-inverse p-5 text-on-inverse sm:p-6">
           <h2 id="consider" className="text-[13px] font-medium opacity-70">
             One thing to consider
           </h2>

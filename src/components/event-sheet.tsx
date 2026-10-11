@@ -343,7 +343,7 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
                         onClick={() => setAccount(id)}
                         className={cn(
                           "h-8 rounded-full border px-3 text-[13px] transition-colors",
-                          account === id ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink-2 hover:border-line-strong",
+                          account === id ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2 hover:border-line-strong",
                         )}
                       >
                         {accountName(id)}

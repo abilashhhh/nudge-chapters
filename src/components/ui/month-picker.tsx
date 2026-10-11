@@ -56,7 +56,7 @@ export function MonthPicker({ today, className, compact }: { today: string; clas
               key={q.id}
               type="button"
               onClick={() => set(q.id === 0 ? null : target)}
-              className={cn("h-8 whitespace-nowrap rounded-full px-2.5 text-[12.5px] font-medium transition-colors", on ? "bg-ink text-paper" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+              className={cn("h-8 whitespace-nowrap rounded-full px-2.5 text-[12.5px] font-medium transition-colors", on ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
             >
               {q.label}
             </button>

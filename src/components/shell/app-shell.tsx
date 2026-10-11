@@ -156,7 +156,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-2 text-[14.5px] transition-colors",
-                  active ? "bg-ink text-paper" : "text-ink-2 hover:bg-surface-3/70 hover:text-ink",
+                  active ? "bg-inverse text-on-inverse" : "text-ink-2 hover:bg-surface-3/70 hover:text-ink",
                 )}
               >
                 <n.icon className="h-[18px] w-[18px]" aria-hidden />

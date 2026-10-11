@@ -126,7 +126,7 @@ export function PeriodSummary({ period, metrics }: { period: Period; metrics: Mo
               href={s.href}
               className={cn(
                 "group rounded-xl p-3 transition-all hover:-translate-y-0.5 active:scale-[0.98]",
-                s.strong ? "bg-ink text-paper" : "bg-surface-3/60 hover:bg-surface-3",
+                s.strong ? "bg-inverse text-on-inverse" : "bg-surface-3/60 hover:bg-surface-3",
               )}
             >
               <p className={cn("flex items-center gap-1.5 text-[12.5px]", s.strong ? "opacity-70" : "text-ink-3")}>

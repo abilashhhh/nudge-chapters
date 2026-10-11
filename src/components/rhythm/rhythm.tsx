@@ -158,7 +158,7 @@ function Welcome({ onCustom }: { onCustom: () => void }) {
                 type="button"
                 aria-pressed={on}
                 onClick={() => setPicked((p) => (on ? p.filter((x) => x !== s.name) : [...p, s.name]))}
-                className={cn("inline-flex h-10 items-center gap-2 rounded-full border px-4 text-[14px] font-medium transition-colors", on ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink-2 hover:border-line-strong")}
+                className={cn("inline-flex h-10 items-center gap-2 rounded-full border px-4 text-[14px] font-medium transition-colors", on ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2 hover:border-line-strong")}
               >
                 <span aria-hidden>{s.icon}</span>
                 {s.name}

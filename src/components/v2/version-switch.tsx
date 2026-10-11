@@ -46,7 +46,7 @@ export function AppVersionPanel({ className }: { className?: string }) {
                 on ? "border-ink bg-surface-2" : "border-line hover:border-line-strong",
               )}
             >
-              <span className={cn("mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl", on ? "bg-ink text-paper" : "bg-surface-3 text-ink-2")}>
+              <span className={cn("mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl", on ? "bg-inverse text-on-inverse" : "bg-surface-3 text-ink-2")}>
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
@@ -83,7 +83,7 @@ export function TryVersion2Card() {
           <p className="text-[13.5px] text-ink-2">Five sections (Home, My Money, To Pay, Savings, Menu) with month-by-month tables. Same data; switch back any time.</p>
         </div>
       </div>
-      <button type="button" onClick={() => void choose(2)} className="h-10 shrink-0 rounded-xl bg-ink px-4 text-[14px] font-medium text-paper hover:opacity-90">
+      <button type="button" onClick={() => void choose(2)} className="h-10 shrink-0 rounded-xl bg-inverse px-4 text-[14px] font-medium text-on-inverse hover:opacity-90">
         Switch to Version 2
       </button>
     </section>

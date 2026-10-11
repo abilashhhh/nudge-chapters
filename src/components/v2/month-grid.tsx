@@ -269,7 +269,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
               role="radio"
               aria-checked={lm === m}
               onClick={() => range.setListMonth(m)}
-              className={cn("h-8 shrink-0 whitespace-nowrap rounded-full px-3 text-[12.5px] font-medium", lm === m ? "bg-ink text-paper" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+              className={cn("h-8 shrink-0 whitespace-nowrap rounded-full px-3 text-[12.5px] font-medium", lm === m ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
             >
               {monthLabel(m)}
               {m === cur ? " · now" : ""}
@@ -277,7 +277,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
           ))}
         </div>
         {data.groups.length > 1 && (
-          <div className="mb-3 flex items-center justify-between rounded-2xl bg-ink px-4 py-3 text-paper">
+          <div className="mb-3 flex items-center justify-between rounded-2xl bg-inverse px-4 py-3 text-on-inverse">
             <span className="text-[14px] font-semibold">
               {grandLabel} · {monthLabel(lm)}
             </span>

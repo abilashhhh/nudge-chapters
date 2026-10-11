@@ -536,7 +536,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
                   onClick={() => set({ category: c.name })}
                   className={cn(
                     "rounded-full border px-2.5 py-1 text-[12.5px]",
-                    d.category === c.name ? "border-ink bg-ink text-paper" : "border-line text-ink-2 hover:border-line-strong",
+                    d.category === c.name ? "border-inverse bg-inverse text-on-inverse" : "border-line text-ink-2 hover:border-line-strong",
                   )}
                 >
                   {c.name}

@@ -108,7 +108,7 @@ export function CalendarScreen() {
                   aria-label={`${formatDate(d)}: ${list.length} item${list.length === 1 ? "" : "s"}`}
                   className={cn("flex min-h-14 flex-col items-stretch gap-1 border-b border-r border-line/60 p-1 text-left sm:min-h-24 sm:p-1.5", sel ? "bg-future-soft/60" : "hover:bg-surface-2")}
                 >
-                  <span className={cn("num self-start rounded-full px-1.5 text-[12.5px]", d === today ? "bg-ink font-semibold text-paper" : "text-ink-2")}>{parseISO(d).getUTCDate()}</span>
+                  <span className={cn("num self-start rounded-full px-1.5 text-[12.5px]", d === today ? "bg-inverse font-semibold text-on-inverse" : "text-ink-2")}>{parseISO(d).getUTCDate()}</span>
                   {/* Phone: dots */}
                   <span className="flex flex-wrap gap-0.5 px-0.5 sm:hidden">
                     {list.slice(0, 4).map((e) => (

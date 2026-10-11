@@ -162,7 +162,7 @@ function CalendarView() {
                       selected === d && "bg-future-soft/60",
                     )}
                   >
-                    <span className={cn("num inline-flex h-6 w-6 items-center justify-center self-start rounded-full text-[12.5px]", d === today && "bg-ink font-semibold text-paper")}>{Number(d.slice(8))}</span>
+                    <span className={cn("num inline-flex h-6 w-6 items-center justify-center self-start rounded-full text-[12.5px]", d === today && "bg-inverse font-semibold text-on-inverse")}>{Number(d.slice(8))}</span>
                     <span className="hidden flex-col gap-0.5 sm:flex">
                       {evs.slice(0, 3).map((e) => (
                         <span key={e.key} className={cn("truncate rounded px-1 py-0.5 text-[11px] leading-tight", chipClass(e, today))}>

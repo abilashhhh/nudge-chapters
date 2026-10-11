@@ -405,7 +405,7 @@ function Bills() {
             key={id}
             type="button"
             onClick={() => setRange(id)}
-            className={cn("h-8 rounded-full px-3 text-[12.5px] font-medium transition-colors", range === id ? "bg-ink text-paper" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+            className={cn("h-8 rounded-full px-3 text-[12.5px] font-medium transition-colors", range === id ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
           >
             {label}
           </button>

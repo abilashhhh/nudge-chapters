@@ -166,7 +166,7 @@ export function V2Home() {
               total: { label: "Free to spend", amount: month.spendable, projected: month.period === "future" },
             })
           }
-          className="rounded-3xl bg-ink p-5 text-left text-paper transition-opacity hover:opacity-95 sm:p-6"
+          className="rounded-3xl bg-inverse p-5 text-left text-on-inverse transition-opacity hover:opacity-95 sm:p-6"
         >
           <span className="block text-[13.5px] opacity-75">{freeLabel}</span>
           <Money

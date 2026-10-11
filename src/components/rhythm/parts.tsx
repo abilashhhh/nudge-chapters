@@ -73,7 +73,7 @@ export function RhStat({ label, value, note, onClick, accent, className }: { lab
       {note && <span className={cn("mt-0.5 block truncate text-[11.5px]", accent ? "opacity-70" : "text-ink-3")}>{note}</span>}
     </>
   );
-  const cls = cn("block min-w-0 rounded-2xl border p-3.5 text-left sm:p-4", className, accent ? "border-transparent bg-ink text-paper" : "border-line bg-surface", onClick && "transition-colors hover:border-line-strong");
+  const cls = cn("block min-w-0 rounded-2xl border p-3.5 text-left sm:p-4", className, accent ? "border-transparent bg-inverse text-on-inverse" : "border-line bg-surface", onClick && "transition-colors hover:border-line-strong");
   return onClick ? (
     <button type="button" className={cn(cls, "w-full")} onClick={onClick}>
       {body}
@@ -536,7 +536,7 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
                     type="button"
                     aria-pressed={days.includes(d)}
                     onClick={() => setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]))}
-                    className={cn("h-10 w-12 rounded-xl border text-[13.5px] font-medium transition-colors", days.includes(d) ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink-2 hover:border-line-strong")}
+                    className={cn("h-10 w-12 rounded-xl border text-[13.5px] font-medium transition-colors", days.includes(d) ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2 hover:border-line-strong")}
                   >
                     {WEEKDAY_SHORT[d]}
                   </button>

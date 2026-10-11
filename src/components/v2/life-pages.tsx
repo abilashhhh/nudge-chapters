@@ -54,7 +54,7 @@ function Toolbar({
         onClick={() => setShowDone(!showDone)}
         className={cn(
           "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[13.5px] font-medium transition-colors",
-          showDone ? "border-ink bg-ink text-paper" : "border-line bg-surface text-ink-2 hover:border-line-strong",
+          showDone ? "border-inverse bg-inverse text-on-inverse" : "border-line bg-surface text-ink-2 hover:border-line-strong",
         )}
       >
         <History className="h-4 w-4" aria-hidden />
