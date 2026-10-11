@@ -390,3 +390,13 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .print-only {
   display: none;
 }
+
+/* Version 2 tables: on narrow screens they scroll sideways while the first column stays put. */
+.v2-table > thead > tr > :first-child,
+.v2-table > tbody > tr > :first-child,
+.v2-table > tfoot > tr > :first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}

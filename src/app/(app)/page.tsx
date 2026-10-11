@@ -17,6 +17,8 @@ import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useViewMode } from "@/lib/view-mode";
 import { SimpleToday } from "@/components/simple-today";
+import { V2Home } from "@/components/v2/home";
+import { useAppVersion } from "@/lib/app-version";
 
 function greeting() {
   const h = new Date().getHours();
@@ -26,6 +28,8 @@ function greeting() {
 /** Today — Simple shows the calm home; Advanced shows the full overview. */
 export default function TodayPage() {
   const { simple } = useViewMode();
+  const { v2 } = useAppVersion();
+  if (v2) return <V2Home />;
   return simple ? <SimpleToday /> : <AdvancedToday />;
 }
 

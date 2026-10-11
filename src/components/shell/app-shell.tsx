@@ -2,7 +2,7 @@
 
 import {
   BarChart3, Bell, CalendarDays, Eye, EyeOff, Home, Landmark, LayoutGrid, LogOut, Moon, Plus, Search, Settings, Sparkles, Sun, Target,
-  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins,
+  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins, Menu as MenuIcon, Receipt,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -27,6 +27,9 @@ import { AlertsPanel } from "./alerts-panel";
 import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
 import { useViewMode } from "@/lib/view-mode";
+import { useAppVersion } from "@/lib/app-version";
+import { V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
+import { V2QuickAddSheet } from "../v2/quick-add";
 
 /** `section` is the id used by Settings → Sections to hide an entry (data and calculations are unaffected). */
 export const NAV: { href: string; label: string; icon: typeof Home; section?: string }[] = [
@@ -44,6 +47,9 @@ export const NAV: { href: string; label: string; icon: typeof Home; section?: st
   { href: "/reports", label: "Reports", icon: BarChart3, section: "reports" },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+/** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
+const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/savings": TrendingUp, "/menu": MenuIcon };
 
 /** Menu entries kept in the Simple look. */
 const SIMPLE_NAV = ["/", "/plan", "/goals"];
@@ -69,12 +75,24 @@ export function AppShell({ children }: { children: ReactNode }) {
     r.dataset.motion = visual?.motion ?? "full";
     r.dataset.celebrate = visual?.celebrations === false ? "off" : "on";
   }, [visual?.motion, visual?.celebrations]);
-  const { simple } = useViewMode();
+  const { v2 } = useAppVersion();
+  const { simple: simpleMode } = useViewMode();
+  // Version 2 has one look only; the Simple/Advanced switch belongs to Version 1.
+  const simple = v2 ? true : simpleMode;
+  // Version 2: old (Version 1) addresses go to their new place, so bookmarks, alarms and links in shared sheets keep working.
+  useEffect(() => {
+    if (!v2) return;
+    const target = toV2Href(pathname, typeof window !== "undefined" ? window.location.search : "");
+    if (target) router.replace(target);
+  }, [v2, pathname, router]);
   // Simple look: just the essentials in the menu. Every other section lives in Settings → All sections.
-  const sideNav = simple
+  const v2Nav = V2_NAV.map((n) => ({ href: n.href, label: n.label, icon: V2_ICONS[n.href] }));
+  const sideNav = v2
+    ? v2Nav
+    : simple
     ? [...nav.filter((n) => SIMPLE_NAV.includes(n.href)).map((n) => (n.href === "/" ? { ...n, label: "Home" } : n)), { href: "/more", label: "Menu", icon: LayoutGrid }]
     : nav;
-  const mobileNav = simple ? sideNav : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
+  const mobileNav = v2 ? v2Nav : simple ? sideNav : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
   const mobileMain = mobileNav.filter((n) => n.href !== "/more");
 
   // Keyboard: Ctrl/Cmd+K or / = search
@@ -116,7 +134,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
-  const title = NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? (simple ? "Menu" : "All sections") : pathname.startsWith("/support") ? "Support" : APP_NAME);
+  const title = v2 ? (v2Title(pathname) ?? APP_NAME) : NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? (simple ? "Menu" : "All sections") : pathname.startsWith("/support") ? "Support" : APP_NAME);
 
   return (
     <AppLock>
@@ -129,7 +147,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
           {sideNav.map((n) => {
             // In the Simple look, "Menu" stays lit on any section it leads to.
-            const active = simple && n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
+            const active = v2 ? isActiveV2(pathname, n.href) : simple && n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
@@ -189,7 +207,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 type="button"
                 aria-label={currentDark ? "Switch to light theme" : "Switch to dark theme"}
                 onClick={() => setTheme(currentDark ? "light" : "dark")}
-                className={cn("hidden h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3", !simple && "sm:inline-flex")}
+                className={cn("hidden h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-3", (!simple || v2) && "sm:inline-flex")}
               >
                 {currentDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </button>
@@ -236,7 +254,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
         <div className={cn("mx-auto grid max-w-lg", mobileNav.length >= 5 ? "grid-cols-5" : mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
           {mobileNav.map((n) => {
-            const active = n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
+            const active = v2 ? isActiveV2(pathname, n.href) : n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             return (
               <Link
                 key={n.href}
@@ -254,8 +272,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </nav>
 
-      <BmcFloating hidden={simple} />
-      <QuickAddSheet />
+      <BmcFloating hidden={simple || v2} />
+      {v2 ? <V2QuickAddSheet /> : <QuickAddSheet />}
       <TransactionSheet />
       <EventSheet />
       <ChitInstallmentsSheet />

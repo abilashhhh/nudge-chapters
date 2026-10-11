@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, CircleDashed, Clock, MinusCircle, PauseCir
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import type { EventStatus } from "@/lib/engine/events";
+import { useAppVersion } from "@/lib/app-version";
 
 export function Panel({
   title,
@@ -50,10 +51,24 @@ const STATUS: Record<EventStatus, { label: string; icon: LucideIcon; cls: string
   adjusted: { label: "Paid (adjusted)", icon: CheckCircle2, cls: "text-ok bg-ok-soft" },
 };
 
+/** Version 2 status words (plain English). */
+const V2_STATUS_LABEL: Record<EventStatus, string> = {
+  planned: "Upcoming",
+  due: "Due today",
+  overdue: "Late",
+  paid: "Paid",
+  received: "Received",
+  partial: "Part paid",
+  skipped: "Skipped",
+  cancelled: "Skipped",
+  adjusted: "Paid",
+};
+
 /** Status always carries an icon + text, never colour alone. */
 export function StatusPill({ status, flowIn, className }: { status: EventStatus; flowIn?: boolean; className?: string }) {
+  const { v2 } = useAppVersion();
   const s = STATUS[status];
-  let label = s.label;
+  let label = v2 ? V2_STATUS_LABEL[status] : s.label;
   if (flowIn && status === "overdue") label = "Not received";
   if (flowIn && status === "due") label = "Expected today";
   const Icon = s.icon;

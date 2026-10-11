@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/lib/cn";
 import { useUI } from "@/lib/ui";
 import type { EventOverride } from "@/lib/types";
+import { useAppVersion } from "@/lib/app-version";
 import { Money } from "./money";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Select, Switch } from "./ui/form";
@@ -51,6 +52,7 @@ type Mode = "view" | "settle" | "reschedule" | "amount";
 
 function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClose: () => void; initialMode?: "view" | "settle" }) {
   const { ds, today, positions, ctx } = useFinance();
+  const { v2 } = useAppVersion();
   const add = useStore((s) => s.add);
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
@@ -186,7 +188,9 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
   };
 
   const verb = flowIn ? "received" : isCardOnly ? "logged" : "paid";
-  const sourceLabel = e.ruleId ? "Edit the recurring item" : e.loanId ? "Open loan" : e.chitId ? "Open chit" : e.investmentId ? "Open investment" : e.lendingId ? "Open lending record" : e.statementId ? "Edit statement" : e.cardId ? "Open card" : null;
+  const sourceLabel = v2
+    ? e.ruleId ? "Edit (all months)" : e.loanId ? "Edit loan" : e.chitId ? "Edit chit" : e.investmentId ? "Edit fund" : e.lendingId ? "Edit" : e.statementId ? "Edit card bill" : e.cardId ? "Edit card" : null
+    : e.ruleId ? "Edit the recurring item" : e.loanId ? "Open loan" : e.chitId ? "Open chit" : e.investmentId ? "Open investment" : e.lendingId ? "Open lending record" : e.statementId ? "Edit statement" : e.cardId ? "Open card" : null;
 
   return (
     <>
@@ -264,24 +268,24 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
               {e.accountId && <KV k={flowIn ? "Into" : "From"} v={accountName(e.accountId) ?? "—"} />}
               {e.toAccountId && <KV k="To" v={accountName(e.toAccountId) ?? "—"} />}
               {e.cardId && <KV k="Card" v={cardName(e.cardId) ?? "—"} />}
-              {e.category && <KV k="Category" v={e.category} />}
+              {e.category && <KV k={v2 ? "What for" : "Category"} v={e.category} />}
               {e.installment && <KV k="Installment" v={`${e.installment} of ${e.installments}`} />}
-              {e.principal != null && <KV k="Principal / interest" v={`${formatMoney(e.principal, ctx)} / ${formatMoney(e.interest ?? 0, ctx)}`} />}
+              {e.principal != null && <KV k={v2 ? "Loan part / interest" : "Principal / interest"} v={`${formatMoney(e.principal, ctx)} / ${formatMoney(e.interest ?? 0, ctx)}`} />}
               {e.budget && <KV k="Budget used" v={`${formatMoney(e.budget.spent, ctx)} of ${formatMoney(e.budget.limit, ctx)} until ${formatDate(e.budget.periodEnd, "short")}`} />}
               {e.occurrence !== e.date && <KV k="Originally due" v={formatDate(e.occurrence)} />}
-              <KV k="Certainty" v={e.certainty === "known" ? "Known" : e.certainty === "expected" ? "Expected" : "Uncertain"} />
+              <KV k={v2 ? "How sure" : "Certainty"} v={e.certainty === "known" ? "Known" : e.certainty === "expected" ? "Expected" : "Uncertain"} />
             </div>
 
             {pending && !e.budget && (
               <div className="mt-4 grid grid-cols-2 gap-2">
                 {canSkip && (
                   <Button size="sm" icon={<SkipForward className="h-4 w-4" />} onClick={() => run(() => upsertOverride({ action: "skip" }))} loading={busy}>
-                    Skip this one
+                    {v2 ? "Skip" : "Skip this one"}
                   </Button>
                 )}
                 {!isCountBased && (
                   <Button size="sm" icon={<CalendarClock className="h-4 w-4" />} onClick={() => setMode("reschedule")}>
-                    Reschedule
+                    {v2 ? "Move date" : "Reschedule"}
                   </Button>
                 )}
                 {canAdjust && (

@@ -397,6 +397,12 @@ export interface Preferences {
   lowBalance?: number;
   /** Salary-day plans the user accepted or skipped, by month ("YYYY-MM"). */
   salaryPlans?: Record<string, { status: "accepted" | "skipped"; at: string }>;
+  /**
+   * Which version of the app to show. 1 = the original app with every screen; 2 = the simplified
+   * five-section app (Home · My Money · To Pay · Savings · Menu). Presentation only — the data and
+   * every calculation are the same in both. Missing = 1.
+   */
+  appVersion?: 1 | 2;
 }
 
 export interface Profile {
