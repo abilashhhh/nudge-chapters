@@ -125,7 +125,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ ds: withTable(ds, table, tableRows(ds, table).filter((r) => (r as { id: string }).id !== id)) });
     try {
       await repo.remove(table, id);
-      if (table === "credit_cards" || table === "investments") await get().load();
+      if (table === "credit_cards" || table === "investments" || table === "habits") await get().load();
     } catch (e) {
       set({ ds: before });
       toast.error(`Couldn't delete: ${message(e)}`);

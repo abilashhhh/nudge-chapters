@@ -403,6 +403,10 @@ export interface Preferences {
    * every calculation are the same in both. Missing = 1.
    */
   appVersion?: 1 | 2;
+  /** Daily Rhythm: first day of the week in calendars (1 = Monday, 0 = Sunday). Missing = Monday. */
+  rhythmWeekStart?: 0 | 1;
+  /** Daily Rhythm: a day counts toward your overall streak when at least this % of its activities are done. Missing = 80. */
+  rhythmDayGoal?: number;
 }
 
 export interface Profile {
@@ -476,6 +480,66 @@ export interface LifeItem extends Owned {
 }
 
 // ---------------------------------------------------------------------------
+// Daily Rhythm: everyday activities (habits) and what happened on each day
+// ---------------------------------------------------------------------------
+
+/** daily: every day · days: on chosen weekdays · interval: every N days from the start date. */
+export type HabitFrequency = "daily" | "days" | "interval";
+
+export interface HabitSchedulePeriod {
+  /** First day covered (inclusive); missing = from the start. */
+  from?: ISODate | null;
+  /** Day after the last day covered (exclusive). */
+  until: ISODate;
+  frequency: HabitFrequency | "off";
+  days?: number[];
+  interval_days?: number | null;
+  /** The day "every N days" counts from. */
+  anchor?: ISODate | null;
+}
+
+export interface Habit extends Owned {
+  name: string;
+  description?: string | null;
+  category: string;
+  /** An emoji shown beside the name. */
+  icon?: string | null;
+  color?: string | null;
+  frequency: HabitFrequency;
+  /** Weekdays for "days" (0 = Sunday … 6 = Saturday). */
+  days: number[];
+  interval_days?: number | null;
+  /**
+   * Schedules that applied before the current one (and "off" gaps while archived), so editing an activity's
+   * days never rewrites its past. A day uses the first entry that covers it, else the current schedule.
+   */
+  schedule_history: HabitSchedulePeriod[];
+  /** Optional measurable target (kept for later; checking off doesn't need it). */
+  target_value?: number | null;
+  target_unit?: string | null;
+  start_date: ISODate;
+  end_date?: ISODate | null;
+  /** "HH:MM" local time. */
+  reminder_time?: string | null;
+  sort_order: number;
+  archived: boolean;
+  /** No new days are scheduled from this date on; history before it stays. */
+  archived_on?: ISODate | null;
+}
+
+/** What you recorded for one activity on one day. No record = pending today, missed in the past. */
+export type HabitLogStatus = "pending" | "completed" | "missed" | "skipped";
+
+export interface HabitLog extends Owned {
+  habit_id: UUID;
+  date: ISODate;
+  status: HabitLogStatus;
+  actual_value?: number | null;
+  notes?: string | null;
+  completed_at?: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // The full in-memory dataset for a user
 // ---------------------------------------------------------------------------
 
@@ -497,6 +561,8 @@ export interface Dataset {
   transactions: Transaction[];
   net_worth_snapshots: NetWorthSnapshot[];
   life_items: LifeItem[];
+  habits: Habit[];
+  habit_logs: HabitLog[];
 }
 
 export type TableName = Exclude<keyof Dataset, "profile">;
@@ -518,6 +584,8 @@ export const TABLES: TableName[] = [
   "transactions",
   "net_worth_snapshots",
   "life_items",
+  "habits",
+  "habit_logs",
 ];
 
 export type RowOf<T extends TableName> = Dataset[T][number];
