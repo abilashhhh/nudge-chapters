@@ -13,12 +13,13 @@ export const V2_NAV: V2NavItem[] = [
   { href: "/my-money", label: "My Money", meaning: "Money in your bank and money others owe you" },
   { href: "/to-pay", label: "To Pay", meaning: "Bills, EMIs and installments you have to pay" },
   { href: "/savings", label: "Savings", meaning: "What your savings and investments are worth" },
-  { href: "/daily", label: "Daily", meaning: "To-do, reminders, notes and your wishlist" },
+  { href: "/daily", label: "Daily", meaning: "Your daily rhythm, to-do, reminders, notes and wishlist" },
   { href: "/menu", label: "Menu", meaning: "Planning tools and settings" },
 ];
 
 /** The Daily section's parts (tabs of /daily), also listed under "Daily" in the desktop sidebar. */
 export const V2_DAILY: { tab: string; label: string }[] = [
+  { tab: "rhythm", label: "Daily Rhythm" },
   { tab: "todo", label: "To-do & checklists" },
   { tab: "reminders", label: "Reminders" },
   { tab: "notes", label: "Notes" },
@@ -42,7 +43,7 @@ export const V2_TABS: Record<string, Record<string, string>> = {
 };
 
 /** The first tab each screen opens on (so its breadcrumb reads complete). */
-export const V2_DEFAULT_TAB: Record<string, string> = { "/my-money": "accounts", "/to-pay": "cards", "/savings": "funds", "/daily": "todo", "/menu/settings": "profile" };
+export const V2_DEFAULT_TAB: Record<string, string> = { "/my-money": "accounts", "/to-pay": "cards", "/savings": "funds", "/daily": "rhythm", "/menu/settings": "profile" };
 
 /** Menu sub-pages (Version 2). */
 export const V2_MENU_PAGES: Record<string, string> = {

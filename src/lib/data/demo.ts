@@ -8,9 +8,10 @@ import { DEFAULT_CATEGORIES } from "../engine/defaults";
 import { amortize } from "../engine/loans";
 import { occurrences } from "../engine/schedule";
 import type {
-  Account, CardStatement, Category, Chit, LifeItem, CreditCard, Dataset, Goal, Investment, Lending, Loan, NetWorthSnapshot,
+  Account, CardStatement, Category, Chit, LifeItem, CreditCard, Dataset, Goal, Habit, HabitLog, Investment, Lending, Loan, NetWorthSnapshot,
   RecurringRule, Reserve, Transaction,
 } from "../types";
+import { isScheduled } from "../rhythm";
 import { computePositions } from "../engine/ledger";
 
 function rng(seed: number) {
@@ -285,6 +286,37 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     li({ kind: "wishlist", title: "Riding jacket", goal_id: bikeGoal.id, priority: 3, data: { target_price: 6_000, current_price: 5_800 } }),
   ];
 
+  // ---------------------------------------------------------------- Daily Rhythm (about ten weeks of history)
+  const hStart = startOfMonth(addMonths(today, -2));
+  const hb = (p: Partial<Habit> & Pick<Habit, "name" | "category">, i: number): Habit => ({
+    id: id(), frequency: "daily", days: [], schedule_history: [], start_date: hStart, sort_order: i, archived: false, ...p,
+  });
+  const habits: Habit[] = [
+    hb({ name: "Go to the gym", category: "Fitness", icon: "🏋️", frequency: "days", days: [1, 2, 3, 4, 5, 6], reminder_time: "06:30" }, 0),
+    hb({ name: "Read a book", category: "Learning", icon: "📖", description: "20 pages before bed" }, 1),
+    hb({ name: "Learn something new", category: "Learning", icon: "🧠" }, 2),
+    hb({ name: "Drink enough water", category: "Health", icon: "💧" }, 3),
+    hb({ name: "Meditate", category: "Wellness", icon: "🧘", frequency: "interval", interval_days: 2 }, 4),
+  ];
+  // How reliably each one gets done; the gym improves month by month, meditation dips lately.
+  const odds = [0.62, 0.86, 0.7, 0.9, 0.72];
+  const habit_logs: HabitLog[] = [];
+  for (let d = hStart; d < today; d = addDays(d, 1)) {
+    const age = Math.round((parseISO(today).getTime() - parseISO(d).getTime()) / 86_400_000);
+    habits.forEach((h, i) => {
+      if (!isScheduled(h, d)) return;
+      let p = odds[i];
+      if (i === 0) p += (70 - age) / 300;
+      if (i === 4 && age < 9) p -= 0.15;
+      const r = rand();
+      const status = r < 0.05 ? "skipped" : r < 0.05 + p ? "completed" : "missed";
+      // Unticked past days count as missed on their own; only some misses are recorded explicitly.
+      if (status === "missed" && rand() < 0.6) return;
+      habit_logs.push({ id: id(), habit_id: h.id, date: d, status, notes: status === "skipped" && i === 0 ? "Rest day — sore legs" : null });
+    });
+  }
+  habit_logs.push({ id: id(), habit_id: habits[3].id, date: today, status: "completed" });
+
   const categories: Category[] = DEFAULT_CATEGORIES.map((c) => ({ ...c, id: id(), archived: false }));
 
   const ds: Dataset = {
@@ -324,6 +356,8 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     transactions: tx.sort((a, b) => (a.date < b.date ? 1 : -1)),
     net_worth_snapshots: [],
     life_items,
+    habits,
+    habit_logs,
   };
 
   // Synthetic month-end net-worth history so the trend chart has something to show.

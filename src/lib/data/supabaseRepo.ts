@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuditEvent, Dataset, NetWorthSnapshot, Profile, RowOf, TableName } from "../types";
-import { INSERT_ORDER, type Repo } from "./repo";
+import { INSERT_ORDER, OPTIONAL_TABLES, type Repo } from "./repo";
 
 const PAGE = 1000;
 
@@ -34,7 +34,11 @@ export class SupabaseRepo implements Repo {
     const out: T[] = [];
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await this.sb.from(table).select("*").order(order, { ascending: true }).range(from, from + PAGE - 1);
-      if (error) throw asError(error);
+      if (error) {
+        // A table this server doesn't have yet (its migration hasn't been run) loads as empty.
+        if (OPTIONAL_TABLES.includes(table) && (error.code === "PGRST205" || error.code === "42P01")) return [];
+        throw asError(error);
+      }
       out.push(...((data ?? []) as T[]));
       if (!data || data.length < PAGE) break;
     }
@@ -116,7 +120,7 @@ export class SupabaseRepo implements Repo {
   async wipe(): Promise<void> {
     for (const t of [...INSERT_ORDER].reverse()) {
       const { error } = await this.sb.from(t).delete().eq("user_id", this.userId);
-      if (error) throw asError(error);
+      if (error && !(OPTIONAL_TABLES.includes(t) && (error.code === "PGRST205" || error.code === "42P01"))) throw asError(error);
     }
     await this.updateProfile({ onboarding_done: false, preferences: {}, assumptions: {} });
   }

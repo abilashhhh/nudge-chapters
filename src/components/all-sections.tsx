@@ -1,8 +1,7 @@
 "use client";
 
 import {
-  BarChart3, CalendarDays, Coffee, FileUp, Heart, Landmark, ListChecks, PieChart, PiggyBank, Settings, Sparkles, Target, TrendingUp, Users, Wallet,
-} from "lucide-react";
+  BarChart3, CalendarDays, Coffee, FileUp, Heart, Landmark, ListChecks, PieChart, PiggyBank, Settings, Sparkles, Target, TrendingUp, Users, Wallet, CalendarCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Money } from "@/components/money";
@@ -21,6 +20,7 @@ export function AllSections({ withSettings = false }: { withSettings?: boolean }
     {
       title: "Everyday",
       tiles: [
+        { href: "/daily?tab=rhythm", label: "Daily Rhythm", icon: CalendarCheck, hint: "Habits, streaks, monthly charts" },
         { href: "/plan", label: "Plan", icon: ListChecks, hint: "Tasks, checklists, notes", section: "tasks" },
         { href: "/cash-flow", label: "Cash flow", icon: Wallet, hint: "Bills and transactions", section: "transactions" },
         { href: "/budgets", label: "Budgets", icon: PiggyBank, hint: `${formatMoney(Math.max(0, month.budgetLimit - month.budgetSpent), ctx)} left this month`, section: "budgets" },

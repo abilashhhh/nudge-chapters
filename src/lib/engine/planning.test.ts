@@ -13,7 +13,7 @@ function ds0(): Dataset {
   return {
     profile: { id: "u", country: "IN", currency: "INR", locale: "en-IN", timezone: "Asia/Kolkata", retirement_age: 60, life_expectancy: 85, mode: "simple", onboarding_done: true, assumptions: {}, preferences: {}, fx_rates: {} },
     accounts: [], categories: [], credit_cards: [], card_statements: [], loans: [], chits: [], goals: [], investments: [], investment_valuations: [],
-    lendings: [], reserves: [], recurring_rules: [], event_overrides: [], transactions: [], net_worth_snapshots: [], life_items: [],
+    lendings: [], reserves: [], recurring_rules: [], event_overrides: [], transactions: [], net_worth_snapshots: [], life_items: [], habits: [], habit_logs: [],
   };
 }
 const acc = (p: Partial<Account> = {}): Account => ({ id: `a${++n}`, name: "Bank", type: "savings", currency: "INR", opening_balance: 50_000, opening_date: "2026-10-01", min_balance: 0, include_in_cash: true, is_emergency_fund: false, archived: false, ...p });

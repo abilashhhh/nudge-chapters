@@ -35,7 +35,12 @@ export const INSERT_ORDER: TableName[] = [
   "transactions",
   "net_worth_snapshots",
   "life_items",
+  "habits",
+  "habit_logs",
 ];
+
+/** Newer tables a server may not have yet (migration not run): loading treats them as empty instead of failing. */
+export const OPTIONAL_TABLES: TableName[] = ["habits", "habit_logs"];
 
 export function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();

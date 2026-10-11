@@ -143,6 +143,7 @@ export class LocalRepo implements Repo {
     // Mirror the database's ON DELETE behaviour for the most important relations.
     if (table === "credit_cards") this.ds.card_statements = this.ds.card_statements.filter((s) => s.card_id !== id);
     if (table === "investments") this.ds.investment_valuations = this.ds.investment_valuations.filter((v) => v.investment_id !== id);
+    if (table === "habits") this.ds.habit_logs = (this.ds.habit_logs ?? []).filter((l) => l.habit_id !== id);
     this.persist();
     this.log(table, "delete", id, old, null);
   }

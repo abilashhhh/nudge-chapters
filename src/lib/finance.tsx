@@ -2,7 +2,7 @@
 
 // Derived financial state, computed once per data change and shared app-wide.
 
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useRef, type ReactNode } from "react";
 import { addDays, addMonths, endOfMonth, startOfMonth, todayISO } from "./dates";
 import { buildAlerts, type Alert } from "./engine/alerts";
 import { resolveAssumptions } from "./engine/defaults";
@@ -81,9 +81,26 @@ export function computeFinance(ds: Dataset): Finance {
   };
 }
 
+/** Tables no money calculation reads: changing them (ticking a Daily Rhythm activity) needn't redo the finances. */
+const NON_FINANCIAL = new Set<string>(["habits", "habit_logs"]);
+
+function onlyNonFinancialChanged(a: Dataset, b: Dataset): boolean {
+  if (a.profile !== b.profile) return false;
+  for (const k of Object.keys(b) as (keyof Dataset)[]) if (!NON_FINANCIAL.has(k) && a[k] !== b[k]) return false;
+  return true;
+}
+
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const ds = useStore((s) => s.ds);
-  const value = useMemo(() => (ds ? computeFinance(ds) : null), [ds]);
+  const last = useRef<Finance | null>(null);
+  const value = useMemo(() => {
+    if (!ds) return null;
+    const prev = last.current;
+    // Same day, and only habit data changed: keep every money figure, just hand over the new dataset.
+    const next = prev && prev.today === todayISO(ds.profile.timezone) && onlyNonFinancialChanged(prev.ds, ds) ? { ...prev, ds } : computeFinance(ds);
+    last.current = next;
+    return next;
+  }, [ds]);
   if (!value) return null;
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
 }

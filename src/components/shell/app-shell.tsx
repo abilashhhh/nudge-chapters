@@ -18,6 +18,7 @@ import { AppLock } from "./app-lock";
 import { Editors } from "../editors";
 import { ChitInstallmentsSheet } from "../chits";
 import { AlarmWatcher } from "../alarm";
+import { RhythmReminders } from "../rhythm/reminders";
 import { LifeEditorSheet } from "../life";
 import { EventSheet } from "../event-sheet";
 import { ExplainSheet } from "../explain";
@@ -302,6 +303,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ChitInstallmentsSheet />
       <LifeEditorSheet />
       <AlarmWatcher />
+      <RhythmReminders />
       <Editors />
       <CommandPalette />
       <AlertsPanel />

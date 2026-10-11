@@ -16,7 +16,7 @@ function emptyDs(): Dataset {
     },
     accounts: [], categories: [], credit_cards: [], card_statements: [], loans: [], chits: [], goals: [],
     investments: [], investment_valuations: [], lendings: [], reserves: [], recurring_rules: [], event_overrides: [],
-    transactions: [], net_worth_snapshots: [], life_items: [],
+    transactions: [], net_worth_snapshots: [], life_items: [], habits: [], habit_logs: [],
   };
 }
 
@@ -201,7 +201,7 @@ describe("Version 2 redirects", () => {
     expect(toV2Href("/menu/wishlist", "")).toBe("/daily?tab=wishlist");
     expect(v2Crumbs("/to-pay", "?tab=chits").map((c) => c.label)).toEqual(["Home", "To Pay", "Chits & SIPs"]);
     expect(v2Crumbs("/menu/budgets", "").map((c) => c.label)).toEqual(["Home", "Menu", "Budgets & spending plans"]);
-    expect(v2Crumbs("/daily", "").map((c) => c.href)).toEqual(["/", "/daily", "/daily?tab=todo"]);
+    expect(v2Crumbs("/daily", "").map((c) => c.href)).toEqual(["/", "/daily", "/daily?tab=rhythm"]);
     expect(v2Crumbs("/", "")).toEqual([]);
     expect(toV2Href("/goals", "")).toBe("/menu/future#goals");
     expect(toV2Href("/projection", "?date=2027-12-31")).toBe("/menu/future?date=2027-12-31");
