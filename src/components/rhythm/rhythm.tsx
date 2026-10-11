@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, BarChart3, CalendarDays, History, LayoutGrid, ListChecks, Pencil, Plus, RotateCcw, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { BarChart3, CalendarDays, History, LayoutGrid, ListChecks, Pencil, Plus, RotateCcw, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,7 @@ import { Button } from "../ui/button";
 import { Select } from "../ui/form";
 import { Badge, EmptyState, Panel, Progress, Segmented } from "../ui/misc";
 import { useRhythm, useRhythmActions } from "./actions";
+import { SortableList } from "./sortable";
 import { DailyTrendChart, HabitBarsChart, Heatmap, MonthlyTrendChart, StackedDaysChart, WeeklyChart } from "./charts";
 import { CalendarLegend, DayChecklist, HabitDetailSheet, HabitEditorSheet, HabitIcon, MonthCalendar, MonthNav, RhStat, pctText } from "./parts";
 
@@ -78,7 +79,8 @@ export function RhythmSection() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Phones: no heading here (the Daily tab already says where you are) — just the views. */}
+      <div className="mb-4 hidden flex-wrap items-center justify-between gap-3 lg:flex">
         <div className="min-w-0">
           <h2 className="display flex items-center gap-2 text-[22px] font-semibold leading-tight">Daily Rhythm</h2>
           <p className="text-[13.5px] text-ink-2">Tick off your everyday activities and see how consistent you are, month by month.</p>
@@ -87,8 +89,8 @@ export function RhythmSection() {
           Add activity
         </Button>
       </div>
-      <nav aria-label="Daily Rhythm views" className="no-scrollbar -mx-4 mb-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <div className="inline-flex gap-1 rounded-2xl bg-surface-3/70 p-1">
+      <nav aria-label="Daily Rhythm views" className="mb-4 lg:mb-5">
+        <div className="grid grid-cols-5 gap-0.5 rounded-2xl bg-surface-3/70 p-1 lg:inline-flex lg:gap-1">
           {VIEWS.map((v) => {
             const Icon = VIEW_META[v].icon;
             return (
@@ -97,10 +99,13 @@ export function RhythmSection() {
                 type="button"
                 aria-current={view === v ? "page" : undefined}
                 onClick={() => set({ view: v })}
-                className={cn("inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-[13.5px] font-medium transition-colors", view === v ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink")}
+                className={cn(
+                  "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[11px] font-medium transition-colors lg:h-9 lg:flex-row lg:gap-1.5 lg:px-3 lg:py-0 lg:text-[13.5px]",
+                  view === v ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink",
+                )}
               >
-                <Icon className="h-4 w-4" aria-hidden />
-                {VIEW_META[v].label}
+                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="max-w-full truncate">{VIEW_META[v].label}</span>
               </button>
             );
           })}
@@ -208,10 +213,11 @@ function OverviewView({ go, openHabit, openEditor }: ViewCtx) {
   const active = habits.filter((h) => !h.archived);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <RhStat accent label="Today" value={t.tally.eligible ? `${t.tally.completed}/${t.tally.eligible}` : "—"} note={t.tally.eligible ? `${pctText(t.tally.rate)} done` : "Nothing scheduled today"} />
-        <RhStat label="Left today" value={remaining} note={remaining ? "still to tick" : t.tally.eligible ? "All done 🎉" : "Free day"} />
+    // Phones: today's checklist first, then the numbers; the "today" cards are left out (the checklist shows them).
+    <div className="flex flex-col gap-4">
+      <div className="order-2 grid grid-cols-2 gap-2 sm:gap-3 lg:order-none lg:grid-cols-3 xl:grid-cols-6">
+        <RhStat accent className="hidden lg:block" label="Today" value={t.tally.eligible ? `${t.tally.completed}/${t.tally.eligible}` : "—"} note={t.tally.eligible ? `${pctText(t.tally.rate)} done` : "Nothing scheduled today"} />
+        <RhStat className="hidden lg:block" label="Left today" value={remaining} note={remaining ? "still to tick" : t.tally.eligible ? "All done 🎉" : "Free day"} />
         <RhStat label={`${formatMonthLong(cur).split(" ")[0]} so far`} value={pctText(r.tally.rate)} note={r.tally.eligible ? `${r.tally.completed} of ${r.tally.eligible} done` : "Nothing counted yet"} onClick={() => go("analytics", { month: cur })} />
         <RhStat label="Day streak" value={`${streak.current} ${streak.current === 1 ? "day" : "days"}`} note={`Days with ${goal}%+ done`} />
         <RhStat label="Best streak" value={`${streak.best} ${streak.best === 1 ? "day" : "days"}`} note={streak.bestEnd ? `Ended ${formatDate(streak.bestEnd, "short")}` : "Keep going"} />
@@ -223,8 +229,8 @@ function OverviewView({ go, openHabit, openEditor }: ViewCtx) {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-        <Panel title="Today's checklist" description="Tap the box when it's done. Use ⌄ to mark missed, skip a day or add a note.">
+      <div className="order-1 grid grid-cols-1 gap-4 lg:order-none lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <Panel title="Today's checklist" description="Tap the box when it's done. Use ⌄ to mark missed, skip a day or add a note." className="max-lg:[&>header]:hidden">
           <DayChecklist date={today} onOpenHabit={openHabit} emptyAction={active.length === 0 ? <Button onClick={() => openEditor(null)}>Add an activity</Button> : undefined} />
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => go("calendar", { day: addDays(today, -1), month: monthKey(addDays(today, -1)) })}>
@@ -249,7 +255,7 @@ function OverviewView({ go, openHabit, openEditor }: ViewCtx) {
         </Panel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="order-3 grid grid-cols-1 gap-4 lg:order-none lg:grid-cols-2">
         <Panel title="Day by day this month" description="Share of each day's activities you completed." action={<Button size="sm" variant="ghost" onClick={() => go("analytics", { month: cur })}>All charts</Button>}>
           {r.tally.eligible ? <DailyTrendChart days={r.days} today={today} height={190} /> : <NotEnough />}
         </Panel>
@@ -342,6 +348,9 @@ function ActivitiesView({ openHabit, openEditor }: ViewCtx) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="primary" className="lg:hidden" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => openEditor(null)}>
+          Add
+        </Button>
         <Segmented
           size="sm"
           value={showArchived ? "archived" : "active"}
@@ -373,52 +382,51 @@ function ActivitiesView({ openHabit, openEditor }: ViewCtx) {
           action={!showArchived ? <Button variant="primary" onClick={() => openEditor(null)}>Add activity</Button> : undefined}
         />
       ) : (
-        <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
-          {list.map((h, i) => {
-            const t = rate.get(h.id);
-            const s = habitStreaks(h, index, today);
-            return (
-              <li key={h.id} className="flex items-center gap-3 px-3 py-3 sm:px-4">
-                {!showArchived && cat === "all" && (
-                  <div className="flex flex-col">
-                    <button type="button" aria-label={`Move ${h.name} up`} disabled={i === 0} onClick={() => void act.move(list, h, -1).catch(() => undefined)} className="rounded p-0.5 text-ink-3 hover:text-ink disabled:opacity-25">
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button type="button" aria-label={`Move ${h.name} down`} disabled={i === list.length - 1} onClick={() => void act.move(list, h, 1).catch(() => undefined)} className="rounded p-0.5 text-ink-3 hover:text-ink disabled:opacity-25">
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </button>
+        <>
+          <SortableList
+            items={list}
+            label={(h) => h.name}
+            disabled={showArchived}
+            onReorder={(ids) => void act.reorder(ids).catch(() => undefined)}
+            className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface"
+            renderItem={(h, handle) => {
+              const t = rate.get(h.id);
+              const s = habitStreaks(h, index, today);
+              return (
+                <div className="flex items-center gap-2 py-2.5 pl-1 pr-2 sm:gap-3 sm:pr-4">
+                  {!showArchived ? handle : <span className="w-2" />}
+                  <HabitIcon h={h} />
+                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openHabit(h)}>
+                    <span className="block truncate text-[14.5px] font-medium text-ink">{h.name}</span>
+                    <span className="block truncate text-[12.5px] text-ink-3">
+                      {h.category} · {scheduleLabel(h, weekStart)}
+                      {h.reminder_time ? ` · ⏰ ${h.reminder_time}` : ""}
+                      {h.archived && h.archived_on ? ` · archived ${formatDate(h.archived_on)}` : h.start_date > today ? ` · starts ${formatDate(h.start_date)}` : ""}
+                    </span>
+                  </button>
+                  <div className="hidden w-28 text-right sm:block">
+                    <span className="num block text-[14px] font-semibold">{pctText(t?.rate)}</span>
+                    <span className="block text-[11.5px] text-ink-3">this month</span>
                   </div>
-                )}
-                <HabitIcon h={h} />
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openHabit(h)}>
-                  <span className="block truncate text-[14.5px] font-medium text-ink">{h.name}</span>
-                  <span className="block truncate text-[12.5px] text-ink-3">
-                    {h.category} · {scheduleLabel(h, weekStart)}
-                    {h.reminder_time ? ` · ⏰ ${h.reminder_time}` : ""}
-                    {h.archived && h.archived_on ? ` · archived ${formatDate(h.archived_on)}` : h.start_date > today ? ` · starts ${formatDate(h.start_date)}` : ""}
-                  </span>
-                </button>
-                <div className="hidden w-28 text-right sm:block">
-                  <span className="num block text-[14px] font-semibold">{pctText(t?.rate)}</span>
-                  <span className="block text-[11.5px] text-ink-3">this month</span>
+                  <div className="hidden w-20 text-right md:block">
+                    <span className="num block text-[14px] font-semibold">{s.current}</span>
+                    <span className="block text-[11.5px] text-ink-3">day streak</span>
+                  </div>
+                  {h.archived ? (
+                    <Button size="sm" icon={<RotateCcw className="h-3.5 w-3.5" />} onClick={() => void act.restore(h).catch(() => undefined)}>
+                      Bring back
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" aria-label={`Edit ${h.name}`} onClick={() => openEditor(h)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                <div className="hidden w-20 text-right md:block">
-                  <span className="num block text-[14px] font-semibold">{s.current}</span>
-                  <span className="block text-[11.5px] text-ink-3">day streak</span>
-                </div>
-                {h.archived ? (
-                  <Button size="sm" icon={<RotateCcw className="h-3.5 w-3.5" />} onClick={() => void act.restore(h).catch(() => undefined)}>
-                    Bring back
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="ghost" aria-label={`Edit ${h.name}`} onClick={() => openEditor(h)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+              );
+            }}
+          />
+          {!showArchived && list.length > 1 && <p className="-mt-2 text-[12.5px] text-ink-3">Drag the ⋮⋮ handle to change the order — it&apos;s the order of your daily checklist.</p>}
+        </>
       )}
 
       <Panel title="Tracker settings" description="Changes how things are shown and how the day streak is counted. Your records don't change.">

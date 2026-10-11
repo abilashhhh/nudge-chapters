@@ -65,7 +65,7 @@ export function StatusWord({ status, className }: { status: OccStatus; className
 }
 
 /** A summary card: label, big value, small note. */
-export function RhStat({ label, value, note, onClick, accent }: { label: ReactNode; value: ReactNode; note?: ReactNode; onClick?: () => void; accent?: boolean }) {
+export function RhStat({ label, value, note, onClick, accent, className }: { label: ReactNode; value: ReactNode; note?: ReactNode; onClick?: () => void; accent?: boolean; className?: string }) {
   const body = (
     <>
       <span className={cn("block text-[12.5px]", accent ? "opacity-75" : "text-ink-3")}>{label}</span>
@@ -73,7 +73,7 @@ export function RhStat({ label, value, note, onClick, accent }: { label: ReactNo
       {note && <span className={cn("mt-0.5 block truncate text-[11.5px]", accent ? "opacity-70" : "text-ink-3")}>{note}</span>}
     </>
   );
-  const cls = cn("block min-w-0 rounded-2xl border p-4 text-left", accent ? "border-transparent bg-ink text-paper" : "border-line bg-surface", onClick && "transition-colors hover:border-line-strong");
+  const cls = cn("block min-w-0 rounded-2xl border p-3.5 text-left sm:p-4", className, accent ? "border-transparent bg-ink text-paper" : "border-line bg-surface", onClick && "transition-colors hover:border-line-strong");
   return onClick ? (
     <button type="button" className={cn(cls, "w-full")} onClick={onClick}>
       {body}

@@ -117,20 +117,18 @@ export function useRhythmActions() {
     toast.success(`${h.name} deleted.`);
   }
 
-  /** Move an activity up or down among the visible list. */
-  async function move(list: Habit[], h: Habit, dir: -1 | 1) {
-    const i = list.findIndex((x) => x.id === h.id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= list.length) return;
-    const other = list[j];
-    // Swap the two inside the full order (archived ones too), then renumber everything so ties can't stick.
-    const order = [...(store().ds?.habits ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-    const a = order.findIndex((x) => x.id === h.id);
-    const b = order.findIndex((x) => x.id === other.id);
-    if (a < 0 || b < 0) return;
-    [order[a], order[b]] = [order[b], order[a]];
+  /**
+   * Save a new order for the activities on screen (after a drag). Activities that aren't shown (archived, or
+   * another category) keep their places; the shown ones fill their slots in the new order.
+   */
+  async function reorder(visibleIds: string[]) {
+    const all = [...(store().ds?.habits ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+    const shown = new Set(visibleIds);
+    const queue = visibleIds.map((id) => all.find((h) => h.id === id)).filter((h): h is Habit => !!h);
+    const order = all.map((h) => (shown.has(h.id) ? queue.shift()! : h));
+    // Renumber everything so ties from older data can't keep two rows in place.
     await Promise.all(order.map((x, k) => (x.sort_order !== k ? store().patch("habits", x.id, { sort_order: k }) : null)));
   }
 
-  return { setStatus, toggle, setNote, create, createMany, update, archive, restore, remove, move };
+  return { setStatus, toggle, setNote, create, createMany, update, archive, restore, remove, reorder };
 }

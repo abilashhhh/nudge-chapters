@@ -13,8 +13,10 @@ export function Breadcrumbs() {
   const crumbs = v2Crumbs(pathname, params?.toString() ?? "");
   if (crumbs.length < 2) return null;
   const parent = crumbs[crumbs.length - 2];
+  // Daily is in the bottom bar and its tabs say where you are, so phones skip the trail there.
+  const phoneHidden = pathname.replace(/\/+$/, "") === "/daily";
   return (
-    <nav aria-label="Breadcrumb" className="no-print -mt-1 mb-3 flex min-w-0 items-center gap-1 text-[13px]">
+    <nav aria-label="Breadcrumb" className={`no-print -mt-1 mb-3 min-w-0 items-center gap-1 text-[13px] ${phoneHidden ? "hidden lg:flex" : "flex"}`}>
       <Link
         href={parent.href}
         aria-label={`Back to ${parent.label}`}
