@@ -518,7 +518,7 @@ function DebtPlanner() {
           <Field label="Extra each month" htmlFor="debt-extra">
             <AmountInput id="debt-extra" value={extra} onChange={setExtra} />
           </Field>
-          <div className="mt-4 overflow-x-auto">
+          <div className="relative mt-4 overflow-x-auto">
             <table className="table-compact w-full text-[13.5px]">
               <thead>
                 <tr className="text-left text-[12px] text-ink-3">

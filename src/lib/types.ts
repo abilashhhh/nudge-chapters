@@ -403,6 +403,11 @@ export interface Preferences {
    * every calculation are the same in both. Missing = 1.
    */
   appVersion?: 1 | 2;
+  /** Month tables: shown as one month at a time ("list") or a table, and how many months ahead. Kept until you change them. */
+  gridView?: "table" | "list";
+  gridAhead?: 3 | 6 | 12;
+  /** Calendar: which kind of payments it shows. */
+  calendarFilter?: string;
   /** Daily Rhythm: first day of the week in calendars (1 = Monday, 0 = Sunday). Missing = Monday. */
   rhythmWeekStart?: 0 | 1;
   /** Daily Rhythm: a day counts toward your overall streak when at least this % of its activities are done. Missing = 80. */

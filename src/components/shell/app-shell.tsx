@@ -137,9 +137,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const title = v2 ? (v2Title(pathname) ?? APP_NAME) : NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? (simple ? "Menu" : "All sections") : pathname.startsWith("/support") ? "Support" : APP_NAME);
 
+  // overflow-x-clip: nothing inside can ever widen the page sideways on phones (sticky headers still work).
   return (
     <AppLock>
-    <div className="min-h-dvh">
+    <div className="min-h-dvh overflow-x-clip">
       {/* Desktop sidebar */}
       <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface px-3 py-5 lg:flex">
         <Link href="/" className="mb-6 px-3" aria-label={`${APP_NAME} home`}>

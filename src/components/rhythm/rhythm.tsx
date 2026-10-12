@@ -543,7 +543,7 @@ function AnalyticsView({ month, setMonth, go, openHabit }: ViewCtx) {
 function ActivityTable({ report, onOpen }: { report: MonthReport; onOpen: (h: Habit) => void }) {
   return (
     <Panel title="Each activity" description="Tap one for its full history, streaks and notes." flush>
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="w-full min-w-[520px] text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12px] text-ink-3">
@@ -666,7 +666,7 @@ function HistoryView({ month, setMonth, go, openHabit }: ViewCtx) {
       </div>
 
       <Panel title="All months" flush>
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[560px] text-[14px]">
             <thead>
               <tr className="border-b border-line text-left text-[12px] text-ink-3">

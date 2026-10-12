@@ -111,7 +111,7 @@ function Overview() {
         <CashFlowChart rows={rows} height={280} />
       </Panel>
       <Panel title="Month by month" flush>
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="table-compact w-full text-[13.5px]">
             <thead>
               <tr className="border-b border-line text-left text-[12px] text-ink-3">
@@ -348,7 +348,7 @@ function InvestmentReport() {
           </div>
         </Panel>
         <Panel title="Performance by holding" flush>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="table-compact w-full text-[13.5px]">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] text-ink-3">

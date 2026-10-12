@@ -251,7 +251,7 @@ function InstallmentsView({ cp, onClose }: { cp: ChitPosition; onClose: () => vo
       </div>
 
       {/* Table on tablets and up */}
-      <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-line sm:block">
+      <div className="relative mt-4 hidden overflow-x-auto rounded-2xl border border-line sm:block">
         <table className="w-full min-w-[640px] text-[13.5px]">
           <caption className="sr-only">Installments of {cp.chit.name}</caption>
           <thead className="bg-surface-2 text-left text-[12.5px] text-ink-3">

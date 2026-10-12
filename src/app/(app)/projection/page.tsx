@@ -380,7 +380,7 @@ function Compare({ date }: { date: string }) {
       >
         <ScenarioChart metricLabel={METRIC_LABEL[metric]} series={results.map((r) => ({ key: r.key, label: label[r.key], points: r.res.series.map((p: ProjectionPoint) => ({ date: p.date, value: p[metric] })) }))} />
       </Panel>
-      <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+      <div className="relative overflow-x-auto rounded-2xl border border-line bg-surface">
         <table className="table-compact w-full text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] text-ink-3">
@@ -527,7 +527,7 @@ function WhatIfView({ date }: { date: string }) {
         </div>
       </Panel>
       <div className="flex flex-col gap-4">
-        <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+        <div className="relative overflow-x-auto rounded-2xl border border-line bg-surface">
           <table className="table-compact w-full text-[14px]">
             <thead>
               <tr className="border-b border-line text-left text-[12.5px] text-ink-3">

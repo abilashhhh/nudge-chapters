@@ -25,27 +25,30 @@ export function monthLabel(key: string): string {
 
 type Ahead = 3 | 6 | 12;
 
-/** Shared range for every month table, so switching on one screen carries over to the next. */
+/** Where you are in the month tables right now (shared across screens for this visit). */
 export const useGridRange = create<{
   offset: number;
-  ahead: Ahead;
-  /** null = not chosen yet: list on phones, table on larger screens. */
-  view: "table" | "list" | null;
   listMonth: string | null;
   setOffset(n: number): void;
-  setAhead(a: Ahead): void;
-  setView(v: "table" | "list"): void;
   setListMonth(m: string | null): void;
 }>((set) => ({
   offset: 0,
-  ahead: 6,
-  view: null,
   listMonth: null,
   setOffset: (offset) => set({ offset }),
-  setAhead: (ahead) => set({ ahead }),
-  setView: (view) => set({ view }),
   setListMonth: (listMonth) => set({ listMonth }),
 }));
+
+/**
+ * Month / Table and 3 / 6 / 12 months: saved with your settings, so they stay as you left them on every screen,
+ * after a refresh and on other devices. Before you pick: one month at a time on phones, a table on larger screens.
+ */
+function useGridPrefs(phone: boolean) {
+  const prefs = useStore((s) => s.ds?.profile.preferences);
+  const view: "table" | "list" = prefs?.gridView ?? (phone ? "list" : "table");
+  const ahead: Ahead = prefs?.gridAhead ?? 6;
+  const save = (p: { gridView?: "table" | "list"; gridAhead?: Ahead }) => void useStore.getState().updatePrefs(p).catch(() => undefined);
+  return { view, ahead, setView: (v: "table" | "list") => save({ gridView: v }), setAhead: (a: Ahead) => save({ gridAhead: a }) };
+}
 
 /** True on phone-sized screens (under 640 px). */
 function usePhone(): boolean {
@@ -63,7 +66,8 @@ function usePhone(): boolean {
 /** Months shown: the current month + the next 3 / 6 / 12, shifted by Earlier / Later. */
 export function useGridMonths(): string[] {
   const { today } = useFinance();
-  const { offset, ahead } = useGridRange();
+  const { offset } = useGridRange();
+  const ahead: Ahead = useStore((s) => s.ds?.profile.preferences?.gridAhead) ?? 6;
   return monthRange(addMonths(startOfMonth(today), offset), ahead + 1);
 }
 
@@ -142,7 +146,8 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
   const { today, ctx } = useFinance();
   const range = useGridRange();
   const phone = usePhone();
-  const view = range.view ?? (phone ? "list" : "table");
+  const gp = useGridPrefs(phone);
+  const view = gp.view;
   const cur = monthKey(today);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const months = data.months;
@@ -189,8 +194,8 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
       {view === "table" && (
         <ChipGroup
           label="How many months"
-          value={range.ahead}
-          onChange={range.setAhead}
+          value={gp.ahead}
+          onChange={gp.setAhead}
           options={[
             { id: 3, label: "3 mo" },
             { id: 6, label: "6 mo" },
@@ -211,7 +216,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
               type="button"
               role="radio"
               aria-checked={view === id}
-              onClick={() => range.setView(id)}
+              onClick={() => gp.setView(id)}
               className={cn("inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12.5px] font-medium", view === id ? "bg-surface text-ink shadow-sm" : "text-ink-2")}
             >
               <Icon className="h-3.5 w-3.5" aria-hidden />
@@ -261,7 +266,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
     return (
       <div>
         {controls}
-        <div className="no-scrollbar -mx-4 mb-3 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="radiogroup" aria-label="Month">
+        <div className="relative no-scrollbar -mx-4 mb-3 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="radiogroup" aria-label="Month">
           {months.map((m) => (
             <button
               key={m}
@@ -357,7 +362,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
   return (
     <div>
       {controls}
-      <div className="-mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
+      <div className="relative -mx-4 overflow-x-auto border-y border-line bg-surface sm:mx-0 sm:rounded-2xl sm:border">
         <table className="w-full border-collapse text-[13px] sm:text-[13.5px]">
           <thead>
             <tr className="border-b border-line text-left text-[12px] text-ink-3">

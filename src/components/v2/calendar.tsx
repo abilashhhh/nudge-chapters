@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { addMonths, daysInMonth, formatDate, formatMonthLong, monthKey, parseISO, startOfMonth, ymd } from "@/lib/dates";
 import { SETTLED, type FinEvent } from "@/lib/engine/events";
 import { useFinance } from "@/lib/finance";
+import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { Money } from "../money";
 import { StatusPill } from "../ui/misc";
@@ -33,7 +34,10 @@ function tone(e: FinEvent, today: string) {
 export function CalendarScreen() {
   const { today } = useFinance();
   const [first, setFirst] = useState(startOfMonth(today));
-  const [filter, setFilter] = useState<Filter>("all");
+  // The filter is saved with your settings, so the calendar opens the way you left it.
+  const saved = useStore((s) => s.ds?.profile.preferences?.calendarFilter);
+  const filter: Filter = FILTERS.some((f) => f.id === saved) ? (saved as Filter) : "all";
+  const setFilter = (f: Filter) => void useStore.getState().updatePrefs({ calendarFilter: f }).catch(() => undefined);
   const [day, setDay] = useState(today);
   const months = useMemo(() => [monthKey(first)], [first]);
   const all = useRangeEvents(months);
