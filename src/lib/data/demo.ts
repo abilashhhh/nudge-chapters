@@ -292,11 +292,11 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     id: id(), frequency: "daily", days: [], schedule_history: [], start_date: hStart, sort_order: i, archived: false, ...p,
   });
   const habits: Habit[] = [
-    hb({ name: "Go to the gym", category: "Fitness", icon: "🏋️", frequency: "days", days: [1, 2, 3, 4, 5, 6], reminder_time: "06:30" }, 0),
-    hb({ name: "Read a book", category: "Learning", icon: "📖", description: "20 pages before bed" }, 1),
+    hb({ name: "Go to the gym", category: "Fitness", icon: "🏋️", frequency: "days", days: [1, 2, 3, 4, 5, 6], time: "06:30", reminder_time: "06:30" }, 0),
+    hb({ name: "Read a book", category: "Learning", icon: "📖", description: "20 pages before bed", time: "22:00" }, 1),
     hb({ name: "Learn something new", category: "Learning", icon: "🧠" }, 2),
     hb({ name: "Drink enough water", category: "Health", icon: "💧" }, 3),
-    hb({ name: "Meditate", category: "Wellness", icon: "🧘", frequency: "interval", interval_days: 2 }, 4),
+    hb({ name: "Meditate", category: "Wellness", icon: "🧘", frequency: "interval", interval_days: 2, time: "07:15" }, 4),
   ];
   // How reliably each one gets done; the gym improves month by month, meditation dips lately.
   const odds = [0.62, 0.86, 0.7, 0.9, 0.72];

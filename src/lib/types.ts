@@ -519,7 +519,9 @@ export interface Habit extends Owned {
   target_unit?: string | null;
   start_date: ISODate;
   end_date?: ISODate | null;
-  /** "HH:MM" local time. */
+  /** When in the day you do it, "HH:MM" local time. The checklist is ordered by it. */
+  time?: string | null;
+  /** "HH:MM" local time to be reminded (normally the same as `time`). */
   reminder_time?: string | null;
   sort_order: number;
   archived: boolean;

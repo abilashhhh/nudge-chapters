@@ -118,11 +118,26 @@ function statusOf(log: HabitLog | undefined, date: ISODate, today: ISODate): Occ
 
 const bySort = (a: Habit, b: Habit) => a.sort_order - b.sort_order || a.name.localeCompare(b.name);
 
+/** A day's checklist: activities with a time first, earliest first; then the rest ("any time") in your order. */
+export const byTimeThenSort = (a: Habit, b: Habit) => {
+  if (a.time && b.time) return a.time < b.time ? -1 : a.time > b.time ? 1 : bySort(a, b);
+  if (a.time) return -1;
+  if (b.time) return 1;
+  return bySort(a, b);
+};
+
+/** "06:30" → "6:30 AM" (or "06:30" in 24-hour locales). */
+export function formatTime(hhmm: string | null | undefined, locale = "en-IN"): string {
+  if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  return new Date(Date.UTC(2000, 0, 1, h, m)).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).replace(/\s?(am|pm)$/i, (x) => ` ${x.trim().toUpperCase()}`);
+}
+
 /** Every activity's day on `date`, in checklist order. */
 export function occurrencesOn(habits: Habit[], index: LogIndex, date: ISODate, today: ISODate): Occurrence[] {
   return habits
     .filter((h) => hasDay(h, index, date))
-    .sort(bySort)
+    .sort(byTimeThenSort)
     .map((h) => {
       const log = logFor(index, h.id, date);
       return { habit: h, date, log, status: statusOf(log, date, today) };
@@ -330,7 +345,7 @@ export function monthReport(habits: Habit[], index: LogIndex, month: string, tod
   const last = dates[dates.length - 1];
   const perHabit: HabitMonth[] = habits
     .filter((h) => per.has(h.id))
-    .sort(bySort)
+    .sort(byTimeThenSort)
     .map((h) => ({ habit: h, tally: per.get(h.id)!, bestStreak: habitStreaks(h, index, today, first, last).best }));
 
   // Weeks clipped to the month; each week's rate comes from its own counts.

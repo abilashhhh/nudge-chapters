@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Habit, HabitLog } from "../types";
 import {
-  archivePatch, compareMonths, dayStreaks, daySummary, editPatch, habitStreaks, indexLogs, isScheduled, monthCells, monthInsights,
+  archivePatch, byTimeThenSort, compareMonths, formatTime, dayStreaks, daySummary, editPatch, habitStreaks, indexLogs, isScheduled, monthCells, monthInsights,
   monthReport, occurrencesOn, scheduleLabel, trackedMonths, unarchivePatch,
 } from "./index";
 
@@ -144,6 +144,23 @@ describe("month report", () => {
     expect(monthInsights(monthReport([habit({ start_date: TODAY })], indexLogs([]), "2026-10", TODAY), null, TODAY)).toEqual([]);
     expect(compareMonths(sep, oct).improved[0].habit.id).toBe(h.id);
     expect(trackedMonths([h], TODAY)).toEqual(["2026-10", "2026-09"]);
+  });
+});
+
+describe("time of day", () => {
+  it("checklist lists timed activities first, earliest first, then the rest in their order", () => {
+    const a = habit({ name: "Read", time: "22:00", sort_order: 0 });
+    const b = habit({ name: "Water", sort_order: 1 });
+    const c = habit({ name: "Gym", time: "06:30", sort_order: 2 });
+    const d = habit({ name: "Learn", sort_order: 0 });
+    expect(occurrencesOn([a, b, c, d], indexLogs([]), TODAY, TODAY).map((o) => o.habit.name)).toEqual(["Gym", "Read", "Learn", "Water"]);
+    expect([b, a].sort(byTimeThenSort)[0].name).toBe("Read");
+  });
+
+  it("formats times for display", () => {
+    expect(formatTime("06:30")).toMatch(/^6:30\s?AM$/);
+    expect(formatTime("22:05")).toMatch(/^10:05\s?PM$/);
+    expect(formatTime(null)).toBe("");
   });
 });
 

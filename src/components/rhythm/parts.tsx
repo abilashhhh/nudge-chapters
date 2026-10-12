@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addMonths, formatDate, formatMonthLong, monthKey } from "@/lib/dates";
 import {
-  HABIT_CATEGORIES, WEEKDAY_SHORT, daySummary, habitStreaks, monthCells, monthReport, scheduleLabel,
+  HABIT_CATEGORIES, WEEKDAY_SHORT, daySummary, formatTime, habitStreaks, monthCells, monthReport, scheduleLabel,
   type DayLook, type DaySummary, type OccStatus, type Occurrence,
 } from "@/lib/rhythm";
 import type { Habit, HabitFrequency } from "@/lib/types";
 import { Button } from "../ui/button";
-import { DateInput, Field, Input, NumberInput, Textarea } from "../ui/form";
+import { DateInput, Field, Input, NumberInput, Switch, Textarea } from "../ui/form";
 import { Badge, Progress, Segmented } from "../ui/misc";
 import { ConfirmSheet, Sheet } from "../ui/sheet";
 import { useRhythm, useRhythmActions } from "./actions";
@@ -275,8 +275,17 @@ function ChecklistRow({ o, future, onOpenHabit }: { o: Occurrence; future: boole
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState(o.log?.notes ?? "");
   useEffect(() => setNote(o.log?.notes ?? ""), [o.log?.notes]);
+  const { ds } = useRhythm();
   const done = o.status === "completed";
   const h = o.habit;
+  const tz = ds.profile.timezone;
+  // When it was ticked, shown only if it was ticked on that same day (not a later catch-up).
+  const doneAt = (() => {
+    if (!done || !o.log?.completed_at) return "";
+    const at = new Date(o.log.completed_at);
+    if (Number.isNaN(at.getTime()) || at.toLocaleDateString("en-CA", { timeZone: tz }) !== o.date) return "";
+    return at.toLocaleTimeString(ds.profile.locale || "en-IN", { hour: "numeric", minute: "2-digit", timeZone: tz }).replace(/\s?(am|pm)$/i, (x) => ` ${x.trim().toUpperCase()}`);
+  })();
   const choose = (st: "completed" | "missed" | "skipped" | null) => void act.setStatus(h, o.date, st).catch(() => undefined);
   return (
     <li className={cn("px-3 py-2.5", done && "bg-ok-soft/40")}>
@@ -304,8 +313,10 @@ function ChecklistRow({ o, future, onOpenHabit }: { o: Occurrence; future: boole
             {h.name}
           </span>
           <span className="block truncate text-[12px] text-ink-3">
+            {h.time && <span className="font-semibold text-ink-2">{formatTime(h.time)} · </span>}
             {h.category}
             {h.target_value ? ` · ${h.target_value} ${h.target_unit ?? ""}` : ""}
+            {doneAt ? ` · done at ${doneAt}` : ""}
             {o.log?.notes ? " · has a note" : ""}
           </span>
         </button>
@@ -383,7 +394,8 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
   const [interval, setInterval] = useState(2);
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState("");
-  const [reminder, setReminder] = useState("");
+  const [time, setTime] = useState("");
+  const [remind, setRemind] = useState(false);
   const [target, setTarget] = useState("");
   const [unit, setUnit] = useState("");
   const [busy, setBusy] = useState(false);
@@ -401,7 +413,8 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
     setInterval(habit?.interval_days ?? 2);
     setStart(habit?.start_date ?? today);
     setEnd(habit?.end_date ?? "");
-    setReminder(habit?.reminder_time ?? "");
+    setTime(habit?.time ?? habit?.reminder_time ?? "");
+    setRemind(!!habit?.reminder_time);
     setTarget(habit?.target_value != null ? String(habit.target_value) : "");
     setUnit(habit?.target_unit ?? "");
     setError(null);
@@ -425,7 +438,8 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
       interval_days: frequency === "interval" ? Math.min(365, Math.max(2, Math.round(interval || 2))) : null,
       start_date: start || today,
       end_date: end || null,
-      reminder_time: reminder || null,
+      time: time || null,
+      reminder_time: remind && time ? time : null,
       target_value: target ? Number(target) : null,
       target_unit: target ? unit.trim() || null : null,
     };
@@ -559,6 +573,18 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
               days, counting from {frequency === habit?.frequency && habit && habit.start_date < today ? "when it started" : "the start date"}
             </div>
           )}
+          <Field label="Time" optional htmlFor="rh-time" help="When in the day you do it. Your checklist lists activities by time; ones without a time come after.">
+            <div className="flex items-center gap-2">
+              <Input id="rh-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-36" />
+              {time ? (
+                <Button size="sm" variant="ghost" onClick={() => setTime("")}>
+                  Any time
+                </Button>
+              ) : (
+                <span className="text-[13px] text-ink-3">Any time</span>
+              )}
+            </div>
+          </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Starts on" htmlFor="rh-start" help={start < today && !habit ? "Earlier days you don't tick count as missed — tick them in the calendar if you did them." : undefined}>
               <DateInput id="rh-start" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -567,9 +593,14 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
               <DateInput id="rh-end" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
             </Field>
           </div>
-          <Field label="Reminder" optional htmlFor="rh-rem" help="A nudge on this device at this time if it isn't done yet (while the app is open or in the background).">
-            <Input id="rh-rem" type="time" value={reminder} onChange={(e) => setReminder(e.target.value)} className="w-36" />
-          </Field>
+          <div className="rounded-xl border border-line p-3">
+            <Switch
+              checked={remind && !!time}
+              onChange={(v) => setRemind(v)}
+              label="Remind me at this time"
+              help={time ? `A nudge on this device at ${formatTime(time)} if it isn't done yet (while the app is open or in the background).` : "Set a time above first."}
+            />
+          </div>
         </div>
       </Sheet>
       {habit && (
@@ -624,7 +655,7 @@ export function HabitDetailSheet({ habit, onClose, month, onEdit }: { habit: Hab
           <span className="min-w-0 truncate">{habit.name}</span>
         </span>
       }
-      description={`${habit.category} · ${scheduleLabel(habit, weekStart)} · since ${formatDate(habit.start_date)}${habit.archived ? " · archived" : ""}`}
+      description={`${habit.category} · ${scheduleLabel(habit, weekStart)}${habit.time ? ` at ${formatTime(habit.time)}` : ""} · since ${formatDate(habit.start_date)}${habit.archived ? " · archived" : ""}`}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
           {habit.archived ? (
