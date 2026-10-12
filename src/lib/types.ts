@@ -400,7 +400,7 @@ export interface Preferences {
   /**
    * Which version of the app to show. 1 = the original app with every screen; 2 = the simplified
    * five-section app (Home · My Money · To Pay · Savings · Menu). Presentation only — the data and
-   * every calculation are the same in both. Missing = 1.
+   * every calculation are the same in both. Missing = 2 (the default).
    */
   appVersion?: 1 | 2;
   /** Month tables: shown as one month at a time ("list") or a table, and how many months ahead. Kept until you change them. */

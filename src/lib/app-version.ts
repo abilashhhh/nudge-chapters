@@ -25,7 +25,8 @@ export const VERSION_INFO: Record<AppVersion, { name: string; short: string; des
 export function useAppVersion() {
   const raw = useStore((s) => s.ds?.profile.preferences?.appVersion);
   const updatePrefs = useStore((s) => s.updatePrefs);
-  const version: AppVersion = raw === 2 ? 2 : 1;
+  // Version 2 is the default; Version 1 only for people who chose it.
+  const version: AppVersion = raw === 1 ? 1 : 2;
   return {
     version,
     v2: version === 2,
@@ -35,5 +36,5 @@ export function useAppVersion() {
 
 /** Non-hook read, for code outside React render. */
 export function currentAppVersion(): AppVersion {
-  return useStore.getState().ds?.profile.preferences?.appVersion === 2 ? 2 : 1;
+  return useStore.getState().ds?.profile.preferences?.appVersion === 1 ? 1 : 2;
 }

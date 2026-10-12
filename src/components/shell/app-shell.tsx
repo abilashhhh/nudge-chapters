@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { APP_NAME, BMC_URL } from "@/lib/config";
 import { Brand } from "../brand";
@@ -47,6 +47,15 @@ export const NAV: { href: string; label: string; icon: typeof Home; section?: st
   { href: "/calendar", label: "Calendar", icon: CalendarDays, section: "bills" },
   { href: "/reports", label: "Reports", icon: BarChart3, section: "reports" },
   { href: "/settings", label: "Settings", icon: Settings },
+];
+
+/** Version 1 (full look) sidebar groups, so the long list is easy to scan. */
+const NAV_GROUPS: { title: string | null; hrefs: string[] }[] = [
+  { title: null, hrefs: ["/", "/plan", "/calendar"] },
+  { title: "Money", hrefs: ["/money", "/cash-flow", "/budgets", "/owed"] },
+  { title: "Own & owe", hrefs: ["/assets", "/liabilities"] },
+  { title: "Plan ahead", hrefs: ["/goals", "/projection", "/reports"] },
+  { title: null, hrefs: ["/settings"] },
 ];
 
 /** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
@@ -93,8 +102,27 @@ export function AppShell({ children }: { children: ReactNode }) {
     : simple
     ? [...nav.filter((n) => SIMPLE_NAV.includes(n.href)).map((n) => (n.href === "/" ? { ...n, label: "Home" } : n)), { href: "/more", label: "Menu", icon: LayoutGrid }]
     : nav;
+  // Version 1, full look: the long list, grouped. Anything not in a group (e.g. new sections) goes last.
+  const fullNav = !v2 && !simple;
+  const sideNavGroups = (() => {
+    const placed = new Set(NAV_GROUPS.flatMap((g) => g.hrefs));
+    const groups = NAV_GROUPS.map((g) => ({ title: g.title, items: g.hrefs.map((h) => nav.find((n) => n.href === h)).filter((n): n is (typeof nav)[number] => !!n) }));
+    const rest = nav.filter((n) => !placed.has(n.href));
+    if (rest.length) groups.splice(groups.length - 1, 0, { title: null, items: rest });
+    return groups.filter((g) => g.items.length);
+  })();
   const mobileNav = v2 ? v2Nav : simple ? sideNav : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
   const mobileMain = mobileNav.filter((n) => n.href !== "/more");
+
+  // Long sidebar on a short screen: keep the current page's item in view.
+  // (A callback ref too, because the sidebar can mount after this effect — e.g. once the app lock opens.)
+  const navEl = useRef<HTMLElement | null>(null);
+  const showActive = (n: HTMLElement | null) => n?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+  const sideRef = useCallback((n: HTMLElement | null) => {
+    navEl.current = n;
+    showActive(n);
+  }, []);
+  useEffect(() => showActive(navEl.current), [pathname, v2, simple]);
 
   // Keyboard: Ctrl/Cmd+K or / = search
   useEffect(() => {
@@ -142,12 +170,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     <AppLock>
     <div className="min-h-dvh overflow-x-clip">
       {/* Desktop sidebar */}
-      <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface px-3 py-5 lg:flex">
-        <Link href="/" className="mb-6 px-3" aria-label={`${APP_NAME} home`}>
+      <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface py-5 lg:flex">
+        <Link href="/" className="mb-5 shrink-0 px-6" aria-label={`${APP_NAME} home`}>
           <Brand size="md" />
         </Link>
-        <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
-          {sideNav.map((n) => {
+        {/* The list scrolls on short screens; the bottom links stay put. */}
+        <nav ref={sideRef} className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 [scrollbar-color:var(--line-strong)_transparent] [scrollbar-width:thin]" aria-label="Main">
+          {(fullNav ? sideNavGroups : [{ title: null, items: sideNav }]).map((g, gi) => (
+            <div key={gi} className={cn("flex flex-col gap-0.5", gi > 0 && fullNav && "mt-3")}>
+              {g.title && <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-3">{g.title}</p>}
+          {g.items.map((n) => {
             // In the Simple look, "Menu" stays lit on any section it leads to.
             const active = v2 ? isActiveV2(pathname, n.href) : simple && n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
             const link = (
@@ -156,7 +188,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 href={n.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2 text-[14.5px] transition-colors",
+                  "flex shrink-0 items-center gap-3 rounded-xl px-3 transition-colors",
+                  fullNav ? "py-1.5 text-[14px]" : "py-2 text-[14.5px]",
                   active ? "bg-inverse text-on-inverse" : "text-ink-2 hover:bg-surface-3/70 hover:text-ink",
                 )}
               >
@@ -166,10 +199,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
             return link;
           })}
+            </div>
+          ))}
         </nav>
-        <div className="mt-4 flex flex-col gap-0.5 border-t border-line pt-4">
+        <div className="mx-3 mt-3 flex shrink-0 flex-col gap-0.5 border-t border-line pt-3">
           {BMC_URL && <SupportNavLink />}
-          <button type="button" onClick={signOut} className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-[14px] text-ink-2 hover:bg-surface-3/70 hover:text-ink">
+          <button type="button" onClick={signOut} className={cn("flex items-center gap-3 rounded-xl px-3 text-left text-[14px] text-ink-2 hover:bg-surface-3/70 hover:text-ink", fullNav ? "py-1.5" : "py-2")}>
             <LogOut className="h-[18px] w-[18px]" aria-hidden />
             {repo?.kind === "local" ? "Leave demo" : "Sign out"}
           </button>
