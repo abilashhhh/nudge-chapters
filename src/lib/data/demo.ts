@@ -123,7 +123,9 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
   const groceries = rule({ name: "Groceries", kind: "expense", amount: 7_000, day_of_month: 1, account_id: sbi.id, category: "Groceries", is_fixed: false, is_essential: true });
   const fuel = rule({ name: "Fuel", kind: "expense", amount: 3_000, day_of_month: 1, account_id: sbi.id, category: "Fuel", is_fixed: false, is_essential: true });
   const dining = rule({ name: "Eating out", kind: "expense", amount: 4_000, day_of_month: 1, card_id: millennia.id, category: "Food & dining", is_fixed: false });
-  const rules = [salary, freelance, bonus, rent, family, electricity, efTransfer, mobile, netflix, spotify, icloud, gym, insurance, groceries, fuel, dining];
+  const term = rule({ name: "HDFC Click 2 Protect premium", kind: "expense", amount: 1_150, day_of_month: 5, start_date: dom(1, 5), track_from: today, account_id: hdfc.id, category: "Insurance", is_essential: true, growth_pct: 0 });
+  const bikeIns = rule({ name: "Bike insurance premium", kind: "expense", amount: 2_380, frequency: "yearly", start_date: addDays(today, 45), track_from: today, account_id: sbi.id, category: "Insurance", is_essential: true, growth_pct: 0 });
+  const rules = [salary, freelance, bonus, rent, family, electricity, efTransfer, mobile, netflix, spotify, icloud, gym, insurance, term, bikeIns, groceries, fuel, dining];
 
   // Settle fixed rule occurrences from the tracking start until today.
   for (const r of rules) {
@@ -277,7 +279,6 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     li({ kind: "checklist", title: "Bike monthly check", goal_id: bikeGoal.id, repeat: "monthly", data: { items: entries("Engine oil", "Tyres", "Brakes", "Chain", "Fuel", "Documents") } }),
     li({ kind: "note", title: "Bike shortlist", body: "Hunter 350 Metro vs Rebel. On-road Bangalore ≈ ₹1.8L. Test ride at the Indiranagar showroom on a weekday.", pinned: true, goal_id: bikeGoal.id, tags: ["bike"] }),
     li({ kind: "note", title: "Goa stay ideas", body: "North Goa for 3 nights, South for 2. Budget ₹2,500/night.", goal_id: goa.id, tags: ["travel"] }),
-    li({ kind: "reminder", title: "Bike insurance expires", due_date: addDays(today, 45), due_time: "09:00", repeat: "yearly", tags: ["bike"] }),
     li({ kind: "reminder", title: "Review this month's spending", due_date: endOfMonth(today), due_time: "20:00", repeat: "monthly" }),
     li({
       kind: "wishlist", title: "Samsung 1TB portable SSD", priority: 2, tags: ["tech"],
@@ -292,7 +293,7 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     id: id(), frequency: "daily", days: [], schedule_history: [], start_date: hStart, sort_order: i, archived: false, ...p,
   });
   const habits: Habit[] = [
-    hb({ name: "Go to the gym", category: "Fitness", icon: "🏋️", frequency: "days", days: [1, 2, 3, 4, 5, 6], time: "06:30", reminder_time: "06:30" }, 0),
+    hb({ name: "Go to the gym", category: "Fitness", icon: "🏋️", frequency: "days", days: [1, 2, 3, 4, 5, 6], time: "06:30", end_time: "07:30", reminder_time: "06:30" }, 0),
     hb({ name: "Read a book", category: "Learning", icon: "📖", description: "20 pages before bed", time: "22:00" }, 1),
     hb({ name: "Learn something new", category: "Learning", icon: "🧠" }, 2),
     hb({ name: "Drink enough water", category: "Health", icon: "💧" }, 3),
@@ -358,6 +359,11 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     life_items,
     habits,
     habit_logs,
+    insurance_policies: [
+      { id: id(), name: "Star Health family floater", type: "health", insurer: "Star Health", policy_number: "P/141120/01/2026/004512", insured: "Me, parents", nominee: null, sum_assured: 10_00_000, premium: 14_500, frequency: "yearly", premium_due_date: insurance.start_date, start_date: "2023-03-10", end_date: null, account_id: sbi.id, card_id: null, notify: true, notify_time: "09:00", notify_days_before: 7, rule_id: insurance.id, reminder_id: null, status: "active", notes: null },
+      { id: id(), name: "HDFC Click 2 Protect", type: "term", insurer: "HDFC Life", policy_number: "23987411", insured: "Me", nominee: "Mother", sum_assured: 1_00_00_000, premium: 1_150, frequency: "monthly", premium_due_date: term.start_date, start_date: "2024-11-05", end_date: "2056-11-05", account_id: hdfc.id, card_id: null, notify: true, notify_time: "10:00", notify_days_before: 1, rule_id: term.id, reminder_id: null, status: "active", notes: null },
+      { id: id(), name: "Hunter 350 — comprehensive", type: "vehicle", insurer: "ICICI Lombard", policy_number: "3005/MO/1234", insured: "KA 01 AB 1234", nominee: null, sum_assured: 1_45_000, premium: 2_380, frequency: "yearly", premium_due_date: bikeIns.start_date, start_date: null, end_date: null, account_id: sbi.id, card_id: null, notify: true, notify_time: "09:00", notify_days_before: 3, rule_id: bikeIns.id, reminder_id: null, status: "active", notes: "Renew before the date to keep the no-claim bonus." },
+    ],
   };
 
   // Synthetic month-end net-worth history so the trend chart has something to show.

@@ -28,7 +28,7 @@ export function makeBackup(ds: Dataset): Backup {
 
 const FK_FIELDS = [
   "account_id", "to_account_id", "card_id", "statement_id", "loan_id", "chit_id", "investment_id", "lending_id",
-  "rule_id", "payment_account_id", "sip_account_id", "goal_id", "source_id", "habit_id",
+  "rule_id", "payment_account_id", "sip_account_id", "goal_id", "source_id", "habit_id", "reminder_id",
 ];
 const FK_ARRAYS = ["linked_account_ids", "linked_investment_ids"];
 
@@ -50,8 +50,9 @@ const COLUMNS: Record<TableName, string[]> = {
   transactions: ["id", "date", "type", "amount", "account_id", "to_account_id", "card_id", "statement_id", "loan_id", "chit_id", "investment_id", "lending_id", "rule_id", "occurrence_date", "is_partial", "category", "description", "notes", "units", "price", "principal_part", "interest_part", "reconciled", "import_hash", "tags"],
   net_worth_snapshots: ["id", "date", "cash", "investments", "other_assets", "liabilities", "net_worth", "breakdown"],
   life_items: ["id", "kind", "title", "body", "status", "due_date", "due_time", "repeat", "priority", "tags", "pinned", "goal_id", "data", "source", "completed_at"],
-  habits: ["id", "name", "description", "category", "icon", "color", "frequency", "days", "interval_days", "schedule_history", "target_value", "target_unit", "start_date", "end_date", "time", "reminder_time", "sort_order", "archived", "archived_on"],
+  habits: ["id", "name", "description", "category", "icon", "color", "frequency", "days", "interval_days", "schedule_history", "target_value", "target_unit", "start_date", "end_date", "time", "end_time", "reminder_time", "sort_order", "archived", "archived_on"],
   habit_logs: ["id", "habit_id", "date", "status", "actual_value", "notes", "completed_at"],
+  insurance_policies: ["id", "name", "type", "insurer", "policy_number", "insured", "nominee", "sum_assured", "premium", "frequency", "premium_due_date", "start_date", "end_date", "account_id", "card_id", "notify", "notify_time", "notify_days_before", "rule_id", "reminder_id", "status", "notes"],
 };
 
 /** Fields that must be present for a row to be saved. */
@@ -73,6 +74,7 @@ const REQUIRED: Partial<Record<TableName, string[]>> = {
   net_worth_snapshots: ["date"],
   habits: ["name", "start_date"],
   habit_logs: ["habit_id", "date", "status"],
+  insurance_policies: ["name"],
 };
 
 /** Other names some files use for the same field (older exports, spreadsheets, hand-edited files). */

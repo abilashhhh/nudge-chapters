@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  BarChart3, CalendarDays, Coffee, FileUp, Heart, Landmark, ListChecks, PieChart, PiggyBank, Settings, Sparkles, Target, TrendingUp, Users, Wallet, CalendarCheck } from "lucide-react";
+  BarChart3, CalendarDays, Coffee, FileUp, Heart, Landmark, ListChecks, PieChart, PiggyBank, Settings, Sparkles, Target, TrendingUp, Users, Wallet, CalendarCheck, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Money } from "@/components/money";
@@ -34,6 +34,7 @@ export function AllSections({ withSettings = false }: { withSettings?: boolean }
         { href: "/money", label: "Money overview", icon: PieChart, hint: "Net worth and health", section: "dashboard" },
         { href: "/assets", label: "Assets", icon: TrendingUp, hint: "Accounts and investments", section: "investments" },
         { href: "/liabilities", label: "Liabilities", icon: Landmark, hint: "Cards, loans, chits", section: "credit_cards" },
+        { href: "/insurance", label: "Insurance", icon: ShieldCheck, hint: "Policies and premiums" },
       ],
     },
     {

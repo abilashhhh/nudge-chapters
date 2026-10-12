@@ -1,12 +1,13 @@
 "use client";
 
-import { Bell, Briefcase, CalendarDays, CheckSquare, HelpCircle, LayoutGrid, PiggyBank, Settings, Sparkles, StickyNote, Heart } from "lucide-react";
+import { Bell, Briefcase, CalendarDays, CheckSquare, HelpCircle, LayoutGrid, PiggyBank, Settings, ShieldCheck, Sparkles, StickyNote, Heart } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { addDays } from "@/lib/dates";
 import { agenda } from "@/lib/engine/life";
 import { useAppVersion } from "@/lib/app-version";
 import { useFinance } from "@/lib/finance";
+import { annualPremium } from "@/lib/insurance";
 import { formatMoney } from "@/lib/money";
 import { useRouter } from "next/navigation";
 import { V2PageHeader } from "./ui";
@@ -23,6 +24,9 @@ export function MenuScreen() {
   const incomeCount = ds.recurring_rules.filter((r) => r.kind === "income" && r.active).length;
   const budgetLeft = Math.max(0, month.budgetLimit - month.budgetSpent);
   const activeGoals = goals.filter((g) => g.status !== "done").length;
+  const activePolicies = (ds.insurance_policies ?? []).filter((p) => p.status === "active");
+  const policyCount = activePolicies.length;
+  const yearlyPremium = activePolicies.reduce((t, p) => t + annualPremium(p), 0);
   const n = (k: string, c: number, none: string) => (c ? `${c} ${k}${c === 1 ? "" : "s"}` : none);
 
   const groups: { title: string; tiles: Tile[] }[] = [
@@ -31,6 +35,7 @@ export function MenuScreen() {
       tiles: [
         { href: "/menu/income", label: "My jobs & income", icon: Briefcase, hint: n("source", incomeCount, "Add your salary") },
         { href: "/menu/budgets", label: "Budgets & spending plans", icon: PiggyBank, hint: month.budgetLimit ? `${formatMoney(budgetLeft, ctx)} left this month` : "Set a monthly limit" },
+        { href: "/menu/insurance", label: "Insurance", icon: ShieldCheck, hint: policyCount ? `${policyCount} ${policyCount === 1 ? "policy" : "policies"} · ${formatMoney(yearlyPremium, ctx)} a year` : "Life, health, vehicle and more" },
         { href: "/menu/calendar", label: "Calendar", icon: CalendarDays, hint: `${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"} left this month` },
         { href: "/menu/future", label: "Future", icon: Sparkles, hint: activeGoals ? `${activeGoals} goal${activeGoals === 1 ? "" : "s"} · Can I afford it?` : "Your money on any date" },
       ],

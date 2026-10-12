@@ -526,6 +526,8 @@ export interface Habit extends Owned {
   end_date?: ISODate | null;
   /** When in the day you do it, "HH:MM" local time. The checklist is ordered by it. */
   time?: string | null;
+  /** Optional end of the slot ("HH:MM"), e.g. gym 10:00–11:00. */
+  end_time?: string | null;
   /** "HH:MM" local time to be reminded (normally the same as `time`). */
   reminder_time?: string | null;
   sort_order: number;
@@ -544,6 +546,45 @@ export interface HabitLog extends Owned {
   actual_value?: number | null;
   notes?: string | null;
   completed_at?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Insurance policies
+// ---------------------------------------------------------------------------
+
+/** Preset kinds; any other text is allowed too (your own kind). */
+export type InsuranceType = "life" | "term" | "health" | "vehicle" | "home" | "travel" | "accident" | "critical_illness" | "other" | (string & {});
+export type PremiumFrequency = "monthly" | "quarterly" | "half_yearly" | "yearly" | "once";
+
+export interface InsurancePolicy extends Owned {
+  name: string;
+  type: InsuranceType;
+  insurer?: string | null;
+  policy_number?: string | null;
+  /** Who's covered, in your words ("Me, Anu, parents"). */
+  insured?: string | null;
+  nominee?: string | null;
+  /** Cover / sum assured / IDV. */
+  sum_assured?: number | null;
+  premium: number;
+  frequency: PremiumFrequency;
+  /** The next premium date you entered; later ones follow from the frequency. */
+  premium_due_date?: ISODate | null;
+  start_date?: ISODate | null;
+  /** Policy end / maturity / renewal date. */
+  end_date?: ISODate | null;
+  account_id?: UUID | null;
+  card_id?: UUID | null;
+  notify: boolean;
+  /** "HH:MM" local time the reminder rings. */
+  notify_time: string;
+  notify_days_before: number;
+  /** The repeating bill that carries the premium. */
+  rule_id?: UUID | null;
+  /** The reminder that rings before / on the premium date. */
+  reminder_id?: UUID | null;
+  status: "active" | "lapsed" | "closed";
+  notes?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -570,6 +611,7 @@ export interface Dataset {
   life_items: LifeItem[];
   habits: Habit[];
   habit_logs: HabitLog[];
+  insurance_policies: InsurancePolicy[];
 }
 
 export type TableName = Exclude<keyof Dataset, "profile">;
@@ -593,6 +635,7 @@ export const TABLES: TableName[] = [
   "life_items",
   "habits",
   "habit_logs",
+  "insurance_policies",
 ];
 
 export type RowOf<T extends TableName> = Dataset[T][number];

@@ -2,8 +2,7 @@
 
 import {
   BarChart3, Bell, CalendarDays, Eye, EyeOff, Home, Landmark, LayoutGrid, LogOut, Moon, Plus, Search, Settings, Sparkles, Sun, Target,
-  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins, Menu as MenuIcon, Receipt, CalendarCheck,
-} from "lucide-react";
+  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins, Menu as MenuIcon, Receipt, CalendarCheck, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
@@ -18,6 +17,7 @@ import { AppLock } from "./app-lock";
 import { Editors } from "../editors";
 import { ChitInstallmentsSheet } from "../chits";
 import { AlarmWatcher } from "../alarm";
+import { InsuranceReminderSync } from "../insurance/actions";
 import { RhythmReminders } from "../rhythm/reminders";
 import { LifeEditorSheet } from "../life";
 import { EventSheet } from "../event-sheet";
@@ -43,6 +43,7 @@ export const NAV: { href: string; label: string; icon: typeof Home; section?: st
   { href: "/owed", label: "Owed to you", icon: HandCoins, section: "reimbursements" },
   { href: "/assets", label: "Assets", icon: TrendingUp, section: "investments" },
   { href: "/liabilities", label: "Liabilities", icon: Landmark, section: "credit_cards" },
+  { href: "/insurance", label: "Insurance", icon: ShieldCheck },
   { href: "/projection", label: "Future", icon: Sparkles, section: "projections" },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, section: "bills" },
   { href: "/reports", label: "Reports", icon: BarChart3, section: "reports" },
@@ -53,7 +54,7 @@ export const NAV: { href: string; label: string; icon: typeof Home; section?: st
 const NAV_GROUPS: { title: string | null; hrefs: string[] }[] = [
   { title: null, hrefs: ["/", "/plan", "/calendar"] },
   { title: "Money", hrefs: ["/money", "/cash-flow", "/budgets", "/owed"] },
-  { title: "Own & owe", hrefs: ["/assets", "/liabilities"] },
+  { title: "Own & owe", hrefs: ["/assets", "/liabilities", "/insurance"] },
   { title: "Plan ahead", hrefs: ["/goals", "/projection", "/reports"] },
   { title: null, hrefs: ["/settings"] },
 ];
@@ -319,6 +320,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ChitInstallmentsSheet />
       <LifeEditorSheet />
       <AlarmWatcher />
+      <InsuranceReminderSync />
       <RhythmReminders />
       <Editors />
       <CommandPalette />

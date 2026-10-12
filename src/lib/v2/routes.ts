@@ -49,6 +49,7 @@ export const V2_DEFAULT_TAB: Record<string, string> = { "/my-money": "accounts",
 export const V2_MENU_PAGES: Record<string, string> = {
   "/menu/income": "My jobs & income",
   "/menu/budgets": "Budgets & spending plans",
+  "/menu/insurance": "Insurance",
   "/menu/calendar": "Calendar",
   "/menu/future": "Future",
   "/menu/settings": "Settings",
@@ -98,6 +99,8 @@ export function toV2Href(pathname: string, search: string | URLSearchParams = ""
       return "/";
     case "/budgets":
       return "/menu/budgets";
+    case "/insurance":
+      return "/menu/insurance";
     case "/plan":
       if (tab === "notes" || tab === "reminders" || tab === "wishlist") return `/daily?tab=${tab}`;
       return "/daily?tab=todo";

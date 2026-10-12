@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Habit, HabitLog } from "../types";
 import {
-  archivePatch, byTimeThenSort, compareMonths, formatTime, dayStreaks, daySummary, editPatch, habitStreaks, indexLogs, isScheduled, monthCells, monthInsights,
+  archivePatch, byTimeThenSort, compareMonths, formatSlot, formatTime, dayStreaks, daySummary, editPatch, habitStreaks, indexLogs, isScheduled, monthCells, monthInsights,
   monthReport, occurrencesOn, scheduleLabel, trackedMonths, unarchivePatch,
 } from "./index";
 
@@ -161,6 +161,9 @@ describe("time of day", () => {
     expect(formatTime("06:30")).toMatch(/^6:30\s?AM$/);
     expect(formatTime("22:05")).toMatch(/^10:05\s?PM$/);
     expect(formatTime(null)).toBe("");
+    expect(formatSlot({ time: "10:00", end_time: "11:00" })).toMatch(/^10:00\s?–\s?11:00\s?AM$/);
+    expect(formatSlot({ time: "11:30", end_time: "12:30" })).toMatch(/AM – 12:30\s?PM$/);
+    expect(formatSlot({ time: "06:30" })).toMatch(/^6:30\s?AM$/);
   });
 });
 

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addMonths, formatDate, formatMonthLong, monthKey } from "@/lib/dates";
 import {
-  HABIT_CATEGORIES, WEEKDAY_SHORT, daySummary, formatTime, habitStreaks, monthCells, monthReport, scheduleLabel,
+  HABIT_CATEGORIES, WEEKDAY_SHORT, daySummary, formatSlot, formatTime, habitStreaks, monthCells, monthReport, scheduleLabel,
   type DayLook, type DaySummary, type OccStatus, type Occurrence,
 } from "@/lib/rhythm";
 import type { Habit, HabitFrequency } from "@/lib/types";
@@ -313,7 +313,7 @@ function ChecklistRow({ o, future, onOpenHabit }: { o: Occurrence; future: boole
             {h.name}
           </span>
           <span className="block truncate text-[12px] text-ink-3">
-            {h.time && <span className="font-semibold text-ink-2">{formatTime(h.time)} · </span>}
+            {h.time && <span className="font-semibold text-ink-2">{formatSlot(h)} · </span>}
             {h.category}
             {h.target_value ? ` · ${h.target_value} ${h.target_unit ?? ""}` : ""}
             {doneAt ? ` · done at ${doneAt}` : ""}
@@ -395,6 +395,7 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState("");
   const [time, setTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [remind, setRemind] = useState(false);
   const [target, setTarget] = useState("");
   const [unit, setUnit] = useState("");
@@ -414,6 +415,7 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
     setStart(habit?.start_date ?? today);
     setEnd(habit?.end_date ?? "");
     setTime(habit?.time ?? habit?.reminder_time ?? "");
+    setEndTime(habit?.end_time ?? "");
     setRemind(!!habit?.reminder_time);
     setTarget(habit?.target_value != null ? String(habit.target_value) : "");
     setUnit(habit?.target_unit ?? "");
@@ -428,6 +430,7 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
     if (!name.trim()) return setError("Give the activity a name.");
     if (frequency === "days" && !days.length) return setError("Pick at least one day.");
     if (end && end < start) return setError("The end date is before the start date.");
+    if (time && endTime && endTime <= time) return setError("The end time is before the start time.");
     const row: Partial<Habit> = {
       name: name.trim(),
       icon: icon.trim() || null,
@@ -439,6 +442,7 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
       start_date: start || today,
       end_date: end || null,
       time: time || null,
+      end_time: time && endTime ? endTime : null,
       reminder_time: remind && time ? time : null,
       target_value: target ? Number(target) : null,
       target_unit: target ? unit.trim() || null : null,
@@ -573,11 +577,20 @@ export function HabitEditorSheet({ open, onClose, habit }: { open: boolean; onCl
               days, counting from {frequency === habit?.frequency && habit && habit.start_date < today ? "when it started" : "the start date"}
             </div>
           )}
-          <Field label="Time" optional htmlFor="rh-time" help="When in the day you do it. Your checklist lists activities by time; ones without a time come after.">
-            <div className="flex items-center gap-2">
-              <Input id="rh-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-36" />
+          <Field label="Time" optional htmlFor="rh-time" help="When in the day you do it, e.g. 10:00 to 11:00. The end is optional. Your checklist lists activities by time; ones without a time come after.">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input id="rh-time" aria-label="From" type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-32" />
+              <span className="text-[13px] text-ink-3">to</span>
+              <Input id="rh-end-time" aria-label="To" type="time" value={endTime} disabled={!time} onChange={(e) => setEndTime(e.target.value)} className="w-32" />
               {time ? (
-                <Button size="sm" variant="ghost" onClick={() => setTime("")}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setTime("");
+                    setEndTime("");
+                  }}
+                >
                   Any time
                 </Button>
               ) : (
@@ -655,7 +668,7 @@ export function HabitDetailSheet({ habit, onClose, month, onEdit }: { habit: Hab
           <span className="min-w-0 truncate">{habit.name}</span>
         </span>
       }
-      description={`${habit.category} · ${scheduleLabel(habit, weekStart)}${habit.time ? ` at ${formatTime(habit.time)}` : ""} · since ${formatDate(habit.start_date)}${habit.archived ? " · archived" : ""}`}
+      description={`${habit.category} · ${scheduleLabel(habit, weekStart)}${habit.time ? ` · ${formatSlot(habit)}` : ""} · since ${formatDate(habit.start_date)}${habit.archived ? " · archived" : ""}`}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
           {habit.archived ? (

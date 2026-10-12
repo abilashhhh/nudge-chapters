@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addDays, addMonths, formatDate, formatMonthLong, monthKey } from "@/lib/dates";
 import {
-  DAY_GOAL_DEFAULT, SUGGESTED_HABITS, compareMonths, dayStreaks, formatTime, daySummary, habitStreaks, monthInsights, monthReport, scheduleLabel, trackedMonths,
+  DAY_GOAL_DEFAULT, SUGGESTED_HABITS, compareMonths, dayStreaks, formatSlot, daySummary, habitStreaks, monthInsights, monthReport, scheduleLabel, trackedMonths,
   type Insight, type MonthReport,
 } from "@/lib/rhythm";
 import { useStore } from "@/lib/store";
@@ -396,7 +396,7 @@ function ActivitiesView({ openHabit, openEditor }: ViewCtx) {
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openHabit(h)}>
                     <span className="block truncate text-[14.5px] font-medium text-ink">{h.name}</span>
                     <span className="block truncate text-[12.5px] text-ink-3">
-                      {h.time && <span className="font-semibold text-ink-2">{formatTime(h.time)} · </span>}
+                      {h.time && <span className="font-semibold text-ink-2">{formatSlot(h)} · </span>}
                       {h.category} · {scheduleLabel(h, weekStart)}
                       {h.reminder_time ? " · 🔔" : ""}
                       {h.archived && h.archived_on ? ` · archived ${formatDate(h.archived_on)}` : h.start_date > today ? ` · starts ${formatDate(h.start_date)}` : ""}

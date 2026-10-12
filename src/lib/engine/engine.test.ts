@@ -23,7 +23,7 @@ function emptyDs(): Dataset {
     },
     accounts: [], categories: [], credit_cards: [], card_statements: [], loans: [], chits: [], goals: [],
     investments: [], investment_valuations: [], lendings: [], reserves: [], recurring_rules: [], event_overrides: [],
-    transactions: [], net_worth_snapshots: [], life_items: [], habits: [], habit_logs: [],
+    transactions: [], net_worth_snapshots: [], life_items: [], habits: [], habit_logs: [], insurance_policies: [],
   };
 }
 

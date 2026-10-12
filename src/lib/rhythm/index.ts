@@ -126,6 +126,18 @@ export const byTimeThenSort = (a: Habit, b: Habit) => {
   return bySort(a, b);
 };
 
+/** "10:00–11:00" → "10:00 – 11:00 AM"-style text for an activity's slot; just the start when there's no end. */
+export function formatSlot(h: { time?: string | null; end_time?: string | null }, locale = "en-IN"): string {
+  if (!h.time) return "";
+  const a = formatTime(h.time, locale);
+  if (!h.end_time) return a;
+  const b = formatTime(h.end_time, locale);
+  // "10:00 AM – 11:00 AM" → "10:00 – 11:00 AM" when both are in the same half of the day.
+  const am = / (AM|PM)$/;
+  const ma = a.match(am), mb = b.match(am);
+  return ma && mb && ma[1] === mb[1] ? `${a.replace(am, "")} – ${b}` : `${a} – ${b}`;
+}
+
 /** "06:30" → "6:30 AM" (or "06:30" in 24-hour locales). */
 export function formatTime(hhmm: string | null | undefined, locale = "en-IN"): string {
   if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return "";
