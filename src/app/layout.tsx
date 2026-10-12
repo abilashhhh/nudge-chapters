@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { ServiceWorker } from "@/components/shell/service-worker";
+import { UpdateWatcher } from "@/components/shell/update-watcher";
 import { APP_NAME, SITE_URL, TAGLINE, withBase } from "@/lib/config";
 import "./globals.css";
 
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Toaster position="top-center" richColors closeButton toastOptions={{ style: { fontFamily: "var(--font-sans)" } }} />
         <ServiceWorker />
+        <UpdateWatcher />
       </body>
     </html>
   );

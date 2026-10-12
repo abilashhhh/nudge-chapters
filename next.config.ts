@@ -17,8 +17,12 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+/** This build's id (the commit on CI). The app compares it with /version.json to notice a newer deploy. */
+const BUILD_ID = (process.env.GITHUB_SHA || "").slice(0, 12) || "dev";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   poweredByHeader: false,
   devIndicators: false,
   // "/cash-flow/" → cash-flow/index.html, which static hosts serve without rewrites.

@@ -57,6 +57,22 @@ jobs:
       # GitHub Pages runs Jekyll by default, which hides folders starting with "_" (like _next).
       - run: touch out/.nojekyll
 
+      # Which build this is. Open tabs check it and reload themselves when a newer one is live.
+      - run: echo "{\"id\":\"${GITHUB_SHA::12}\"}" > out/version.json
+
+      # Keep the last few builds' JS/CSS online, so a tab opened before this deploy (or a page the browser
+      # cached for its 10 minutes) can still load the files it asks for instead of crashing.
+      - name: Fetch the live site
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: previous-site
+      - name: Carry over recent builds' assets
+        if: github.event_name != 'pull_request'
+        run: node scripts/keep-recent-assets.mjs previous-site out "${GITHUB_SHA::12}"
+
       - name: Publish to gh-pages
         if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4

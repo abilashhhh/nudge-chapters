@@ -8,7 +8,7 @@
 //
 // Works at the domain root or under a sub-path (e.g. GitHub Pages /nudge-chapters/): every URL is
 // resolved against this worker's scope.
-const VERSION = "nudge-v4";
+const VERSION = "nudge-v5";
 const BASE = new URL(self.registration.scope).pathname; // always ends with "/"
 const SHELL = [BASE, `${BASE}login/`, `${BASE}manifest.webmanifest`, `${BASE}icon.svg`, `${BASE}icon-192.png`];
 
@@ -51,9 +51,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Pages and page data are always checked with the server (cheap: unchanged files answer "304 not modified").
+  // GitHub Pages lets browsers keep them for 10 minutes, which after a deploy would mean an old page asking
+  // for files that are no longer online.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: "no-cache", redirect: "manual", credentials: "same-origin" })
         .then((res) => {
           if (cacheable(res)) {
             const copy = res.clone();
@@ -66,6 +69,16 @@ self.addEventListener("fetch", (event) => {
         ),
     );
   }
+});
+
+// Page data the app fetches while you move between screens (Next.js ".txt" payloads): same rule — check first.
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET" || req.mode === "navigate") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin || !url.pathname.startsWith(BASE) || url.pathname.startsWith(`${BASE}_next/static/`)) return;
+  if (!(url.pathname.endsWith(".txt") || url.searchParams.has("_rsc") || req.headers.get("RSC") === "1")) return;
+  event.respondWith(fetch(new Request(req, { cache: "no-cache" })).catch(() => fetch(req)));
 });
 
 // Tapping an alarm notification brings the app forward so you can turn the alarm off.
