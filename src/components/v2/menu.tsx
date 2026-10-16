@@ -1,23 +1,26 @@
 "use client";
 
-import { Bell, Briefcase, CalendarDays, HelpCircle, PiggyBank, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
+import { Bell, Briefcase, CalendarDays, HelpCircle, Landmark, MessageSquareText, PiggyBank, Repeat, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useFinance } from "@/lib/finance";
 import { annualPremium } from "@/lib/insurance";
 import { formatMoney } from "@/lib/money";
 import { V2PageHeader } from "./ui";
+import { monthlyNeed } from "./sinking";
 
 type Tile = { href?: string; onClick?: () => void; label: string; icon: typeof Bell; hint: ReactNode };
 
 export function MenuScreen() {
-  const { ds, month, goals, ctx } = useFinance();
+  const { ds, month, goals, ctx, today } = useFinance();
   const incomeCount = ds.recurring_rules.filter((r) => r.kind === "income" && r.active).length;
   const budgetLeft = Math.max(0, month.budgetLimit - month.budgetSpent);
   const activeGoals = goals.filter((g) => g.status !== "done").length;
   const activePolicies = (ds.insurance_policies ?? []).filter((p) => p.status === "active");
   const policyCount = activePolicies.length;
   const yearlyPremium = activePolicies.reduce((t, p) => t + annualPremium(p), 0);
+  const sinking = ds.profile.preferences?.sinkingFunds ?? [];
+  const sinkingMonth = sinking.reduce((s, f) => s + monthlyNeed(f, today), 0);
   const n = (k: string, c: number, none: string) => (c ? `${c} ${k}${c === 1 ? "" : "s"}` : none);
 
   const groups: { title: string; tiles: Tile[] }[] = [
@@ -28,6 +31,8 @@ export function MenuScreen() {
         { href: "/menu/budgets", label: "Budgets & spending plans", icon: PiggyBank, hint: month.budgetLimit ? `${formatMoney(budgetLeft, ctx)} left this month` : "Set a monthly limit" },
         { href: "/menu/insurance", label: "Insurance", icon: ShieldCheck, hint: policyCount ? `${policyCount} ${policyCount === 1 ? "policy" : "policies"} · ${formatMoney(yearlyPremium, ctx)} a year` : "Life, health, vehicle and more" },
         { href: "/menu/calendar", label: "Calendar", icon: CalendarDays, hint: `${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"} left this month` },
+        { href: "/menu/sinking", label: "Sinking funds", icon: Repeat, hint: sinking.length ? `${formatMoney(sinkingMonth, ctx)} to put aside this month` : "Save monthly for yearly costs" },
+        { href: "/menu/tax", label: "Tax estimate", icon: Landmark, hint: "Old vs new regime · 80C, 80D" },
         { href: "/menu/goals", label: "Goals", icon: Target, hint: activeGoals ? `${activeGoals} goal${activeGoals === 1 ? "" : "s"}` : "What you're saving for" },
         { href: "/menu/future", label: "Future", icon: Sparkles, hint: "Your money on any date · Can I afford it?" },
       ],
@@ -35,6 +40,7 @@ export function MenuScreen() {
     {
       title: "App",
       tiles: [
+        { href: "/menu/sms", label: "Bank SMS", icon: MessageSquareText, hint: "Add payments from bank messages (iPhone)" },
         { href: "/menu/settings", label: "Settings", icon: Settings, hint: "Profile, import & export, security, look" },
         { href: "/menu/help", label: "Help & support", icon: HelpCircle, hint: "Questions and answers" },
       ],

@@ -20,6 +20,7 @@ import { useExplain } from "../explain";
 import { Money } from "../money";
 import { useMonth, useSelectedMonth } from "../ui/month-picker";
 import { MoneyInOut } from "./money-in-out";
+import { SmsBanner } from "./sms";
 import { AMOUNT_CLS, ChipGroup, StatTile, StatusText, greeting, useRangeEvents } from "./ui";
 import type { CellStatus } from "@/lib/v2/grids";
 
@@ -171,6 +172,8 @@ export function V2Home() {
           </button>
         </div>
       </div>
+
+      <SmsBanner />
 
       {/* 2 · Four tiles */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">

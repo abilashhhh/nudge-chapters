@@ -18,6 +18,8 @@ export interface Account extends Owned {
   name: string;
   type: AccountType;
   institution?: string | null;
+  /** Last digits of the account number, to match bank SMS ("A/c XX1234"). */
+  last4?: string | null;
   currency: string;
   opening_balance: number;
   opening_date: ISODate;
@@ -369,8 +371,29 @@ export interface DashboardWidgetPref {
   hidden?: boolean;
 }
 
+export interface SinkingFund {
+  id: string;
+  name: string;
+  /** What it costs each time. */
+  amount: number;
+  /** When it's next due. */
+  due: ISODate;
+  /** Months between one time and the next (12 = yearly); 0 = just once. */
+  everyMonths: number;
+  /** Put aside so far for the next time. */
+  saved: number;
+  /** Where it comes from, when made from your data (an insurance policy, a card's annual fee…). */
+  source?: string | null;
+}
+
 export interface Preferences {
   theme?: "system" | "light" | "dark";
+  /** Bank SMS import: add confident matches without asking, and match balances to the SMS. */
+  sms?: { autoAdd?: boolean; matchBalance?: boolean };
+  /** Tax estimate: amounts you typed in (anything left out comes from your data). */
+  tax?: Partial<Record<"salary" | "other" | "employerNps" | "c80" | "d80" | "d80Parents" | "nps" | "homeLoanInterest" | "hra" | "otherDeductions" | "professionalTax", number>>;
+  /** Sinking funds: money put aside every month for a cost that comes once or a few times a year. */
+  sinkingFunds?: SinkingFund[];
   maskValues?: boolean;
   dashboard?: { desktop?: DashboardWidgetPref[]; mobile?: DashboardWidgetPref[] };
   dismissedAlerts?: Record<string, ISODate>;
