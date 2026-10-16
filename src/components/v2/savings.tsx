@@ -19,19 +19,38 @@ import { Sheet } from "../ui/sheet";
 import { StatTile, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 
-const TABS = ["funds", "chits", "other"] as const;
+const TABS = ["funds", "stocks", "epf", "chits", "commodities", "other"] as const;
 type Tab = (typeof TABS)[number];
 
 const isFund = (p: InvestmentPosition) => p.investment.type === "mutual_fund";
+/** Each saving goes to exactly one section. */
+function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits"> {
+  const t = p.investment.type;
+  if (t === "mutual_fund") return "funds";
+  if (t === "stock" || t === "etf") return "stocks";
+  if (t === "epf" || t === "ppf" || t === "nps") return "epf";
+  if (t === "gold" || p.investment.asset_class === "gold") return "commodities";
+  return "other";
+}
+const SECTION: Record<"stocks" | "epf" | "commodities" | "other", { label: string; addType: string; empty: string; table: string }> = {
+  stocks: { label: "Stocks", addType: "stock", empty: "Shares and ETFs you hold", table: "Stocks" },
+  epf: { label: "EPF & PF", addType: "epf", empty: "EPF, PPF and NPS", table: "EPF and PF" },
+  commodities: { label: "Commodities", addType: "gold", empty: "Gold, silver and other commodities", table: "Commodities" },
+  other: { label: "Other savings", addType: "fd", empty: "FDs, RDs, bonds, property or a vehicle", table: "Other savings" },
+};
 
 export function SavingsScreen() {
-  const [tab, setTab] = useTab(TABS, "funds");
+  const [tab0, setTab] = useTab(TABS, "funds");
   const { positions, ctx } = useFinance();
   const invs = [...positions.investments.values()].filter((p) => !p.investment.archived);
   const chits = [...positions.chits.values()];
   const value = invs.reduce((s, p) => s + p.valueBase, 0) + chits.reduce((s, c) => s + c.asset, 0);
   const putIn = invs.reduce((s, p) => s + toBase(p.invested, p.investment.currency, ctx), 0) + chits.reduce((s, c) => s + c.asset, 0);
   const profit = value - putIn;
+  const count = (t: Tab) => invs.filter((p) => sectionOf(p) === t).length;
+  // Mutual funds and Chits are always there; the others show up once you have something in them.
+  const visible = TABS.filter((t) => t === "funds" || t === "chits" || count(t) > 0);
+  const tab: Tab = visible.includes(tab0) ? tab0 : "funds";
   return (
     <>
       <V2PageHeader title="Savings" />
@@ -44,15 +63,11 @@ export function SavingsScreen() {
         className="mb-4"
         value={tab}
         onChange={setTab}
-        tabs={[
-          { id: "funds", label: "Mutual funds", count: invs.filter(isFund).length },
-          { id: "chits", label: "Chits", count: chits.length },
-          { id: "other", label: "Other savings", count: invs.filter((p) => !isFund(p)).length },
-        ]}
+        tabs={visible.map((id) => ({ id, label: id === "funds" ? "Mutual funds" : id === "chits" ? "Chits" : SECTION[id].label, count: id === "chits" ? chits.length : count(id) }))}
       />
       {tab === "funds" && <Funds list={invs.filter(isFund)} />}
       {tab === "chits" && <Chits />}
-      {tab === "other" && <Other list={invs.filter((p) => !isFund(p))} />}
+      {(tab === "stocks" || tab === "epf" || tab === "commodities" || tab === "other") && <Other list={invs.filter((p) => sectionOf(p) === tab)} section={tab} />}
       <p className="mt-4 hidden text-[12.5px] text-ink-3 lg:block">Values are what you type in — this app doesn&apos;t fetch live prices.</p>
     </>
   );
@@ -242,6 +257,7 @@ function Chits() {
         rowKey={(cp) => cp.chit.id}
         columns={[
           { key: "n", header: "Chit", cell: (cp) => <Cell2 main={cp.chit.name} sub={`${cp.summary.paidCount} of ${cp.chit.installments} paid`} /> },
+          { key: "d", header: "Dividend", align: "right", wide: true, cell: (cp) => <span className="text-ok">{m(cp.summary.auctionSavings)}</span> },
           { key: "p", header: "Paid so far", align: "right", cell: (cp) => <span className="font-semibold">{m(cp.summary.actualPaid + (cp.summary.unrecordedEstimate || 0))}</span> },
         ]}
         details={(cp) => {
@@ -253,7 +269,7 @@ function Chits() {
               items={[
                 ["Chit value", m(c.chit_value)],
                 ["Monthly", m(c.monthly_contribution)],
-                ["Discount got", m(s.auctionSavings)],
+                ["Dividend earned", <span key="d" className="text-ok">{m(s.auctionSavings)}</span>],
                 ["Amount received?", received ? `✓ ${c.payout_date ? formatDate(c.payout_date, "short") : "Yes"}` : "Not yet"],
                 ["Expected amount", received ? m(s.payoutReceived ?? c.payout_amount ?? 0) : <span className="projected">{m(s.payoutExpected)}</span>],
                 ["Ends", formatDate(cp.endDate)],
@@ -288,7 +304,8 @@ function Chits() {
 
 // ---------------------------------------------------------------------------
 
-function Other({ list }: { list: InvestmentPosition[] }) {
+function Other({ list, section }: { list: InvestmentPosition[]; section: "stocks" | "epf" | "commodities" | "other" }) {
+  const meta = SECTION[section];
   const { ctx } = useFinance();
   const ui = useUI.getState();
   const m = (n: number) => formatMoney(n, ctx, { decimals: true });
@@ -297,10 +314,10 @@ function Other({ list }: { list: InvestmentPosition[] }) {
     return (
       <EmptyState
         icon={Wallet}
-        title="Nothing else saved yet"
-        body="FDs, RDs, gold, stocks, EPF, PPF, NPS, property or a vehicle — add each with what you put in and its value today."
+        title={`No ${meta.label.toLowerCase()} yet`}
+        body={`${meta.empty} — add each with what you put in and its value today.`}
         action={
-          <Button variant="primary" onClick={() => ui.openEditor("investment", undefined, { type: "fd" })}>
+          <Button variant="primary" onClick={() => ui.openEditor("investment", undefined, { type: meta.addType })}>
             Add savings
           </Button>
         }
@@ -310,12 +327,12 @@ function Other({ list }: { list: InvestmentPosition[] }) {
   return (
     <div>
       <div className="mb-3">
-        <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => ui.openEditor("investment", undefined, { type: "fd" })}>
-          Add savings
+        <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => ui.openEditor("investment", undefined, { type: meta.addType })}>
+          {section === "other" ? "Add savings" : `Add to ${meta.label}`}
         </Button>
       </div>
       <DataTable
-        label="Other savings"
+        label={meta.table}
         rows={sorted}
         rowKey={(p) => p.investment.id}
         columns={[

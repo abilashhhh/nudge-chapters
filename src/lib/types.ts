@@ -406,6 +406,8 @@ export interface Preferences {
   /** Month tables: shown as one month at a time ("list") or a table, and how many months ahead. Kept until you change them. */
   gridView?: "table" | "list";
   gridAhead?: 3 | 6 | 12;
+  /** Each list's look ("list" or "tiles"), by list name. Kept until you change it. */
+  listViews?: Record<string, "list" | "tiles">;
   /** Calendar: which kind of payments it shows. */
   calendarFilter?: string;
   /** Daily Rhythm: first day of the week in calendars (1 = Monday, 0 = Sunday). Missing = Monday. */

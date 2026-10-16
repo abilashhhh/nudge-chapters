@@ -1,8 +1,47 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, LayoutGrid, List } from "lucide-react";
 import { Fragment, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { useStore } from "@/lib/store";
+
+type Look = "list" | "tiles";
+
+/** List or tiles for one list, saved with your settings (per list), so it stays as you left it. */
+function useLook(key: string): [Look, (l: Look) => void] {
+  const saved = useStore((s) => s.ds?.profile.preferences?.listViews?.[key]);
+  const set = (l: Look) => {
+    const prefs = useStore.getState().ds?.profile.preferences;
+    void useStore.getState().updatePrefs({ listViews: { ...(prefs?.listViews ?? {}), [key]: l } }).catch(() => undefined);
+  };
+  return [saved === "tiles" ? "tiles" : "list", set];
+}
+
+function LookToggle({ value, onChange, label }: { value: Look; onChange: (l: Look) => void; label: string }) {
+  return (
+    <div className="inline-flex rounded-xl bg-surface-3 p-0.5" role="radiogroup" aria-label={`Show ${label} as`}>
+      {(
+        [
+          ["list", "List", List],
+          ["tiles", "Tiles", LayoutGrid],
+        ] as const
+      ).map(([id, text, Icon]) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={value === id}
+          aria-label={text}
+          title={text}
+          onClick={() => onChange(id)}
+          className={cn("inline-flex h-7 w-8 items-center justify-center rounded-lg", value === id ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink")}
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export interface Column<T> {
   key: string;
@@ -27,6 +66,7 @@ export function DataTable<T>({
   label,
   rowClassName,
   initiallyOpen,
+  noLookToggle,
 }: {
   rows: T[];
   rowKey: (row: T) => string;
@@ -38,11 +78,66 @@ export function DataTable<T>({
   label: string;
   rowClassName?: (row: T) => string | undefined;
   initiallyOpen?: string | null;
+  /** Lists where tiles make no sense (e.g. one-line totals). */
+  noLookToggle?: boolean;
 }) {
   const [open, setOpen] = useState<string | null>(initiallyOpen ?? null);
+  const [look, setLook] = useLook(label);
   const span = columns.length + (details ? 1 : 0);
   const hide = (c: Column<T>) => (c.wide ? "hidden sm:table-cell" : "");
+  const toggle = !noLookToggle && rows.length > 0 && (
+    <div className="mb-2 flex justify-end">
+      <LookToggle value={look} onChange={setLook} label={label} />
+    </div>
+  );
+
+  if (look === "tiles" && !noLookToggle) {
+    const [title, ...rest] = columns;
+    const main = [...rest].reverse().find((c) => c.align === "right");
+    const others = rest.filter((c) => c !== main);
+    return (
+      <div>
+        {toggle}
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label={label}>
+          {rows.map((r) => {
+            const k = rowKey(r);
+            const isOpen = open === k;
+            return (
+              <li key={k} className={cn("rounded-2xl border border-line bg-surface", isOpen && "sm:col-span-2 lg:col-span-3", rowClassName?.(r))}>
+                <button type="button" className="block w-full p-4 text-left" aria-expanded={details ? isOpen : undefined} onClick={details ? () => setOpen(isOpen ? null : k) : undefined}>
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 text-[14px]">{title.cell(r)}</span>
+                    {details && <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />}
+                  </span>
+                  {main && <span className="num mt-2 block text-[20px] font-semibold leading-tight">{main.cell(r)}</span>}
+                  {others.length > 0 && (
+                    <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[12.5px]">
+                      {others.map((c) => (
+                        <span key={c.key} className="min-w-0">
+                          <span className="block text-ink-3">{c.header}</span>
+                          <span className="num block truncate text-ink">{c.cell(r)}</span>
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </button>
+                {isOpen && details && <div className="px-3 pb-3">{details(r)}</div>}
+              </li>
+            );
+          })}
+        </ul>
+        {footer && (
+          <div className="num mt-2 flex flex-wrap justify-between gap-2 rounded-2xl border border-line bg-surface px-4 py-3 text-[14px] font-bold">
+            {footer.map((f, i) => (f != null ? <span key={i}>{f}</span> : null))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
+    <div>
+    {toggle}
     <div className="overflow-hidden rounded-2xl border border-line bg-surface">
       <table className="w-full table-auto text-[13.5px]" aria-label={label}>
         <thead className="text-left text-[12px] text-ink-3">
@@ -110,6 +205,7 @@ export function DataTable<T>({
           </tfoot>
         )}
       </table>
+    </div>
     </div>
   );
 }

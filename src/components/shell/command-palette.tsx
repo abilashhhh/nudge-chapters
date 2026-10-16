@@ -248,7 +248,9 @@ export function CommandPalette() {
     return v2 ? out.filter((i) => i.group !== "Ask").map((i) => (i.group === "Chapters" ? { ...i, group: "Goals" } : i)) : out;
   }, [open, q, f, router, updatePrefs, v2]);
 
-  useEffect(() => setIdx(0), [q]);
+  useEffect(() => {
+    setIdx(0);
+  }, [q]);
   useEffect(() => {
     list.current?.querySelector(`[data-idx="${idx}"]`)?.scrollIntoView({ block: "nearest" });
   }, [idx]);

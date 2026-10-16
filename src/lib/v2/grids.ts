@@ -152,15 +152,36 @@ function emisPaidBefore(ds: Dataset, positions: Positions, loanId: string): FinE
     .map((inst, i) => paidBefore({ key: `before:loan:${loanId}:${inst.date}`, source: "loan", sourceId: loanId, loanId, cardId: loan.card_id, kind: "emi", title: `EMI · ${loan.name}`, installment: i + 1 }, inst.date, inst.emi));
 }
 
-/** Most urgent first: groups that have something due in the first month shown, then any amount, then empty ones. */
-function billsFirst(groups: GridGroup[], months: string[]): GridGroup[] {
-  const rank = (g: GridGroup) => (g.total.cells[months[0]]?.amount ? 0 : months.some((m) => g.total.cells[m]?.amount) ? 1 : 2);
-  // Within the same rank, the bill that's due first comes first.
-  const due = (g: GridGroup) => String(g.meta?.firstDue ?? "9999");
+/**
+ * Order for one month: bills still to pay first (late ones on top), then ones already paid, then groups with
+ * nothing that month. Within each, the earliest due date first, then the biggest amount.
+ */
+export function orderForMonth(groups: GridGroup[], month: string): GridGroup[] {
+  const rank = (g: GridGroup) => {
+    const c = g.total.cells[month];
+    if (!c || Math.abs(c.amount) < 0.005) return 3;
+    if (c.status === "late") return 0;
+    if (c.status === "paid" || c.status === "skipped") return 2;
+    return 1;
+  };
+  const due = (g: GridGroup) => String(g.meta?.[`due:${month}`] ?? "9999");
+  const amt = (g: GridGroup) => Math.abs(g.total.cells[month]?.amount ?? 0);
   return groups
     .map((g, i) => ({ g, i }))
-    .sort((a, b) => rank(a.g) - rank(b.g) || (due(a.g) < due(b.g) ? -1 : due(a.g) > due(b.g) ? 1 : 0) || a.i - b.i)
+    .sort((a, b) => rank(a.g) - rank(b.g) || (due(a.g) < due(b.g) ? -1 : due(a.g) > due(b.g) ? 1 : 0) || amt(b.g) - amt(a.g) || a.i - b.i)
     .map((x) => x.g);
+}
+
+/** Table order: by the first month shown; groups with nothing then but something later come before empty ones. */
+function billsFirst(groups: GridGroup[], months: string[]): GridGroup[] {
+  const later = (g: GridGroup) => (months.slice(1).some((m) => Math.abs(g.total.cells[m]?.amount ?? 0) > 0.005) ? 0 : 1);
+  const first = orderForMonth(groups, months[0]);
+  const idx = new Map(first.map((g, i) => [g.id, i]));
+  return [...first].sort((a, b) => {
+    const ra = Math.abs(a.total.cells[months[0]]?.amount ?? 0) > 0.005 ? 0 : 1 + later(a);
+    const rb = Math.abs(b.total.cells[months[0]]?.amount ?? 0) > 0.005 ? 0 : 1 + later(b);
+    return ra - rb || idx.get(a.id)! - idx.get(b.id)!;
+  });
 }
 
 export function rowTotal(cells: Record<string, GridCell>, months: string[]): number {
@@ -253,6 +274,7 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
         utilization: cp?.utilization ?? 0,
         statementDay: card.statement_day,
         firstDue: months.map((m) => bills.filter((e) => monthKey(e.date) === m).map((e) => e.date).sort()[0]).find(Boolean) ?? null,
+        ...Object.fromEntries(months.map((m) => [`due:${m}`, bills.filter((e) => monthKey(e.date) === m).map((e) => e.date).sort()[0] ?? null])),
         dueDay: card.due_day,
       },
     });

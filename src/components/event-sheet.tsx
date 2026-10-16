@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { addDays, formatDate, relativeDays } from "@/lib/dates";
 import { buildEvents, isPending, settlementDraft, SETTLED, type FinEvent } from "@/lib/engine/events";
+import { chitDividendRecord } from "@/lib/engine/chits";
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
@@ -138,6 +139,13 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
         draft.occurrence_date = e.occurrence;
       }
       await add("transactions", draft);
+      // A chit installment paid in full for less than planned: the difference is this month's dividend, not a
+      // shortfall. Save it on the installment so it's counted as profit and future estimates learn from it.
+      if (e.kind === "chit" && e.chitId && e.installment && !partial) {
+        const c = ds.chits.find((x) => x.id === e.chitId);
+        const records = c ? chitDividendRecord(c, e.installment, amount) : null;
+        if (c && records) await patch("chits", c.id, { installment_records: records });
+      }
       if (e.kind === "chit_payout" && e.chitId) await patch("chits", e.chitId, { payout_status: "received", payout_amount: amount, payout_date: date });
     });
 
@@ -356,8 +364,18 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
             <Field label="Date" htmlFor="ev-date">
               <DateInput id="ev-date" value={date} onChange={(x) => setDate(x.target.value)} />
             </Field>
+            {!isCountBased && amount != null && amount < e.remaining - 0.5 && e.kind === "chit" && !partial && (
+              <p className="rounded-xl bg-ok-soft px-3 py-2 text-[12.5px] text-ok">
+                {formatMoney(e.remaining - amount, ctx)} less than planned — counted as this month&apos;s dividend (your profit from the auction), not as money still due.
+              </p>
+            )}
             {!isCountBased && amount != null && amount < e.remaining - 0.5 && (
-              <Switch checked={partial} onChange={setPartial} label="Part payment — more to come" help="Keeps the rest as still due. Leave off if this amount settles it in full." />
+              <Switch
+                checked={partial}
+                onChange={setPartial}
+                label="Part payment — more to come"
+                help={e.kind === "chit" ? "Turn on only if you'll pay the rest of this installment later." : "Keeps the rest as still due. Leave off if this amount settles it in full."}
+              />
             )}
             {e.kind === "card_bill" && <p className="text-[12.5px] text-ink-3">Paying the bill reduces what you owe on the card. It isn&apos;t counted as a new expense.</p>}
             {e.kind === "chit" && e.estimated && (

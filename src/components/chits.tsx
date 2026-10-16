@@ -113,7 +113,7 @@ export function ChitCard({ cp }: { cp: ChitPosition }) {
             </>
           }
         />
-        {s.auctionSavings > 0 && <KV k="Saved through auctions" v={<span className="text-ok">{money(s.auctionSavings)}</span>} />}
+        {s.auctionSavings > 0 && <KV k="Dividend earned (paid less than the plan)" v={<span className="text-ok">{money(s.auctionSavings)}</span>} />}
         <KV
           k="Payout"
           v={s.payoutReceived != null ? `${money(s.payoutReceived)} received` : received ? "Received — amount not entered" : <span className="font-normal text-ink-3">Not taken yet</span>}
