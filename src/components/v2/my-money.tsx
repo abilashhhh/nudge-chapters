@@ -21,14 +21,15 @@ import { Sheet } from "../ui/sheet";
 import { MonthGrid, useGridMonths } from "./month-grid";
 import { StatTile, StatusText, useRangeEvents, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
+import { AllMoney } from "./all-money";
 
-const TABS = ["accounts", "owed"] as const;
+const TABS = ["all", "accounts", "owed"] as const;
 type Tab = (typeof TABS)[number];
 
 const TYPE_LABEL: Record<Account["type"], string> = { savings: "Savings", current: "Current", cash: "Cash", wallet: "Wallet (UPI)", other: "Other" };
 
 export function MyMoneyScreen() {
-  const [tab, setTab] = useTab(TABS, "accounts");
+  const [tab, setTab] = useTab(TABS, "all");
   const { positions } = useFinance();
   return (
     <>
@@ -42,11 +43,12 @@ export function MyMoneyScreen() {
         value={tab}
         onChange={setTab}
         tabs={[
+          { id: "all", label: "All" },
           { id: "accounts", label: "Bank accounts" },
           { id: "owed", label: "People owe me" },
         ]}
       />
-      {tab === "accounts" ? <Accounts /> : <Owed />}
+      {tab === "all" ? <AllMoney /> : tab === "accounts" ? <Accounts /> : <Owed />}
     </>
   );
 }

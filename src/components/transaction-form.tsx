@@ -6,7 +6,8 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/dates";
+import { addDays, addMonths, formatDate, formatMonthLong, startOfMonth } from "@/lib/dates";
+import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
 import { TX_TYPE_LABEL } from "@/lib/engine/defaults";
 import { chitDividendRecord, chitInstallmentInMonth, chitInstallmentOn } from "@/lib/engine/chits";
 import { useFinance } from "@/lib/finance";
@@ -84,6 +85,26 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
     return base;
   };
   const [d, setD] = useState<Draft>(init);
+  // Card spends: which bill you'll pay it with (the one it naturally lands on, or a later/earlier one).
+  const [billDue, setBillDue] = useState<string | null>(null);
+  const spendCard = !editing && (d.payWith ?? "").startsWith("card:") ? ds.credit_cards.find((c) => `card:${c.id}` === d.payWith) : undefined;
+  const billOptions = useMemo(() => {
+    if (!spendCard || !d.date) return [];
+    const natural = dueDateFor(spendCard, statementDateOnOrAfter(spendCard, d.date));
+    const opts: { due: string; label: string; natural: boolean }[] = [];
+    let s = statementDateOnOrAfter(spendCard, addDays(natural, -40));
+    for (let i = 0; i < 6 && opts.length < 3; i++) {
+      const due = dueDateFor(spendCard, s);
+      if (due >= startOfMonth(today) && due >= addMonths(natural, -1) && !opts.some((o) => o.due.slice(0, 7) === due.slice(0, 7))) {
+        opts.push({ due, natural: due === natural, label: formatMonthLong(due.slice(0, 7)).split(" ")[0] });
+      }
+      s = statementDateOnOrAfter(spendCard, addDays(s, 1));
+    }
+    if (!opts.some((o) => o.natural)) opts.unshift({ due: natural, natural: true, label: formatMonthLong(natural.slice(0, 7)).split(" ")[0] });
+    return opts.sort((a, b) => (a.due < b.due ? -1 : 1));
+  }, [spendCard, d.date, today]);
+  const naturalDue = billOptions.find((o) => o.natural)?.due ?? null;
+  const pickedDue = billDue && billOptions.some((o) => o.due === billDue) ? billDue : naturalDue;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -192,6 +213,13 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
         await patch("transactions", id, rest);
       } else {
         await add("transactions", body);
+        // Paying this spend with a different month's bill: move the bill it lands on to that month.
+        if (body.type === "card_spend" && body.card_id && naturalDue && pickedDue && pickedDue !== naturalDue) {
+          const ov = ds.event_overrides.find((o) => o.source_type === "card" && o.source_id === body.card_id && o.occurrence_date === naturalDue);
+          const ovBody = { source_type: "card" as const, source_id: body.card_id, occurrence_date: naturalDue, action: "reschedule" as const, new_date: pickedDue, new_amount: null };
+          if (ov) await patch("event_overrides", ov.id, ovBody);
+          else await add("event_overrides", ovBody);
+        }
         if (type === "chit_payout" && body.chit_id) await patch("chits", body.chit_id, { payout_status: "received", payout_amount: body.amount, payout_date: body.date });
       }
       // Paid less than the plan for this installment (new or edited): the difference is that month's dividend (profit).
@@ -241,6 +269,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
   switch (type) {
     case "expense":
       specific = (
+        <>
         <Field label={v2 ? "Paid from" : "Paid with"} error={errors.payWith} htmlFor="tx-paywith">
           <Select id="tx-paywith" value={d.payWith ?? ""} onChange={(e) => set({ payWith: e.target.value })}>
             <option value="">Choose…</option>
@@ -263,6 +292,28 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
             )}
           </Select>
         </Field>
+          {billOptions.length > 1 && (
+            <Field label="Pay it with the bill due in" htmlFor="tx-bill">
+              <div id="tx-bill" className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Bill">
+                {billOptions.map((o) => (
+                  <button
+                    key={o.due}
+                    type="button"
+                    role="radio"
+                    aria-checked={pickedDue === o.due}
+                    onClick={() => setBillDue(o.due)}
+                    className={cn("rounded-full px-3 py-1.5 text-[13px] font-medium", pickedDue === o.due ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+                  >
+                    {o.label} <span className="opacity-70">· {formatDate(o.due, "short")}</span>
+                  </button>
+                ))}
+              </div>
+              {pickedDue && naturalDue && pickedDue !== naturalDue && (
+                <p className="mt-1 text-[12px] text-ink-3">The bill due {formatDate(naturalDue, "short")} moves to {formatDate(pickedDue, "short")}.</p>
+              )}
+            </Field>
+          )}
+        </>
       );
       break;
     case "income":

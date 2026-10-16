@@ -31,6 +31,8 @@ import { CommandPalette } from "./command-palette";
 
 import { V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
 import { V2QuickAddSheet } from "../v2/quick-add";
+import { useGridRange } from "../v2/month-grid";
+import { useMonth } from "../ui/month-picker";
 
 /** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
 const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/savings": TrendingUp, "/daily": CalendarCheck, "/menu": MenuIcon };
@@ -38,6 +40,12 @@ const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, 
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
+  // Every page opens on the current month (month tables open on the first month that still has something to pay).
+  useEffect(() => {
+    useMonth.getState().set(null);
+    useGridRange.getState().setOffset(0);
+    useGridRange.getState().setListMonth(null);
+  }, [pathname]);
   const router = useRouter();
   const { alerts, ds } = useFinance();
   const repo = useStore((s) => s.repo);

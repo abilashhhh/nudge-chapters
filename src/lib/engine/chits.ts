@@ -97,7 +97,13 @@ export interface ChitSummary {
 const recordsOf = (chit: Chit) => (Array.isArray(chit.installment_records) ? chit.installment_records : []);
 
 export function chitRecord(chit: Chit, no: number): ChitInstallmentRecord | undefined {
-  return recordsOf(chit).find((r) => r.no === no);
+  const rec = recordsOf(chit).find((r) => r.no === no);
+  // A month's amount lowered below the usual installment (e.g. 25,000 → 18,750) with no auction result entered:
+  // the difference is that month's dividend, and the lowered amount is what you pay.
+  if (rec && rec.base_amount != null && rec.base_amount < chit.monthly_contribution - 0.5 && rec.dividend == null && rec.payable == null) {
+    return { ...rec, base_amount: null, dividend: round2(chit.monthly_contribution - rec.base_amount) };
+  }
+  return rec;
 }
 
 /** Replace (or add) one installment record, keeping the list sorted. Empty fields are dropped. */

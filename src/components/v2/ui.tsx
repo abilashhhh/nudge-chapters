@@ -132,6 +132,16 @@ export function StatusIcon({ status, incoming, className }: { status: CellStatus
   return <Icon className={cn("h-3.5 w-3.5 shrink-0", STATUS_CLS[status], className)} aria-label={word} role="img" />;
 }
 
+/** Colour for an amount by its status: paid green, due this week amber, late red; upcoming stays plain. */
+export const AMOUNT_CLS: Record<CellStatus, string> = {
+  paid: "text-ok",
+  due: "text-warn",
+  late: "text-danger",
+  upcoming: "",
+  skipped: "text-ink-3 line-through",
+  partial: "text-warn",
+};
+
 /** Status as icon + word (for lists and legends). */
 export function StatusText({ status, incoming, className }: { status: CellStatus; incoming?: boolean; className?: string }) {
   const word = incoming && status === "paid" ? "Received" : incoming && status === "late" ? "Not received" : STATUS_WORD[status];

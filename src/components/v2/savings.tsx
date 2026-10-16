@@ -18,13 +18,14 @@ import { EmptyState, Tabs } from "../ui/misc";
 import { Sheet } from "../ui/sheet";
 import { StatTile, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
+import { AllSavings } from "./all-money";
 
-const TABS = ["funds", "stocks", "epf", "chits", "commodities", "other"] as const;
+const TABS = ["all", "funds", "stocks", "epf", "chits", "commodities", "other"] as const;
 type Tab = (typeof TABS)[number];
 
 const isFund = (p: InvestmentPosition) => p.investment.type === "mutual_fund";
 /** Each saving goes to exactly one section. */
-function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits"> {
+function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits" | "all"> {
   const t = p.investment.type;
   if (t === "mutual_fund") return "funds";
   if (t === "stock" || t === "etf") return "stocks";
@@ -40,7 +41,7 @@ const SECTION: Record<"stocks" | "epf" | "commodities" | "other", { label: strin
 };
 
 export function SavingsScreen() {
-  const [tab0, setTab] = useTab(TABS, "funds");
+  const [tab0, setTab] = useTab(TABS, "all");
   const { positions, ctx } = useFinance();
   const invs = [...positions.investments.values()].filter((p) => !p.investment.archived);
   const chits = [...positions.chits.values()];
@@ -49,8 +50,8 @@ export function SavingsScreen() {
   const profit = value - putIn;
   const count = (t: Tab) => invs.filter((p) => sectionOf(p) === t).length;
   // Mutual funds and Chits are always there; the others show up once you have something in them.
-  const visible = TABS.filter((t) => t === "funds" || t === "chits" || count(t) > 0);
-  const tab: Tab = visible.includes(tab0) ? tab0 : "funds";
+  const visible = TABS.filter((t) => t === "all" || t === "funds" || t === "chits" || count(t) > 0);
+  const tab: Tab = visible.includes(tab0) ? tab0 : "all";
   return (
     <>
       <V2PageHeader title="Savings" />
@@ -63,8 +64,9 @@ export function SavingsScreen() {
         className="mb-4"
         value={tab}
         onChange={setTab}
-        tabs={visible.map((id) => ({ id, label: id === "funds" ? "Mutual funds" : id === "chits" ? "Chits" : SECTION[id].label, count: id === "chits" ? chits.length : count(id) }))}
+        tabs={visible.map((id) => ({ id, label: id === "all" ? "All" : id === "funds" ? "Mutual funds" : id === "chits" ? "Chits" : SECTION[id].label, count: id === "all" ? undefined : id === "chits" ? chits.length : count(id) }))}
       />
+      {tab === "all" && <AllSavings />}
       {tab === "funds" && <Funds list={invs.filter(isFund)} />}
       {tab === "chits" && <Chits />}
       {(tab === "stocks" || tab === "epf" || tab === "commodities" || tab === "other") && <Other list={invs.filter((p) => sectionOf(p) === tab)} section={tab} />}

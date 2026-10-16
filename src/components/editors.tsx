@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addDays, formatDate } from "@/lib/dates";
+import { addDays, formatDate, startOfMonth } from "@/lib/dates";
+import { cn } from "@/lib/cn";
 import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
 import { amortize, emiFor } from "@/lib/engine/loans";
 import { useFinance } from "@/lib/finance";
@@ -139,6 +140,20 @@ function CardEditor({ id, preset, onClose }: P) {
   );
 }
 
+/** "This month / Next month / In 2 months": the card's bills falling due in each, from its bill and due days. */
+function billPicks(card: CreditCard, today: string): { label: string; statement: string; due: string }[] {
+  const cur = startOfMonth(today);
+  const out: { label: string; statement: string; due: string }[] = [];
+  let s = statementDateOnOrAfter(card, addDays(today, -75));
+  for (let i = 0; i < 8 && out.length < 3; i++) {
+    const due = dueDateFor(card, s);
+    const k = (Number(due.slice(0, 4)) - Number(cur.slice(0, 4))) * 12 + Number(due.slice(5, 7)) - Number(cur.slice(5, 7));
+    if (k >= 0 && k <= 2 && !out.some((o) => o.due.slice(0, 7) === due.slice(0, 7))) out.push({ label: k === 0 ? "This month" : k === 1 ? "Next month" : "In 2 months", statement: s, due });
+    s = statementDateOnOrAfter(card, addDays(s, 1));
+  }
+  return out;
+}
+
 function StatementEditor({ id, preset, onClose }: P) {
   const { ds, positions } = useFinance();
   const existing = ds.card_statements.find((s) => s.id === id);
@@ -162,6 +177,33 @@ function StatementEditor({ id, preset, onClose }: P) {
       description="The bill your card issuer generated. Payments you record are matched to it."
       validate={(v): Record<string, string> => (v.due_date && v.statement_date && v.due_date < v.statement_date ? { due_date: "Due date must be on or after the statement date" } : {})}
       deleteLabel="Delete statement"
+      top={(v, set) => {
+        if (!card) return null;
+        const cur = v as Partial<CardStatement>;
+        const picks = billPicks(card, positions.asOf);
+        return (
+          <div className="mb-4">
+            <p className="mb-1.5 text-[13px] font-medium text-ink-2">Bill due</p>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Bill due">
+              {picks.map((p) => {
+                const on = cur.due_date === p.due;
+                return (
+                  <button
+                    key={p.due}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => set({ ...v, statement_date: p.statement, due_date: p.due })}
+                    className={cn("rounded-full px-3 py-1.5 text-[13px] font-medium", on ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+                  >
+                    {p.label} <span className="opacity-70">· {formatDate(p.due, "short")}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }}
     />
   );
 }

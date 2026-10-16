@@ -84,6 +84,31 @@ function gridFor(ds: Dataset) {
   return cardGrid(ds, positions, events, months, TODAY);
 }
 
+describe("credit card spends", () => {
+  it("lists two spends as two rows, and a spend already paid off shows as paid", () => {
+    const ds = cardSheet();
+    const bob = ds.credit_cards.find((c) => c.name === "BOB OneCard")!;
+    ds.transactions.push(
+      { ...cardSpend(bob.id, "2026-10-09", 215), description: "Swiggy" },
+      { ...cardSpend(bob.id, "2026-10-10", 400), description: "Zomato" },
+    );
+    let g = gridFor(ds).groups.find((x) => x.label === "BOB OneCard")!;
+    const spends = g.rows.filter((r) => r.id.startsWith("spend:"));
+    expect(spends.map((r) => r.label)).toEqual(["Swiggy", "Zomato"]);
+    const m = Object.keys(spends[0].cells)[0];
+    expect(g.total.cells[m].amount).toBe(615);
+    expect(spends[0].cells[m].status).not.toBe("paid");
+
+    // Paid the whole thing ahead of the bill: both spends still show, as paid.
+    ds.transactions.push({ id: "pay", date: "2026-10-11", type: "card_payment", amount: 615, card_id: bob.id, is_partial: false, reconciled: false, tags: [] } as Transaction);
+    g = gridFor(ds).groups.find((x) => x.label === "BOB OneCard")!;
+    const after = g.rows.filter((r) => r.id.startsWith("spend:"));
+    expect(after).toHaveLength(2);
+    expect(after.every((r) => Object.values(r.cells)[0].status === "paid")).toBe(true);
+    expect(Object.values(g.total.cells)[0].status).toBe("paid");
+  });
+});
+
 describe("Version 2 month tables", () => {
   it("credit cards: EMIs and spends grouped under each card, totals match the sheet, nothing counted twice", () => {
     const g = gridFor(cardSheet());
@@ -102,7 +127,8 @@ describe("Version 2 month tables", () => {
     const flip = grp("Axis Flipkart");
     expect(flip.total.cells["2026-10"].amount).toBe(3_128.16);
     expect(flip.rows.find((r) => r.label === "Bill")!.cells["2026-10"].amount).toBe(1_699.16);
-    expect(flip.rows.find((r) => r.label === "Spends (bill)")!.cells["2026-10"].amount).toBe(1_429);
+    // Each spend is its own row, on the bill that carries it.
+    expect(flip.rows.filter((r) => r.id.startsWith("spend:")).map((r) => r.cells["2026-10"].amount)).toEqual([1_429]);
     expect(flip.total.cells["2026-11"]).toBeUndefined();
 
     const icici = grp("Amazon ICICI");
@@ -111,7 +137,7 @@ describe("Version 2 month tables", () => {
 
     const neo = grp("Axis Neo");
     expect(neo.total.cells["2026-10"].amount).toBe(3_465.8);
-    expect(neo.rows.find((r) => r.label === "Spends (bill)")!.cells["2026-10"].amount).toBe(2_213.86);
+    expect(neo.rows.find((r) => r.id.startsWith("spend:"))!.cells["2026-10"].amount).toBe(2_213.86);
     expect(neo.total.cells["2026-11"].amount).toBe(1_251.94);
 
     expect(grp("HDFC Swiggy").total.cells["2026-10"].amount).toBe(998.97);
