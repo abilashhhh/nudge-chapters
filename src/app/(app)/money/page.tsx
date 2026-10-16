@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
-import { Dashboard } from "@/components/dashboard";
-import { useUI } from "@/lib/ui";
+import { Suspense } from "react";
+import { OldAddress } from "@/components/shell/old-address";
 
-export default function MoneyPage() {
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get("add") === "expense") useUI.getState().openTx({ type: "expense" });
-  }, []);
-  return <Dashboard />;
+export default function Page() {
+  return (
+    <Suspense>
+      <OldAddress />
+    </Suspense>
+  );
 }

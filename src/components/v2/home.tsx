@@ -17,6 +17,7 @@ import { hrefForV2 } from "@/lib/v2/routes";
 import { useExplain } from "../explain";
 import { Money } from "../money";
 import { useMonth, useSelectedMonth } from "../ui/month-picker";
+import { MoneyInOut } from "./money-in-out";
 import { ChipGroup, StatTile, StatusText, greeting } from "./ui";
 import type { CellStatus } from "@/lib/v2/grids";
 
@@ -238,6 +239,8 @@ export function V2Home() {
           </Link>
         </div>
       </section>
+
+      <MoneyInOut month={monthKey(sel)} />
 
       {/* 6 · One tip */}
       {tip && (

@@ -140,7 +140,6 @@ export function FutureScreen() {
         />
       </section>
 
-      <Goals />
       <Afford />
     </>
   );
@@ -154,14 +153,33 @@ const GOAL_STATUS: Record<string, { word: string; cls: string }> = {
   not_funded: { word: "○ Not started", cls: "text-ink-3" },
 };
 
-function Goals() {
+/** Menu → Goals: what you're saving for, how far along each is, and what to put aside each month. */
+export function GoalsScreen() {
+  const ui = useUI.getState();
+  return (
+    <>
+      <V2PageHeader
+        title="Goals"
+        actions={
+          <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => ui.openEditor("goal")}>
+            <span className="sm:hidden">New</span>
+            <span className="hidden sm:inline">New goal</span>
+          </Button>
+        }
+      />
+      <Goals embedded />
+    </>
+  );
+}
+
+function Goals({ embedded }: { embedded?: boolean }) {
   const { goals, ctx } = useFinance();
   const ui = useUI.getState();
   const list = goals.filter((g) => g.goal.kind !== "retirement" || g.goal.target_amount > 0).sort((a, b) => a.goal.priority - b.goal.priority);
   const m = (n: number) => formatMoney(n, ctx);
   return (
     <section id="goals" aria-labelledby="goals-h" className="mb-8 scroll-mt-20">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div className={cn("mb-2 flex flex-wrap items-center justify-between gap-2", embedded && "hidden")}>
         <h2 id="goals-h" className="text-[16px] font-semibold">
           Goals
         </h2>

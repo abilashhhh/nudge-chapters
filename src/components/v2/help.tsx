@@ -7,7 +7,6 @@ import { BmcButton } from "../support";
 import { Button } from "../ui/button";
 import { Panel } from "../ui/misc";
 import { V2PageHeader } from "./ui";
-import { AppVersionPanel } from "./version-switch";
 
 const FAQ: [string, string][] = [
   ["What is “Free to spend this month”?", "Money in your bank, minus everything you still have to pay this month (bills, EMIs, card bills, chits, SIPs) and what's left in your budgets. Tap the number on Home to see each line."],
@@ -16,7 +15,6 @@ const FAQ: [string, string][] = [
   ["How do I mark something as paid?", "Tap the amount in any month table (or a row in Upcoming payments on Home). Choose Mark paid, Change amount (this month only), Skip, or Move date."],
   ["Someone pays me back for an EMI on my card — how do I track it?", "Edit the EMI and set who it's for. It then shows in My Money → People owe me with the months they should pay you."],
   ["Does the app read my bank account?", "No. Nothing is fetched from your bank. You add balances and payments yourself, and use Fix balance when the app and your bank app differ."],
-  ["Where did Reports, the What-if tools and the other screens go?", "They're in Version 1. Switch in Settings → Look & version (or below). Your data is the same in both versions."],
   ["Can I get my data out?", "Yes. Every month table has Download Excel, and Settings → Import & export gives you a full backup, an Excel file of everything, or a CSV of your entries."],
 ];
 
@@ -71,7 +69,6 @@ export function HelpScreen() {
           )}
         </div>
       </div>
-      <AppVersionPanel className="mt-4" />
     </>
   );
 }

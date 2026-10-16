@@ -12,7 +12,6 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney, parseAmount } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
-import { NAV } from "./app-shell";
 import { useAppVersion } from "@/lib/app-version";
 import { V2_DAILY, V2_MENU_PAGES, V2_NAV, hrefForV2 } from "@/lib/v2/routes";
 
@@ -198,10 +197,7 @@ export function CommandPalette() {
           ...Object.entries(V2_MENU_PAGES).map(([href, label]) => ({ id: `p-${href}`, group: "Go to", label, hint: "Menu", run: go(href) })),
           ...V2_DAILY.map((d) => ({ id: `p-daily-${d.tab}`, group: "Go to", label: d.label, hint: "Daily", run: go(`/daily?tab=${d.tab}`) })),
         ]
-      : [
-          ...NAV.map((n) => ({ id: `p-${n.href}`, group: "Go to", label: n.label, run: go(n.href) })),
-          { id: "p-support", group: "Go to", label: "Buy me a coffee", run: go("/support") },
-        ];
+      : [];
     if (v2) {
       for (const a of actions) {
         a.label = V2_ACTION_LABEL[a.id] ?? a.label;
@@ -244,7 +240,7 @@ export function CommandPalette() {
         });
       }
     }
-    // Version 2 search finds screens and items; the "Ask" answers stay in Version 1.
+    // Search finds screens and items.
     return v2 ? out.filter((i) => i.group !== "Ask").map((i) => (i.group === "Chapters" ? { ...i, group: "Goals" } : i)) : out;
   }, [open, q, f, router, updatePrefs, v2]);
 

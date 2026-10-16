@@ -1,7 +1,12 @@
 "use client";
 
-import { SettingsScreen } from "@/components/settings-screen";
+import { Suspense } from "react";
+import { OldAddress } from "@/components/shell/old-address";
 
-export default function SettingsPage() {
-  return <SettingsScreen />;
+export default function Page() {
+  return (
+    <Suspense>
+      <OldAddress />
+    </Suspense>
+  );
 }
