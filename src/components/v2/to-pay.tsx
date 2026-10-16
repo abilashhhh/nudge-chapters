@@ -10,7 +10,7 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney, formatPct } from "@/lib/money";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
-import { cardGrid, chitSipGrid, loanGrid, type GridGroup } from "@/lib/v2/grids";
+import { cardGrid, chitSipGrid, loanGrid, sumCells, type GridGroup } from "@/lib/v2/grids";
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { EmptyState, Tabs } from "../ui/misc";
@@ -19,11 +19,11 @@ import { MonthGrid, useGridMonths } from "./month-grid";
 import { StatTile, useRangeEvents, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 
-const TABS = ["cards", "chits", "loans"] as const;
+const TABS = ["all", "cards", "chits", "loans"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ToPayScreen() {
-  const [tab, setTab] = useTab(TABS, "cards");
+  const [tab, setTab] = useTab(TABS, "all");
   const { month, ds } = useFinance();
   return (
     <>
@@ -38,11 +38,13 @@ export function ToPayScreen() {
         value={tab}
         onChange={setTab}
         tabs={[
+          { id: "all", label: "All" },
           { id: "cards", label: "Credit cards", count: ds.credit_cards.filter((c) => !c.archived).length },
           { id: "chits", label: "Chits & SIPs" },
           { id: "loans", label: "Loans & borrowed" },
         ]}
       />
+      {tab === "all" && <AllToPay />}
       {tab === "cards" && <Cards />}
       {tab === "chits" && <ChitsSips />}
       {tab === "loans" && <Loans />}
@@ -74,6 +76,40 @@ function Cards() {
       bottomAdd={{ label: "Add a card", run: () => ui.openEditor("card") }}
       empty={<EmptyState icon={CreditCard} title="No credit cards yet" body="Add each card with its bill date and due date. Its EMIs and spends then show here month by month." />}
       footnote="Card total = EMIs + spends on that bill. EMIs on a card are paid through the card bill, so they are never added to the total twice."
+    />
+  );
+}
+
+/** Everything to pay — cards, chits, SIPs, loans and money borrowed — month by month in one table. */
+function AllToPay() {
+  const { ds, positions, today } = useFinance();
+  const months = useGridMonths();
+  const events = useRangeEvents(months);
+  const data = useMemo(() => {
+    const parts = [cardGrid(ds, positions, events, months, today), chitSipGrid(ds, positions, events, months, today), loanGrid(ds, positions, events, months, today)];
+    const groups = parts.flatMap((p) => p.groups);
+    return { months, groups, grand: sumCells(groups.map((g) => g.total.cells), months) };
+  }, [ds, positions, events, months, today]);
+  const ui = useUI.getState();
+  return (
+    <MonthGrid
+      data={data}
+      nameHeader="What"
+      forHeader="For"
+      grandLabel="All to pay"
+      exportName="all-to-pay"
+      onRow={(row) => {
+        const r = row.ref;
+        if (!r) return;
+        if (r.kind === "loan") ui.openEditor("loan", r.id);
+        else if (r.kind === "card" || r.kind === "card-spends") ui.openEditor("card", r.id);
+        else if (r.kind === "chit") ui.openChitSheet(r.id);
+        else if (r.kind === "sip") ui.openEditor("investment", r.id);
+        else if (r.kind === "lending") ui.openEditor("lending", r.id);
+      }}
+      groupDetails={(g) => (g.id.startsWith("card:") ? <CardDetails g={g} /> : null)}
+      empty={<EmptyState icon={CreditCard} title="Nothing to pay" body="Add a credit card, chit, SIP or loan and what you pay each month shows here." />}
+      footnote="Every card spend, EMI, chit, SIP and loan payment, month by month. Paid in green, due this week in amber, late in red."
     />
   );
 }

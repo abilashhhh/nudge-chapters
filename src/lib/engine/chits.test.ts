@@ -31,6 +31,16 @@ describe("chit dividends", () => {
     // Or an earlier auction result said otherwise: what was paid wins.
     expect(chitDividendRecord({ ...chit, installment_records: [{ no: 4, dividend: 4_000 }] }, 4, 18_750)).toEqual([{ no: 4, payable: 18_750, dividend: 6_250 }]);
   });
+  it("lowering a month's amount (25,000 → 18,750) counts the 6,250 as dividend once paid", () => {
+    const c = { ...chit, installment_records: [{ no: 2, base_amount: 18_750 }] };
+    const before = chitSummary(c, [], "2026-10-20");
+    expect(before.rows[1].payable).toBe(18_750);
+    expect(before.auctionSavings).toBe(0);
+    const after = chitSummary(c, [{ id: "t", date: "2026-11-01", type: "chit_installment", amount: 18_750, chit_id: "c", occurrence_date: "2026-11-01" }] as never, "2026-11-02");
+    expect(after.rows[1].dividend).toBe(6_250);
+    expect(after.auctionSavings).toBe(6_250);
+    expect(chitDividendRecord(c, 2, 18_750)).toBeNull();
+  });
   it("finds the installment for a date", () => {
     expect(chitInstallmentOn(chit, "2026-12-01")).toBe(3);
     expect(chitInstallmentOn(chit, "2026-12-02")).toBeNull();

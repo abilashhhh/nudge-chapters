@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronLeft, ChevronRight, Download, List, Plus, Table2 } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, List, Plus, Table2 } from "lucide-react";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { create } from "zustand";
@@ -14,7 +14,8 @@ import { useUI } from "@/lib/ui";
 import { monthRange, orderForMonth, rowTotal, type GridCell, type GridGroup, type GridRow, type MonthGridData } from "@/lib/v2/grids";
 import { Money } from "../money";
 import { Button } from "../ui/button";
-import { ChipGroup, StatusIcon, StatusText, STATUS_WORD } from "./ui";
+import { Sheet } from "../ui/sheet";
+import { AMOUNT_CLS, ChipGroup, StatusIcon, StatusText, STATUS_WORD } from "./ui";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /** "2026-10" → "Oct-26" */
@@ -71,23 +72,34 @@ export function useGridMonths(): string[] {
   return monthRange(addMonths(startOfMonth(today), offset), ahead + 1);
 }
 
-function openCell(cell: GridCell | undefined) {
-  if (!cell?.eventKeys.length) return;
+/** Open what's behind a cell. Returns false when there's nothing to open (paid before you started tracking). */
+function openCell(cell: GridCell | undefined): boolean {
+  if (!cell?.eventKeys.length) return false;
   const key = cell.eventKeys.find((k) => !k.startsWith("before:"));
-  if (!key) {
-    toast("Paid before you started tracking — it's already in your balances.");
-    return;
-  }
+  if (!key) return false;
   if (key.startsWith("tx:")) {
     const id = key.slice(3);
     const t = useStore.getState().ds?.transactions.find((x) => x.id === id);
     if (t) useUI.getState().openTx(null, t);
-    return;
+    return true;
   }
   useUI.getState().openEvent(key);
+  return true;
 }
 
-function Cell({ cell, current, bold }: { cell?: GridCell; current: boolean; bold?: boolean }) {
+/** True when everything in the month is paid (and there was something to pay). */
+export function monthPaid(data: MonthGridData, m: string): boolean {
+  const cs = data.groups.map((g) => g.total.cells[m]).filter((c): c is GridCell => !!c && Math.abs(c.amount) > 0.005);
+  return cs.length > 0 && cs.every((c) => c.status === "paid" || c.status === "skipped");
+}
+function monthOpen(data: MonthGridData, m: string): boolean {
+  return data.groups.some((g) => {
+    const c = g.total.cells[m];
+    return !!c && Math.abs(c.amount) > 0.005 && c.status !== "paid" && c.status !== "skipped";
+  });
+}
+
+function Cell({ cell, current, bold, onOpen }: { cell?: GridCell; current: boolean; bold?: boolean; onOpen?: () => void }) {
   if (!cell || (Math.abs(cell.amount) < 0.005 && cell.status !== "skipped")) {
     return <td className={cn("px-2 py-2 text-right text-ink-3 sm:px-3", current && "bg-surface-2")}>–</td>;
   }
@@ -96,12 +108,12 @@ function Cell({ cell, current, bold }: { cell?: GridCell; current: boolean; bold
     <td className={cn("p-0 text-right", current && "bg-surface-2")}>
       <button
         type="button"
-        onClick={() => openCell(cell)}
+        onClick={() => (onOpen ? onOpen() : openCell(cell))}
         title={`${word}${cell.estimated ? " · Estimate" : ""} — tap to mark paid, change, skip or move`}
         className="flex w-full items-center justify-end gap-1 px-2 py-2 hover:bg-surface-3/60 sm:px-3"
       >
         {cell.status !== "upcoming" && <StatusIcon status={cell.status} incoming={cell.incoming} />}
-        <Money value={cell.amount} decimals projected={cell.estimated} className={cn("text-[12.5px] sm:text-[13.5px]", bold && "font-semibold")} />
+        <Money value={cell.amount} decimals projected={cell.estimated && cell.status === "upcoming"} className={cn("text-[12.5px] sm:text-[13.5px]", bold && "font-semibold", AMOUNT_CLS[cell.status])} />
         <span className="sr-only">{word}</span>
       </button>
     </td>
@@ -150,7 +162,20 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
   const view = gp.view;
   const cur = monthKey(today);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [peek, setPeek] = useState<{ g: GridGroup; m: string } | null>(null);
   const months = data.months;
+  const open1 = (c: GridCell | undefined, g: GridGroup, m: string) => {
+    if (!openCell(c)) setPeek({ g, m });
+  };
+  const breakdown = peek && (
+    <Breakdown
+      group={data.groups.find((x) => x.id === peek.g.id) ?? peek.g}
+      month={peek.m}
+      incoming={incoming}
+      onClose={() => setPeek(null)}
+      add={groupAdd}
+    />
+  );
 
   const exportExcel = async () => {
     try {
@@ -260,7 +285,9 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
   );
 
   if (view === "list") {
-    const lm = range.listMonth && months.includes(range.listMonth) ? range.listMonth : months.includes(cur) ? cur : months[0];
+    // Opens on the first month that still has something to pay (this month, or next once this one is all paid).
+    const firstOpen = months.find((m) => m >= cur && monthOpen(data, m));
+    const lm = range.listMonth && months.includes(range.listMonth) ? range.listMonth : firstOpen ?? (months.includes(cur) ? cur : months[0]);
     // Still to pay this month first, then paid (earliest due / biggest first).
     const withAmount = orderForMonth(data.groups.filter((g) => g.total.cells[lm] && Math.abs(g.total.cells[lm].amount) > 0.005), lm);
     const nothing = data.groups.filter((g) => !withAmount.includes(g));
@@ -277,6 +304,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
               onClick={() => range.setListMonth(m)}
               className={cn("h-8 shrink-0 whitespace-nowrap rounded-full px-3 text-[12.5px] font-medium", lm === m ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
             >
+              {monthPaid(data, m) && <Check className="-ml-0.5 mr-1 inline h-3.5 w-3.5 text-ok" aria-label="All paid" />}
               {monthLabel(m)}
               {m === cur ? " · now" : ""}
             </button>
@@ -308,7 +336,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                     )}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
-                    <Money value={t.amount} decimals projected={t.estimated} className="text-[16px] font-semibold" />
+                    <Money value={t.amount} decimals projected={t.estimated && t.status === "upcoming"} className={cn("text-[16px] font-semibold", AMOUNT_CLS[t.status])} />
                     <ChevronDown className={cn("h-4 w-4 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />
                   </span>
                 </button>
@@ -322,10 +350,13 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                             <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                               <button type="button" className="min-w-0 text-left" onClick={() => onRow?.(r, g)}>
                                 <span className="block truncate text-[14px]">{r.label}</span>
-                                {r.note && r.note !== "Me" && <span className="block truncate text-[12px] text-ink-3">For {r.note}</span>}
+                                {(r.hint || (r.note && r.note !== "Me")) && (
+                                  <span className="block truncate text-[12px] text-ink-3">{[r.hint, r.note && r.note !== "Me" ? `For ${r.note}` : null].filter(Boolean).join(" · ")}</span>
+                                )}
                               </button>
-                              <button type="button" className="shrink-0 text-right" onClick={() => openCell(c)}>
-                                <Money value={c.amount} decimals projected={c.estimated} className="text-[14px] font-medium" />
+                              <button type="button" className="shrink-0 text-right" onClick={() => open1(c, g, lm)}>
+                                <Money value={c.amount} decimals projected={c.estimated && c.status === "upcoming"} className={cn("block text-[14px] font-medium", AMOUNT_CLS[c.status])} />
+                                <StatusText status={c.status} incoming={c.incoming ?? incoming} className="text-[11px]" />
                               </button>
                             </li>
                           );
@@ -333,16 +364,18 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                       </ul>
                     )}
                     <div className="flex flex-wrap gap-2 border-t border-line px-4 py-3">
-                      <Button size="sm" variant="primary" onClick={() => openCell(t)}>
-                        {t.incoming ? "Mark received" : "Pay / mark paid"}
-                      </Button>
+                      {t.status !== "paid" && t.status !== "skipped" && (
+                        <Button size="sm" variant="primary" onClick={() => open1(t, g, lm)}>
+                          {t.incoming ? "Mark received" : "Pay / mark paid"}
+                        </Button>
+                      )}
                       {groupAdd && (
                         <Button size="sm" variant="ghost" icon={<Plus className="h-4 w-4" />} onClick={() => groupAdd.run(g)}>
                           {typeof groupAdd.label === "function" ? groupAdd.label(g) : groupAdd.label}
                         </Button>
                       )}
                     </div>
-                    {groupDetails && <div className="border-t border-line px-4 py-3">{groupDetails(g)}</div>}
+                    {groupDetails && groupDetails(g) != null && <div className="border-t border-line px-4 py-3">{groupDetails(g)}</div>}
                   </div>
                 )}
               </section>
@@ -361,6 +394,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
           </Button>
         )}
         {footnote && <p className="mt-2 hidden text-[12.5px] text-ink-3 lg:block">{footnote}</p>}
+        {breakdown}
       </div>
     );
   }
@@ -382,6 +416,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
               )}
               {months.map((m) => (
                 <th key={m} scope="col" className={cn("min-w-[5rem] whitespace-nowrap px-2 py-2.5 text-right font-medium sm:min-w-[6.5rem] sm:px-3", m === cur && "bg-surface-2 font-bold text-ink")}>
+                  {monthPaid(data, m) && <Check className="mr-1 inline h-3.5 w-3.5 text-ok" aria-label="All paid" />}
                   {monthLabel(m)}
                 </th>
               ))}
@@ -393,6 +428,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
           <tbody className="num">
             {data.groups.map((g) => {
               const isOpen = !!open[g.id];
+              const hasDetails = !!groupDetails && groupDetails(g) != null;
               return (
                 <Fragment key={g.id}>
                   <tr className="border-t border-line bg-surface-2/60">
@@ -400,8 +436,8 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                       <button
                         type="button"
                         className="flex w-full items-start gap-1 px-3 py-2 text-left hover:bg-surface-3/70"
-                        onClick={() => (groupDetails ? setOpen((o) => ({ ...o, [g.id]: !o[g.id] })) : onRow?.(g.total, g))}
-                        aria-expanded={groupDetails ? isOpen : undefined}
+                        onClick={() => (hasDetails ? setOpen((o) => ({ ...o, [g.id]: !o[g.id] })) : onRow?.(g.total, g))}
+                        aria-expanded={hasDetails ? isOpen : undefined}
                       >
                         <span className="min-w-0">
                           <span className="block truncate text-[13.5px] font-semibold text-ink sm:text-[14px]">{g.label}</span>
@@ -412,16 +448,16 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                             </span>
                           )}
                         </span>
-                        {groupDetails && <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />}
+                        {hasDetails && <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />}
                       </button>
                     </th>
                     {showFor && <td className="hidden px-3 py-2 font-semibold text-ink-2 sm:table-cell">{g.total.label}</td>}
                     {months.map((m) => (
-                      <Cell key={m} cell={g.total.cells[m]} current={m === cur} bold />
+                      <Cell key={m} cell={g.total.cells[m]} current={m === cur} bold onOpen={() => setPeek({ g, m })} />
                     ))}
                     <TotalCell cells={g.total.cells} months={months} bold />
                   </tr>
-                  {isOpen && groupDetails && (
+                  {isOpen && hasDetails && (
                     <tr className="border-t border-line">
                       <td colSpan={months.length + (showFor ? 3 : 2)} className="p-0">
                         <div className="sticky left-0 w-[calc(100vw-2rem)] max-w-full px-3 py-3 sm:w-auto">{groupDetails(g)}</div>
@@ -438,12 +474,13 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                             </span>
                             {r.label}
                           </span>
+                          {r.hint && <span className="block truncate pl-4 text-[11.5px] text-ink-3">{r.hint}</span>}
                           {showFor && r.note && <span className="block truncate text-[11.5px] text-ink-3 sm:hidden">{r.note}</span>}
                         </button>
                       </th>
                       {showFor && <td className="hidden truncate px-3 py-2 text-ink-2 sm:table-cell">{r.note || "–"}</td>}
                       {months.map((m) => (
-                        <Cell key={m} cell={r.cells[m]} current={m === cur} />
+                        <Cell key={m} cell={r.cells[m]} current={m === cur} onOpen={() => open1(r.cells[m], g, m)} />
                       ))}
                       <TotalCell cells={r.cells} months={months} />
                     </tr>
@@ -488,6 +525,76 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
       {legend}
       {footnote && <p className="mt-2 hidden text-[12.5px] text-ink-3 lg:block">{footnote}</p>}
       <p className="sr-only">Amounts in {formatMoney(0, ctx).replace(/[\d.,\s]/g, "") || ctx.currency}.</p>
+      {breakdown}
     </div>
+  );
+}
+
+/** Everything behind one month of one group (e.g. every spend and EMI on a card's bill), each on its own line. */
+function Breakdown({ group, month, incoming, onClose, add }: { group: GridGroup; month: string; incoming?: boolean; onClose: () => void; add?: MonthGridProps["groupAdd"] }) {
+  const t = group.total.cells[month];
+  const rows = group.rows.filter((r) => r.cells[month] && Math.abs(r.cells[month].amount) > 0.005);
+  const open = (c: GridCell | undefined) => {
+    if (openCell(c)) onClose();
+  };
+  const settled = !t || t.status === "paid" || t.status === "skipped";
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      size="sm"
+      title={`${group.label} · ${monthLabel(month)}`}
+      description={t ? <StatusText status={t.status} incoming={t.incoming ?? incoming} /> : undefined}
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          {add && (
+            <Button
+              variant="ghost"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() => {
+                onClose();
+                add.run(group);
+              }}
+            >
+              {typeof add.label === "function" ? add.label(group) : add.label}
+            </Button>
+          )}
+          {!settled && t?.eventKeys.some((k) => !k.startsWith("before:")) && (
+            <Button variant="primary" onClick={() => open(t)}>
+              {t.incoming ? "Mark received" : "Pay / mark paid"}
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <div className="flex items-baseline justify-between rounded-2xl bg-surface-2 px-4 py-3">
+        <span className="text-[13.5px] text-ink-2">{group.total.label}</span>
+        {t ? <Money value={t.amount} decimals projected={t.estimated && t.status === "upcoming"} className={cn("text-[22px] font-semibold", AMOUNT_CLS[t.status])} /> : "–"}
+      </div>
+      {rows.length > 0 && (
+        <ul className="mt-3 divide-y divide-line rounded-2xl border border-line">
+          {rows.map((r) => {
+            const c = r.cells[month];
+            const before = c.eventKeys.length > 0 && c.eventKeys.every((k) => k.startsWith("before:"));
+            return (
+              <li key={r.id}>
+                <button type="button" disabled={before} onClick={() => open(c)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 disabled:hover:bg-transparent">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px]">{r.label}</span>
+                    <span className="block truncate text-[12px] text-ink-3">
+                      {[r.hint, r.note && r.note !== "Me" ? `For ${r.note}` : null, before ? "Paid before you started tracking" : null].filter(Boolean).join(" · ") || "\u00a0"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <Money value={c.amount} decimals projected={c.estimated && c.status === "upcoming"} className={cn("block text-[14px] font-semibold", AMOUNT_CLS[c.status])} />
+                    <StatusText status={c.status} incoming={c.incoming ?? incoming} className="text-[11px]" />
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Sheet>
   );
 }

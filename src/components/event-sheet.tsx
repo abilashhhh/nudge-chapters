@@ -3,7 +3,7 @@
 import { CalendarClock, Check, CircleSlash, Pencil, RotateCcw, SkipForward } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { addDays, formatDate, relativeDays } from "@/lib/dates";
+import { addDays, addMonths, endOfMonth, formatDate, formatMonthLong, relativeDays, startOfMonth } from "@/lib/dates";
 import { buildEvents, isPending, settlementDraft, SETTLED, type FinEvent } from "@/lib/engine/events";
 import { chitDividendRecord } from "@/lib/engine/chits";
 import { useFinance } from "@/lib/finance";
@@ -25,9 +25,10 @@ export function useEventLookup() {
     if (!key) return null;
     const hit = events.find((e) => e.key === key);
     if (hit) return hit;
-    const date = key.split(":").at(-1) ?? today;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-    const more = buildEvents(ds, { from: addDays(date, -1), to: addDays(date, 1), today, positions, scenario: assumptions.scenarios.base });
+    const date = key.match(/\d{4}-\d{2}-\d{2}/g)?.at(-1);
+    if (!date) return null;
+    // A bill may have been moved to another month: look a little wider than its own date.
+    const more = buildEvents(ds, { from: addDays(date, -62), to: addDays(date, 62), today, positions, scenario: assumptions.scenarios.base });
     return more.find((e) => e.key === key) ?? null;
   };
 }
@@ -387,9 +388,36 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
         )}
 
         {mode === "reschedule" && (
-          <Field label="New date" htmlFor="ev-new-date">
-            <DateInput id="ev-new-date" value={newDate} onChange={(x) => setNewDate(x.target.value)} />
-          </Field>
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="mb-1.5 text-[13px] font-medium text-ink-2">Pay it in</p>
+              <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Month to pay in">
+                {Array.from({ length: 6 }, (_, i) => {
+                  const first = addMonths(startOfMonth(today), i);
+                  const day = Number(e.occurrence.slice(8, 10));
+                  const last = Number(endOfMonth(first).slice(8, 10));
+                  let d = `${first.slice(0, 8)}${String(Math.min(day, last)).padStart(2, "0")}`;
+                  if (d < today) d = today;
+                  const on = newDate.slice(0, 7) === first.slice(0, 7);
+                  return (
+                    <button
+                      key={first}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setNewDate(d)}
+                      className={cn("rounded-full px-3 py-1.5 text-[13px] font-medium", on ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+                    >
+                      {formatMonthLong(first.slice(0, 7))}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <Field label="Date" htmlFor="ev-new-date">
+              <DateInput id="ev-new-date" value={newDate} onChange={(x) => setNewDate(x.target.value)} />
+            </Field>
+          </div>
         )}
 
         {mode === "amount" && (

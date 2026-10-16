@@ -4,7 +4,7 @@
 // from `computePositions`, and recorded transactions). They never calculate money of their own, so every
 // cell matches what the rest of the app shows.
 
-import { addDays, monthKey } from "../dates";
+import { addDays, formatDate, monthKey } from "../dates";
 import { dueDateFor, isPending, statementDateOnOrAfter, SETTLED, type FinEvent } from "../engine/events";
 import type { Positions } from "../engine/ledger";
 import { personKey } from "../engine/reimburse";
@@ -30,6 +30,10 @@ export interface GridRow {
   label: string;
   /** The "For" / note column. */
   note?: string;
+  /** A small line under the name (e.g. the date of a spend). */
+  hint?: string;
+  /** Sort key for rows with a date. */
+  hintDate?: string;
   cells: Record<string, GridCell>;
   /** What the row stands for, so the screen can open the right form. */
   ref?: { kind: "card" | "loan" | "chit" | "sip" | "rule" | "lending" | "person" | "card-spends"; id: string };
@@ -57,6 +61,7 @@ export interface MonthGridData {
 }
 
 const WEEK = 7;
+const formatShortDate = (d: ISODate) => formatDate(d, "short");
 
 function settledAmount(e: FinEvent): number {
   if (e.status === "skipped" || e.status === "cancelled") return 0;
@@ -226,42 +231,111 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
       return monthKey(near ? near.due : dueDateFor(card, expected));
     };
 
+    // A bill you moved (e.g. paying November's bill in October) takes everything on it along to the new month.
+    const movedTo = new Map<string, string>();
+    for (const o of ds.event_overrides) {
+      if (o.source_type === "card" && o.source_id === card.id && o.action === "reschedule" && o.new_date) movedTo.set(monthKey(o.occurrence_date), monthKey(o.new_date));
+    }
+    for (const b of bills) if (b.occurrence) movedTo.set(monthKey(b.occurrence), monthKey(b.date));
+    const placed = (e: FinEvent) => {
+      const m = billMonthOf(e);
+      return movedTo.get(m) ?? m;
+    };
+
     const billCells = cellsFrom(bills, months, today);
     const byLoan = new Map<string, FinEvent[]>();
     for (const e of emis) if (e.loanId) byLoan.set(e.loanId, [...(byLoan.get(e.loanId) ?? []), e]);
     const emiRows: GridRow[] = [];
     for (const [loanId, list] of byLoan) {
       const loan = ds.loans.find((l) => l.id === loanId);
-      const cells = cellsFrom(list, months, today, billMonthOf);
+      const cells = cellsFrom(list, months, today, placed);
       // An EMI is paid when the card bill that carries it is paid.
       for (const m of Object.keys(cells)) if (billCells[m]) cells[m] = { ...cells[m], status: billCells[m].status };
       if (!Object.keys(cells).length) continue;
       emiRows.push({ id: `emi:${loanId}`, label: loan?.name ?? "EMI", note: loan?.reimbursable_person || "Me", cells, ref: { kind: "loan", id: loanId } });
     }
+
+    // Every spend on its own row, on the bill that carries it. Recorded spends open their entry when tapped.
+    const spendRows: GridRow[] = [];
+    const asEvent = (date: ISODate): FinEvent => ({ date, status: "planned" }) as FinEvent;
+    for (const t of ds.transactions) {
+      if (t.card_id !== card.id || t.type !== "card_spend") continue;
+      const m = placed(asEvent(t.date));
+      if (!months.includes(m)) continue;
+      const bill = billCells[m];
+      // No bill that month means nothing is left to pay on it: it was paid (often ahead of time).
+      const status: CellStatus = bill ? bill.status : t.date > today ? "upcoming" : "paid";
+      spendRows.push({
+        id: `spend:${t.id}`,
+        label: t.description || t.category || "Card spend",
+        hint: formatShortDate(t.date),
+        hintDate: t.date,
+        note: "Me",
+        cells: { [m]: { amount: round2(t.amount), status, estimated: false, eventKeys: [`tx:${t.id}`] } },
+        ref: { kind: "card-spends", id: card.id },
+      });
+    }
+    // Repeating spends on this card that aren't recorded yet (subscriptions and the like).
+    for (const e of events) {
+      if (e.cardId !== card.id || e.kind !== "card_spend" || e.estimated || SETTLED.includes(e.status)) continue;
+      const m = placed(e);
+      if (!months.includes(m)) continue;
+      const bill = billCells[m];
+      spendRows.push({
+        id: `spend:${e.key}`,
+        label: e.title,
+        hint: formatShortDate(e.date),
+        hintDate: e.date,
+        note: "Me",
+        cells: { [m]: { ...makeCell([e], today), status: bill ? bill.status : cellStatus([e], today) } },
+        ref: { kind: "card-spends", id: card.id },
+      });
+    }
+    spendRows.sort((a, b) => ((a.hintDate ?? "") < (b.hintDate ?? "") ? -1 : 1));
     const emiSum = sumCells(emiRows.map((r) => r.cells), months);
+    const itemSum = sumCells(spendRows.map((r) => r.cells), months);
 
     const totalCells: Record<string, GridCell> = {};
-    const spendCells: Record<string, GridCell> = {};
+    // What's left of each bill after its EMIs and itemised spends: one row per bill, so two bills in a month show as two.
+    const restRows = new Map<string, GridRow>();
     for (const m of months) {
       const bill = billCells[m];
       const em = emiSum[m];
+      const it = itemSum[m];
       if (bill) {
         totalCells[m] = bill;
-        const spends = round2(bill.amount - (em?.amount ?? 0));
-        if (Math.abs(spends) > 0.5) spendCells[m] = { ...bill, amount: spends };
-      } else if (em) {
-        // No bill in this month (yet): the EMIs are what the bill will carry.
-        totalCells[m] = { ...em };
+        const inMonth = bills.filter((x) => monthKey(x.date) === m);
+        // Two bills can share a due date (and so an event key): track each by its position.
+        const left = new Map<FinEvent, number>(inMonth.map((x) => [x, eventAmount(x)]));
+        // Put each EMI and spend on the bill most likely to carry it, so what's left of each bill is its own row.
+        const assign = (amount: number, preferRecorded: boolean) => {
+          const fits = (x: FinEvent) => (left.get(x) ?? 0) >= amount - 0.5;
+          const pick =
+            inMonth.find((x) => Math.abs((left.get(x) ?? 0) - amount) <= 0.5) ??
+            inMonth.find((x) => fits(x) && !!x.statementId === preferRecorded) ??
+            inMonth.find(fits) ??
+            [...inMonth].sort((x, y) => (left.get(y) ?? 0) - (left.get(x) ?? 0))[0];
+          if (pick) left.set(pick, round2(Math.max(0, (left.get(pick) ?? 0) - amount)));
+        };
+        for (const r of emiRows) if (r.cells[m]) assign(r.cells[m].amount, true);
+        for (const r of spendRows) if (r.cells[m]) assign(r.cells[m].amount, false);
+        for (const x of inMonth) {
+          const rest = round2(left.get(x) ?? 0);
+          if (rest <= 0.5) continue;
+          const st = x.statementId ? ds.card_statements.find((y) => y.id === x.statementId) : null;
+          const note = st?.notes?.trim();
+          const label = note && note.length <= 28 && !/emi/i.test(note) && note.toLowerCase() !== "spends" ? note : st ? "Bill" : spendRows.length ? "Other on the bill" : "Spends (bill)";
+          const id = `rest:${card.id}:${st ? st.id : "est"}`;
+          const row = restRows.get(id) ?? { id, label, hint: st && inMonth.length > 1 ? `Bill of ${formatShortDate(st.statement_date)}` : undefined, note: "Me", cells: {}, ref: { kind: "card-spends", id: card.id } };
+          row.cells[m] = { ...makeCell([x], today), amount: rest };
+          restRows.set(id, row);
+        }
+      } else if (em || it) {
+        // No bill in this month (yet, or already paid): the EMIs and spends are what it carries.
+        totalCells[m] = sumCells([em ? { [m]: em } : {}, it ? { [m]: it } : {}], [m])[m];
       }
     }
-    const rows: GridRow[] = [...emiRows];
-    // What the non-EMI part of a recorded bill is (e.g. "Annual charges"), from the bill's note.
-    const billNote = [...months]
-      .map((m) => bills.find((b) => monthKey(b.date) === m && b.statementId))
-      .map((b) => (b ? ds.card_statements.find((x) => x.id === b.statementId)?.notes?.trim() : null))
-      .find((n) => n && n.length <= 28 && !/emi/i.test(n));
-    if (Object.keys(spendCells).length)
-      rows.push({ id: `spends:${card.id}`, label: billNote && billNote.toLowerCase() !== "spends" ? billNote : "Spends (bill)", note: "Me", cells: spendCells, ref: { kind: "card-spends", id: card.id } });
+    const rows: GridRow[] = [...emiRows, ...spendRows, ...restRows.values()];
     // Everything still owed on this card: the unpaid bill, spends not billed yet and the EMIs still to come.
     const emiLeft = round2(
       ds.loans

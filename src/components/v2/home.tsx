@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { addDays, addMonths, endOfMonth, formatDate, formatMonthLong, monthKey, startOfMonth } from "@/lib/dates";
-import { isPending, type FinEvent } from "@/lib/engine/events";
+import { buildEvents, isPending, type FinEvent } from "@/lib/engine/events";
+import { computePositions } from "@/lib/engine/ledger";
+import { project } from "@/lib/engine/projection";
 import { oneThing } from "@/lib/engine/life";
 import { isCommitment } from "@/lib/engine/metrics";
 import { useFinance, useMonthMetrics } from "@/lib/finance";
@@ -18,7 +20,7 @@ import { useExplain } from "../explain";
 import { Money } from "../money";
 import { useMonth, useSelectedMonth } from "../ui/month-picker";
 import { MoneyInOut } from "./money-in-out";
-import { ChipGroup, StatTile, StatusText, greeting } from "./ui";
+import { AMOUNT_CLS, ChipGroup, StatTile, StatusText, greeting, useRangeEvents } from "./ui";
 import type { CellStatus } from "@/lib/v2/grids";
 
 export const V2_TYPE_LABEL: Record<FinEvent["kind"], string> = {
@@ -46,6 +48,8 @@ const LINE_WORDS: Record<string, string> = {
 };
 
 function rowStatus(e: FinEvent, today: string): CellStatus {
+  if (e.status === "skipped" || e.status === "cancelled") return "skipped";
+  if (!isPending(e) && e.status !== "partial") return "paid";
   if (e.status === "overdue" || (e.date < today && isPending(e))) return "late";
   if (e.status === "partial") return "partial";
   if (e.date <= addDays(today, 7)) return "due";
@@ -54,7 +58,7 @@ function rowStatus(e: FinEvent, today: string): CellStatus {
 
 export function V2Home() {
   const f = useFinance();
-  const { ds, today, positions, events, nudges, ctx } = f;
+  const { ds, today, positions: nowPositions, nudges, ctx, assumptions } = f;
   const month = useMonthMetrics();
   const sel = useSelectedMonth(today);
   const setMonth = useMonth((s) => s.set);
@@ -72,35 +76,62 @@ export function V2Home() {
     setMonth(next === cur ? null : next);
   };
   const name = ds.profile.name?.split(" ")[0];
-  const savings = positions.totals.investments + positions.totals.physical + positions.totals.chitAssets;
+  const period: "past" | "current" | "future" = sel < cur ? "past" : sel > cur ? "future" : "current";
+  const selEnd = endOfMonth(sel);
+
+  // Everything on Home follows the month you pick: balances at the end of a past month, or what they're
+  // expected to be by the end of a future one.
+  const snap = useMemo(() => {
+    const t = nowPositions.totals;
+    if (period === "current") return { cash: t.cash, receivables: t.receivables, savings: t.investments + t.physical + t.chitAssets, netWorth: t.netWorth };
+    if (period === "past") {
+      const p = computePositions(ds, selEnd).totals;
+      return { cash: p.cash, receivables: p.receivables, savings: p.investments + p.physical + p.chitAssets, netWorth: p.netWorth };
+    }
+    // Today's figures plus the change the forecast expects, so future months line up with today's numbers.
+    const pr = project(ds, { today, to: selEnd, positions: nowPositions, assumptions, scenario: "base" });
+    const d = (k: "cash" | "investments" | "otherAssets" | "netWorth") => pr.end[k] - pr.start[k];
+    const due = buildEvents(ds, { from: today, to: selEnd, today, positions: nowPositions, scenario: assumptions.scenarios.base })
+      .filter((e) => e.lendingId && e.flow === "in" && isPending(e))
+      .reduce((a, e) => a + e.remaining, 0);
+    const receivables = Math.max(0, t.receivables - due);
+    const nowSavings = t.investments + t.physical + t.chitAssets;
+    return {
+      cash: t.cash + d("cash"),
+      receivables,
+      savings: Math.max(0, nowSavings + d("investments") + d("otherAssets") + (t.receivables - receivables)),
+      netWorth: t.netWorth + d("netWorth"),
+    };
+  }, [ds, nowPositions, period, selEnd, today, assumptions]);
+  const savings = snap.savings;
+  const est = period === "future";
+  const when = period === "past" ? ` on ${formatDate(selEnd, "short")}` : period === "future" ? ` by ${formatDate(selEnd, "short")}` : "";
 
   const prevSnap = useMemo(
-    () => [...ds.net_worth_snapshots].filter((s) => s.date <= addDays(cur, -1)).sort((a, b) => (a.date < b.date ? 1 : -1))[0],
-    [ds.net_worth_snapshots, cur],
+    () => [...ds.net_worth_snapshots].filter((s) => s.date <= addDays(sel, -1)).sort((a, b) => (a.date < b.date ? 1 : -1))[0],
+    [ds.net_worth_snapshots, sel],
   );
-  const change = prevSnap ? positions.totals.netWorth - prevSnap.net_worth : null;
+  const change = prevSnap && period !== "future" ? snap.netWorth - prevSnap.net_worth : null;
 
-  // Upcoming payments, month by month: this month (late ones on top) and next month.
-  const [upMonth, setUpMonth] = useState<"this" | "next">("this");
+  // Payments in the month you picked and the one after (late ones on top). Past months list what was due then.
+  const selKey = monthKey(sel);
+  const nextKey = monthKey(addMonths(sel, 1));
+  const rangeEvents = useRangeEvents([selKey, nextKey]);
   const byMonth = useMemo(() => {
-    const thisEnd = endOfMonth(today);
-    const nextStart = addDays(thisEnd, 1);
-    const nextEnd = endOfMonth(nextStart);
-    const pending = events.filter((e) => isCommitment(e) && isPending(e));
     const order = (a: FinEvent, b: FinEvent) => {
       const la = rowStatus(a, today) === "late" ? 0 : 1;
       const lb = rowStatus(b, today) === "late" ? 0 : 1;
       return la - lb || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
     };
-    return {
-      this: pending.filter((e) => e.date <= thisEnd).sort(order),
-      next: pending.filter((e) => e.date >= nextStart && e.date <= nextEnd).sort(order),
-      thisKey: monthKey(today),
-      nextKey: monthKey(nextStart),
-    };
-  }, [events, today]);
+    const inMonth = (k: string, all: boolean) =>
+      rangeEvents.filter((e) => isCommitment(e) && (all ? true : isPending(e)) && (monthKey(e.date) === k || (k === monthKey(today) && isPending(e) && e.date < startOfMonth(today)))).sort(order);
+    return { this: inMonth(selKey, period === "past"), next: inMonth(nextKey, false), thisKey: selKey, nextKey };
+  }, [rangeEvents, today, selKey, nextKey, period]);
+  // Once everything this month is paid, open on next month.
+  const [upPick, setUpMonth] = useState<"this" | "next" | null>(null);
+  const upMonth = upPick ?? (byMonth.this.length === 0 && byMonth.next.length > 0 && period !== "past" ? "next" : "this");
   const upcoming = byMonth[upMonth];
-  const upTotal = upcoming.reduce((s2, e) => s2 + e.remaining, 0);
+  const upTotal = upcoming.reduce((s2, e) => s2 + (period === "past" && upMonth === "this" ? e.amount : e.remaining), 0);
 
   const dismissed = ds.profile.preferences?.dismissedAlerts ?? {};
   const tip = oneThing(nudges.filter((n) => !dismissed[`tip:${n.key}`]));
@@ -143,8 +174,8 @@ export function V2Home() {
 
       {/* 2 · Four tiles */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <StatTile label="Money in bank" value={positions.totals.cash} href="/my-money" />
-        <StatTile label="People owe me" value={positions.totals.receivables} href="/my-money?tab=owed" />
+        <StatTile label={`Money in bank${when}`} value={snap.cash} projected={est} href="/my-money" />
+        <StatTile label={`People owe me${when}`} value={snap.receivables} projected={est} href="/my-money?tab=owed" />
         <StatTile
           label={isCurrent ? "To pay this month" : `To pay in ${formatMonthLong(monthKey(sel)).split(" ")[0]}`}
           value={month.period === "past" ? month.committedPaid : month.unpaidAmount}
@@ -152,7 +183,7 @@ export function V2Home() {
           note={month.overdue.length ? `${month.overdue.length} late` : `${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"}`}
           href="/to-pay"
         />
-        <StatTile label="Savings value" value={savings} href="/savings" />
+        <StatTile label={`Savings value${when}`} value={savings} projected={est} href="/savings" />
       </div>
 
       {/* 3 · Free to spend + 4 · Total worth */}
@@ -180,13 +211,13 @@ export function V2Home() {
           </span>
         </button>
         <Link href="/menu/future" className="flex flex-col justify-between rounded-3xl border border-line bg-surface p-5 transition-colors hover:border-line-strong sm:p-6">
-          <span className="text-[13.5px] text-ink-3">Total worth</span>
-          <Money value={positions.totals.netWorth} className="display mt-1 block text-[30px] font-semibold leading-tight" tone="auto" />
+          <span className="text-[13.5px] text-ink-3">Total worth{when}</span>
+          <Money value={snap.netWorth} projected={est} className="display mt-1 block text-[30px] font-semibold leading-tight" tone="auto" />
           <span className="text-[12px] text-ink-3">What you have − what you owe</span>
           {change != null && Math.abs(change) >= 1 && (
             <span className={cn("mt-2 inline-flex items-center gap-1 text-[13px] font-medium", change >= 0 ? "text-ok" : "text-danger")}>
               {change >= 0 ? <TrendingUp className="h-4 w-4" aria-hidden /> : <TrendingDown className="h-4 w-4" aria-hidden />}
-              {change >= 0 ? "Up" : "Down"} {formatMoney(Math.abs(change), ctx)} since last month
+              {change >= 0 ? "Up" : "Down"} {formatMoney(Math.abs(change), ctx)} since the month before
             </span>
           )}
         </Link>
@@ -196,7 +227,7 @@ export function V2Home() {
       <section aria-labelledby="v2-upcoming" className="rounded-2xl border border-line bg-surface">
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
           <h2 id="v2-upcoming" className="text-[16px] font-semibold">
-            Upcoming payments
+            {period === "past" && upMonth === "this" ? "Payments" : "Upcoming payments"}
           </h2>
           <ChipGroup
             label="Month"
@@ -209,14 +240,14 @@ export function V2Home() {
           />
         </div>
         <p className="px-4 pt-1 text-[12.5px] text-ink-3 sm:px-5">
-          {upMonth === "this" ? "Still to pay this month" : "To pay next month"}: <Money value={upTotal} className="font-semibold text-ink" projected={upcoming.some((e) => e.estimated)} />
+          {period === "past" && upMonth === "this" ? `Due in ${formatMonthLong(byMonth.thisKey)}` : `Still to pay in ${formatMonthLong(upMonth === "this" ? byMonth.thisKey : byMonth.nextKey).split(" ")[0]}`}: <Money value={upTotal} className="font-semibold text-ink" projected={upcoming.some((e) => e.estimated)} />
         </p>
         {upcoming.length === 0 ? (
-          <p className="px-4 py-5 text-[14px] text-ink-2 sm:px-5">Nothing left to pay {upMonth === "this" ? "this month" : "next month"}.</p>
+          <p className="px-4 py-5 text-[14px] text-ink-2 sm:px-5">Nothing left to pay in {formatMonthLong(upMonth === "this" ? byMonth.thisKey : byMonth.nextKey)}.</p>
         ) : (
           <ul className="mt-2 divide-y divide-line/70 border-t border-line">
-            {upcoming.slice(0, 10).map((e) => (
-              <li key={e.key}>
+            {upcoming.slice(0, 10).map((e, i) => (
+              <li key={`${e.key}:${i}`}>
                 <button type="button" onClick={() => useUI.getState().openEvent(e.key)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 sm:px-5">
                   <span className="num w-12 shrink-0 text-[13px] text-ink-2">{formatDate(e.date, "short")}</span>
                   <span className="min-w-0 flex-1">
@@ -224,7 +255,7 @@ export function V2Home() {
                     <span className="block text-[12px] text-ink-3">{V2_TYPE_LABEL[e.kind]}</span>
                   </span>
                   <span className="shrink-0 text-right">
-                    <Money value={e.remaining} decimals projected={e.estimated} className="block text-[14px] font-semibold" />
+                    <Money value={isPending(e) ? e.remaining : e.paid || e.amount} decimals projected={e.estimated && isPending(e)} className={cn("block text-[14px] font-semibold", AMOUNT_CLS[rowStatus(e, today)])} />
                     <StatusText status={rowStatus(e, today)} className="text-[11.5px]" />
                   </span>
                 </button>

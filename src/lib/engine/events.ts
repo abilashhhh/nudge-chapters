@@ -514,8 +514,12 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
     if (card.archived) continue;
     const cp = positions.cards.get(card.id);
     if (!cp) continue;
+    const seenDue = new Set<string>();
     for (const st of cp.statements) {
       const s = st.statement;
+      // Two bills recorded with the same due date are two bills: give the second its own key.
+      const billKey = seenDue.has(s.due_date) ? `card:${card.id}:${s.due_date}:${s.id}` : `card:${card.id}:${s.due_date}`;
+      seenDue.add(s.due_date);
       if (s.statement_date >= from && s.statement_date <= to) {
         events.push({
           key: `card-statement:${s.id}`,
@@ -543,7 +547,7 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
       const ov = ovs.get(`card:${card.id}:${s.due_date}`);
       const pays = txs.filter((t) => st.paymentIds.includes(t.id));
       const base = {
-        key: `card:${card.id}:${s.due_date}`,
+        key: billKey,
         source: "card" as const,
         sourceId: card.id,
         cardId: card.id,

@@ -314,6 +314,7 @@ export function EntityEditor<T extends TableName>({
   deleteLabel,
   deleteBody,
   extra,
+  top,
   saveLabel,
 }: {
   open: boolean;
@@ -329,6 +330,8 @@ export function EntityEditor<T extends TableName>({
   deleteLabel?: string;
   deleteBody?: ReactNode;
   extra?: (values: Values, set: (v: Values) => void) => ReactNode;
+  /** Shown above the fields (quick picks). */
+  top?: (values: Values, set: (v: Values) => void) => ReactNode;
   saveLabel?: string;
 }) {
   const add = useStore((s) => s.add);
@@ -402,6 +405,7 @@ export function EntityEditor<T extends TableName>({
             void save();
           }}
         >
+          {top?.(values, setValues)}
           <EntityForm fields={fields} values={values} onChange={setValues} errors={errors} />
           {extra?.(values, setValues)}
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
