@@ -335,7 +335,15 @@ export function SmsScreen() {
     { t: "Open Shortcuts → Automation → New Automation → Message", d: <>Set <b>Message Contains</b> to <code>Rs</code>. Leave Sender empty. Choose <b>Run Immediately</b> and turn off <b>Notify When Run</b>.</> },
     { t: "Add the action “Get Contents of URL”", d: <>Paste the <b>Address</b> below. Tap <b>Show More</b>: Method <b>POST</b>.</> },
     { t: "Add two headers", d: <><code>apikey</code> = the App key below, and <code>Content-Type</code> = <code>application/json</code>.</> },
-    { t: "Request Body: JSON, with three fields", d: <><code>key</code> (Text) = your personal key · <code>body</code> (Text) = tap and pick <b>Shortcut Input</b> → <b>Content</b> · <code>sender</code> (Text) = <b>Shortcut Input</b> → <b>Sender</b>.</> },
+    {
+      t: "Request Body: JSON, with three Text fields",
+      d: (
+        <>
+          <code>key</code> = your personal key (paste it). For <code>body</code> and <code>sender</code>, <b>don&apos;t type anything</b>: tap the empty value box, then tap <b>Shortcut Input</b> in the bar above the keyboard. Tap the blue <b>Shortcut Input</b> bubble it adds and choose <b>Content</b> for <code>body</code>, and <b>Sender</b> for <code>sender</code>. Each value should be just one blue bubble.
+        </>
+      ),
+    },
+    { t: "Check the headers", d: <>Only two headers — delete any empty row (an empty header stops the request).</> },
     { t: "Make two more the same way", d: <>Duplicate the automation for <code>INR</code> and for <code>debited</code>, so every bank's wording is caught. A message caught twice is only kept once.</> },
   ];
 
