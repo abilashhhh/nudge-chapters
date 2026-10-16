@@ -89,13 +89,15 @@ function CardDetails({ g }: { g: GridGroup }) {
   const util = cp.utilization;
   return (
     <div className="flex flex-col gap-3 text-[13px]">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4 lg:grid-cols-8">
         <Fact k="Bill date" v={`${formatDate(nextS, "short")} (every ${ordinal(card.statement_day)})`} />
         <Fact k="Due date" v={`${formatDate(dueDateFor(card, nextS), "short")} (every ${ordinal(card.due_day)})`} />
         <Fact k="Limit" v={formatMoney(card.credit_limit, ctx)} />
         <Fact k="Limit used" v={<span className={cn(util > 0.7 ? "text-danger" : util > 0.3 ? "text-warn" : "text-ok")}>{formatPct(util * 100, 0)}</span>} />
         <Fact k="Minimum to pay" v={lastSt && lastSt.remaining > 0 ? formatMoney(lastSt.statement.min_due, ctx, { decimals: true }) : "–"} />
         <Fact k="New spends (not billed yet)" v={<Money value={cp.unbilled} decimals className="text-ink-2" />} />
+        <Fact k="EMIs still to come" v={<Money value={Number(g.meta?.emiLeft ?? 0)} decimals className="text-ink-2" />} />
+        <Fact k="All dues on this card" v={<Money value={Number(g.meta?.totalDue ?? 0)} decimals />} />
       </div>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "card_payment", card_id: card.id })}>

@@ -235,7 +235,7 @@ export function buildNudges(args: {
       impact: g.requiredMonthly ? `About ${m(g.requiredMonthly)} a month keeps it on schedule (estimate, assuming ${g.rate}% a year growth).` : undefined,
       source: "Your chapter's target and current savings",
       estimate: true,
-      cta: { label: "Open chapter", href: "/goals" },
+      cta: { label: "Open chapter", href: "/menu/goals" },
       createdAt: now,
     });
   }
@@ -309,7 +309,7 @@ export function buildNudges(args: {
       impact: `${m(Math.max(0, ef.essentialMonthly * 3 - ef.current))} more reaches 3 months.`,
       source: "Your accounts and essential bills",
       estimate: false,
-      cta: { label: "Open", href: "/goals" },
+      cta: { label: "Open", href: "/menu/goals" },
       createdAt: now,
     });
   }

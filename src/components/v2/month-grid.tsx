@@ -301,6 +301,11 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                   <span className="min-w-0">
                     <span className="block truncate text-[15px] font-semibold">{g.label}</span>
                     <StatusText status={t.status} incoming={t.incoming ?? incoming} className="text-[12px]" />
+                    {g.sub && (
+                      <span className="block truncate text-[12px] text-ink-3">
+                        {g.sub.label} <Money value={g.sub.value} className="font-medium text-ink-2" />
+                      </span>
+                    )}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <Money value={t.amount} decimals projected={t.estimated} className="text-[16px] font-semibold" />
@@ -401,6 +406,11 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                         <span className="min-w-0">
                           <span className="block truncate text-[13.5px] font-semibold text-ink sm:text-[14px]">{g.label}</span>
                           <span className="block truncate text-[11.5px] font-normal text-ink-3 sm:hidden">{g.total.label}</span>
+                          {g.sub && (
+                            <span className="block truncate text-[11.5px] font-normal text-ink-3">
+                              {g.sub.label} <Money value={g.sub.value} className="font-medium text-ink-2" />
+                            </span>
+                          )}
                         </span>
                         {groupDetails && <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />}
                       </button>

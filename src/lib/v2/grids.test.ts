@@ -203,7 +203,7 @@ describe("Version 2 redirects", () => {
     expect(v2Crumbs("/menu/budgets", "").map((c) => c.label)).toEqual(["Home", "Menu", "Budgets & spending plans"]);
     expect(v2Crumbs("/daily", "").map((c) => c.href)).toEqual(["/", "/daily", "/daily?tab=rhythm"]);
     expect(v2Crumbs("/", "")).toEqual([]);
-    expect(toV2Href("/goals", "")).toBe("/menu/future#goals");
+    expect(toV2Href("/goals", "")).toBe("/menu/goals");
     expect(toV2Href("/projection", "?date=2027-12-31")).toBe("/menu/future?date=2027-12-31");
     expect(toV2Href("/calendar", "")).toBe("/menu/calendar");
     expect(toV2Href("/reports", "")).toBe("/");

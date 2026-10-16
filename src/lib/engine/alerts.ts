@@ -169,7 +169,7 @@ export function buildAlerts(args: {
         module: "goals",
         title: `${g.goal.name} is off track`,
         body: `You need about ${m(g.requiredMonthly ?? 0)}/month to reach ${m(g.goal.target_amount)} by ${formatDate(g.goal.target_date)}; you're putting in ${m(g.goal.monthly_contribution)}.`,
-        href: "/goals",
+        href: "/menu/goals",
       });
     }
   }

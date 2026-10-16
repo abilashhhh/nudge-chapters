@@ -45,6 +45,8 @@ export interface GridGroup {
   ref?: GridRow["ref"];
   /** Extra facts for the screen (e.g. card spends not billed yet). */
   meta?: Record<string, number | string | null>;
+  /** A running figure shown under the name (e.g. everything still owed on a card). */
+  sub?: { label: string; value: number };
 }
 
 export interface MonthGridData {
@@ -260,8 +262,19 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
       .find((n) => n && n.length <= 28 && !/emi/i.test(n));
     if (Object.keys(spendCells).length)
       rows.push({ id: `spends:${card.id}`, label: billNote && billNote.toLowerCase() !== "spends" ? billNote : "Spends (bill)", note: "Me", cells: spendCells, ref: { kind: "card-spends", id: card.id } });
+    // Everything still owed on this card: the unpaid bill, spends not billed yet and the EMIs still to come.
+    const emiLeft = round2(
+      ds.loans
+        .filter((l) => l.card_id === card.id && l.status === "active")
+        .reduce((t, l) => {
+          const st = positions.loans.get(l.id)?.state;
+          return t + (st ? st.schedule.slice(st.paidCount).reduce((a, i) => a + i.emi, 0) : 0);
+        }, 0),
+    );
+    const totalDue = round2(Math.max(0, cp?.outstanding ?? 0) + emiLeft);
     groups.push({
       id: `card:${card.id}`,
+      sub: totalDue > 0.5 ? { label: "All dues", value: totalDue } : undefined,
       label: card.name,
       note: [card.issuer, card.last4 ? `··${card.last4}` : null].filter(Boolean).join(" "),
       total: { id: `card-total:${card.id}`, label: "Card total", cells: totalCells, ref: { kind: "card", id: card.id } },
@@ -276,6 +289,8 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
         firstDue: months.map((m) => bills.filter((e) => monthKey(e.date) === m).map((e) => e.date).sort()[0]).find(Boolean) ?? null,
         ...Object.fromEntries(months.map((m) => [`due:${m}`, bills.filter((e) => monthKey(e.date) === m).map((e) => e.date).sort()[0] ?? null])),
         dueDay: card.due_day,
+        totalDue,
+        emiLeft,
       },
     });
   }

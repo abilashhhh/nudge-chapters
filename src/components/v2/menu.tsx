@@ -1,26 +1,17 @@
 "use client";
 
-import { Bell, Briefcase, CalendarDays, CheckSquare, HelpCircle, LayoutGrid, PiggyBank, Settings, ShieldCheck, Sparkles, StickyNote, Heart } from "lucide-react";
+import { Bell, Briefcase, CalendarDays, HelpCircle, PiggyBank, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { addDays } from "@/lib/dates";
-import { agenda } from "@/lib/engine/life";
-import { useAppVersion } from "@/lib/app-version";
 import { useFinance } from "@/lib/finance";
 import { annualPremium } from "@/lib/insurance";
 import { formatMoney } from "@/lib/money";
-import { useRouter } from "next/navigation";
 import { V2PageHeader } from "./ui";
 
 type Tile = { href?: string; onClick?: () => void; label: string; icon: typeof Bell; hint: ReactNode };
 
 export function MenuScreen() {
-  const { ds, today, month, goals, ctx } = useFinance();
-  const { setVersion } = useAppVersion();
-  const router = useRouter();
-  const open = ds.life_items.filter((i) => i.status === "open");
-  const ag = agenda(open.filter((i) => i.kind === "task" || i.kind === "checklist"), today);
-  const remindersSoon = open.filter((i) => i.kind === "reminder" && i.due_date && i.due_date <= addDays(today, 7)).length;
+  const { ds, month, goals, ctx } = useFinance();
   const incomeCount = ds.recurring_rules.filter((r) => r.kind === "income" && r.active).length;
   const budgetLeft = Math.max(0, month.budgetLimit - month.budgetSpent);
   const activeGoals = goals.filter((g) => g.status !== "done").length;
@@ -37,7 +28,8 @@ export function MenuScreen() {
         { href: "/menu/budgets", label: "Budgets & spending plans", icon: PiggyBank, hint: month.budgetLimit ? `${formatMoney(budgetLeft, ctx)} left this month` : "Set a monthly limit" },
         { href: "/menu/insurance", label: "Insurance", icon: ShieldCheck, hint: policyCount ? `${policyCount} ${policyCount === 1 ? "policy" : "policies"} · ${formatMoney(yearlyPremium, ctx)} a year` : "Life, health, vehicle and more" },
         { href: "/menu/calendar", label: "Calendar", icon: CalendarDays, hint: `${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"} left this month` },
-        { href: "/menu/future", label: "Future", icon: Sparkles, hint: activeGoals ? `${activeGoals} goal${activeGoals === 1 ? "" : "s"} · Can I afford it?` : "Your money on any date" },
+        { href: "/menu/goals", label: "Goals", icon: Target, hint: activeGoals ? `${activeGoals} goal${activeGoals === 1 ? "" : "s"}` : "What you're saving for" },
+        { href: "/menu/future", label: "Future", icon: Sparkles, hint: "Your money on any date · Can I afford it?" },
       ],
     },
     {
@@ -45,15 +37,6 @@ export function MenuScreen() {
       tiles: [
         { href: "/menu/settings", label: "Settings", icon: Settings, hint: "Profile, import & export, security, look" },
         { href: "/menu/help", label: "Help & support", icon: HelpCircle, hint: "Questions and answers" },
-        {
-          onClick: async () => {
-            await setVersion(1);
-            router.push("/");
-          },
-          label: "Version 1 (all tools)",
-          icon: LayoutGrid,
-          hint: "Reports, what-if and every screen",
-        },
       ],
     },
   ];

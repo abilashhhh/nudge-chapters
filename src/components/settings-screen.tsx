@@ -1,7 +1,7 @@
 "use client";
 
 import { Archive, ArchiveRestore, Download, FileJson, FileSpreadsheet, FileUp, KeyRound, LogOut, ShieldCheck, Trash2, Upload } from "lucide-react";
-import Link from "next/link";
+
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -25,7 +25,6 @@ import { useTab } from "@/lib/use-tab";
 import { AppLockSettings, SectionSettings, VisualSettings } from "@/components/settings-extra";
 import type { AlertModule, AuditEvent, Category } from "@/lib/types";
 import { useAppVersion } from "@/lib/app-version";
-import { AppVersionPanel } from "@/components/v2/version-switch";
 import { V2PageHeader } from "@/components/v2/ui";
 
 const TABS = ["profile", "categories", "notifications", "data", "security", "activity", "appearance", "sections"] as const;
@@ -61,7 +60,7 @@ function Settings() {
           { id: "data", label: "Import & export" },
           { id: "security", label: "Security" },
           { id: "activity", label: "Activity log" },
-          { id: "appearance", label: v2 ? "Look & version" : "Appearance" },
+          { id: "appearance", label: "Look" },
           { id: "sections", label: "Sections & widgets" },
         ]}
       />
@@ -703,7 +702,6 @@ function Appearance() {
   };
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <AppVersionPanel className="lg:col-span-2" />
       <Panel title="Look">
         <Field label="Theme" htmlFor="ap-theme">
           <Segmented

@@ -115,15 +115,27 @@ export function upsertChitRecord(chit: Chit, rec: ChitInstallmentRecord): ChitIn
  */
 export function chitDividendRecord(chit: Chit, no: number, paid: number): ChitInstallmentRecord[] | null {
   const rec = chitRecord(chit, no);
-  if (rec && (rec.payable != null || rec.dividend != null)) return null;
   const base = rec?.base_amount ?? chit.monthly_contribution;
-  if (!(paid > 0) || paid >= base - 0.5) return null;
-  return upsertChitRecord(chit, { ...(rec ?? { no }), no, payable: round2(paid), dividend: round2(base - paid + (rec?.fees ?? 0)) });
+  if (!(paid > 0)) return null;
+  const fees = rec?.fees ?? 0;
+  const implied = impliedPayable(no, base, rec);
+  // Already says this: nothing to change.
+  if (implied != null && Math.abs(implied - paid) <= 0.5 && (rec?.payable != null || rec?.dividend != null)) return null;
+  // A full payment with nothing recorded is just the plan.
+  if (paid >= base + fees - 0.5 && rec?.payable == null && rec?.dividend == null) return null;
+  // What was actually paid wins: the rest of the plan is that month's dividend.
+  return upsertChitRecord(chit, { ...(rec ?? { no }), no, payable: round2(paid), dividend: round2(Math.max(0, base - paid + fees)) });
 }
 
 /** Which installment (1-based) is scheduled on `date`, if any. */
 export function chitInstallmentOn(chit: Chit, date: ISODate): number | null {
   for (let no = 1; no <= chit.installments; no++) if (chitScheduledDate(chit, no) === date) return no;
+  return null;
+}
+
+/** Which installment (1-based) falls in the month of `date`, if any. */
+export function chitInstallmentInMonth(chit: Chit, date: ISODate): number | null {
+  for (let no = 1; no <= chit.installments; no++) if (chitScheduledDate(chit, no).slice(0, 7) === date.slice(0, 7)) return no;
   return null;
 }
 
@@ -188,7 +200,8 @@ export function chitSummary(chit: Chit, txs: Transaction[], today: ISODate): Chi
       base: rowBase,
       auctionDate: rec?.auction_date ?? null,
       auctionDiscount: rec?.auction_discount ?? null,
-      dividend: rec?.dividend ?? null,
+      // Paid in full for less than the plan: the rest is that month's dividend, even if it wasn't written down.
+      dividend: rec?.dividend ?? (paid != null && !isPartial && paid < rowBase - 0.5 && !paidTxs.some((t) => t.is_partial) ? round2(rowBase - paid + (rec?.fees ?? 0)) : null),
       fees: rec?.fees ?? null,
       payable,
       paid,

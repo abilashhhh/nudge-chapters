@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  BarChart3, Bell, CalendarDays, Eye, EyeOff, Home, Landmark, LayoutGrid, LogOut, Moon, Plus, Search, Settings, Sparkles, Sun, Target,
-  TrendingUp, Wallet, ListChecks, PieChart, PiggyBank, HandCoins, Menu as MenuIcon, Receipt, CalendarCheck, ShieldCheck } from "lucide-react";
+  Bell, Eye, EyeOff, Home, LogOut, Moon, Plus, Search, Sun, 
+  TrendingUp, Wallet, Menu as MenuIcon, Receipt, CalendarCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
@@ -12,7 +12,7 @@ import { Brand } from "../brand";
 import { useFinance } from "@/lib/finance";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
-import { useHidden } from "@/lib/visual";
+
 import { AppLock } from "./app-lock";
 import { Editors } from "../editors";
 import { ChitInstallmentsSheet } from "../chits";
@@ -27,47 +27,14 @@ import { QuickAddSheet, TransactionSheet } from "../transaction-form";
 import { AlertsPanel } from "./alerts-panel";
 import { setLocalMode } from "./bootstrap";
 import { CommandPalette } from "./command-palette";
-import { useViewMode } from "@/lib/view-mode";
-import { useAppVersion } from "@/lib/app-version";
+
+
 import { V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
 import { V2QuickAddSheet } from "../v2/quick-add";
-
-/** `section` is the id used by Settings → Sections to hide an entry (data and calculations are unaffected). */
-export const NAV: { href: string; label: string; icon: typeof Home; section?: string }[] = [
-  { href: "/", label: "Today", icon: Home },
-  { href: "/plan", label: "Plan", icon: ListChecks, section: "tasks" },
-  { href: "/goals", label: "Chapters", icon: Target, section: "goals" },
-  { href: "/money", label: "Money", icon: PieChart, section: "dashboard" },
-  { href: "/cash-flow", label: "Cash flow", icon: Wallet, section: "transactions" },
-  { href: "/budgets", label: "Budgets", icon: PiggyBank, section: "budgets" },
-  { href: "/owed", label: "Owed to you", icon: HandCoins, section: "reimbursements" },
-  { href: "/assets", label: "Assets", icon: TrendingUp, section: "investments" },
-  { href: "/liabilities", label: "Liabilities", icon: Landmark, section: "credit_cards" },
-  { href: "/insurance", label: "Insurance", icon: ShieldCheck },
-  { href: "/projection", label: "Future", icon: Sparkles, section: "projections" },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays, section: "bills" },
-  { href: "/reports", label: "Reports", icon: BarChart3, section: "reports" },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-
-/** Version 1 (full look) sidebar groups, so the long list is easy to scan. */
-const NAV_GROUPS: { title: string | null; hrefs: string[] }[] = [
-  { title: null, hrefs: ["/", "/plan", "/calendar"] },
-  { title: "Money", hrefs: ["/money", "/cash-flow", "/budgets", "/owed"] },
-  { title: "Own & owe", hrefs: ["/assets", "/liabilities", "/insurance"] },
-  { title: "Plan ahead", hrefs: ["/goals", "/projection", "/reports"] },
-  { title: null, hrefs: ["/settings"] },
-];
 
 /** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
 const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/savings": TrendingUp, "/daily": CalendarCheck, "/menu": MenuIcon };
 
-/** Menu entries kept in the Simple look. */
-const SIMPLE_NAV = ["/", "/plan", "/goals"];
-
-function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
-}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
@@ -78,42 +45,24 @@ export function AppShell({ children }: { children: ReactNode }) {
   const masked = !!ds.profile.preferences?.maskValues;
   const critical = alerts.filter((a) => a.priority === "critical" || a.priority === "high").length;
   const ui = useUI();
-  const hidden = useHidden();
-  const nav = NAV.filter((n) => !n.section || !hidden.isHidden(n.section));
   const visual = ds.profile.preferences?.visual;
   useEffect(() => {
     const r = document.documentElement;
     r.dataset.motion = visual?.motion ?? "full";
     r.dataset.celebrate = visual?.celebrations === false ? "off" : "on";
   }, [visual?.motion, visual?.celebrations]);
-  const { v2 } = useAppVersion();
-  const { simple: simpleMode } = useViewMode();
-  // Version 2 has one look only; the Simple/Advanced switch belongs to Version 1.
-  const simple = v2 ? true : simpleMode;
-  // Version 2: old (Version 1) addresses go to their new place, so bookmarks, alarms and links in shared sheets keep working.
+  // One version of the app: the five sections. Old (Version 1) addresses go to their new place, so bookmarks,
+  // alarms and links in shared sheets keep working.
+  const v2 = true;
+  const simple = true;
+  const fullNav = false;
   useEffect(() => {
-    if (!v2) return;
     const target = toV2Href(pathname, typeof window !== "undefined" ? window.location.search : "");
     if (target) router.replace(target);
-  }, [v2, pathname, router]);
-  // Simple look: just the essentials in the menu. Every other section lives in Settings → All sections.
-  const v2Nav = V2_NAV.map((n) => ({ href: n.href, label: n.label, icon: V2_ICONS[n.href] }));
-  const sideNav = v2
-    ? v2Nav
-    : simple
-    ? [...nav.filter((n) => SIMPLE_NAV.includes(n.href)).map((n) => (n.href === "/" ? { ...n, label: "Home" } : n)), { href: "/more", label: "Menu", icon: LayoutGrid }]
-    : nav;
-  // Version 1, full look: the long list, grouped. Anything not in a group (e.g. new sections) goes last.
-  const fullNav = !v2 && !simple;
-  const sideNavGroups = (() => {
-    const placed = new Set(NAV_GROUPS.flatMap((g) => g.hrefs));
-    const groups = NAV_GROUPS.map((g) => ({ title: g.title, items: g.hrefs.map((h) => nav.find((n) => n.href === h)).filter((n): n is (typeof nav)[number] => !!n) }));
-    const rest = nav.filter((n) => !placed.has(n.href));
-    if (rest.length) groups.splice(groups.length - 1, 0, { title: null, items: rest });
-    return groups.filter((g) => g.items.length);
-  })();
-  const mobileNav = v2 ? v2Nav : simple ? sideNav : [...nav.slice(0, 4), { href: "/more", label: "More", icon: LayoutGrid }];
-  const mobileMain = mobileNav.filter((n) => n.href !== "/more");
+  }, [pathname, router]);
+  const sideNav = V2_NAV.map((n) => ({ href: n.href, label: n.label, icon: V2_ICONS[n.href] }));
+  const sideNavGroups = [{ title: null as string | null, items: sideNav }];
+  const mobileNav = sideNav;
 
   // Long sidebar on a short screen: keep the current page's item in view.
   // (A callback ref too, because the sidebar can mount after this effect — e.g. once the app lock opens.)
@@ -166,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
-  const title = v2 ? (v2Title(pathname) ?? APP_NAME) : NAV.find((n) => isActive(pathname, n.href))?.label ?? (pathname.startsWith("/more") ? (simple ? "Menu" : "All sections") : pathname.startsWith("/support") ? "Support" : APP_NAME);
+  const title = v2Title(pathname) ?? APP_NAME;
 
   // overflow-x-clip: nothing inside can ever widen the page sideways on phones (sticky headers still work).
   return (
@@ -184,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {g.title && <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-3">{g.title}</p>}
           {g.items.map((n) => {
             // In the Simple look, "Menu" stays lit on any section it leads to.
-            const active = v2 ? isActiveV2(pathname, n.href) : simple && n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
+            const active = isActiveV2(pathname, n.href);
             const link = (
               <Link
                 key={n.href}
@@ -297,7 +246,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
         <div className={cn("mx-auto grid max-w-lg", mobileNav.length >= 6 ? "grid-cols-6" : mobileNav.length === 5 ? "grid-cols-5" : mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
           {mobileNav.map((n) => {
-            const active = v2 ? isActiveV2(pathname, n.href) : n.href === "/more" ? !mobileMain.some((m) => isActive(pathname, m.href)) : isActive(pathname, n.href);
+            const active = isActiveV2(pathname, n.href);
             return (
               <Link
                 key={n.href}

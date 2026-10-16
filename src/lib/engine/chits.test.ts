@@ -21,7 +21,15 @@ describe("chit dividends", () => {
   });
   it("leaves full payments and installments with their own auction result alone", () => {
     expect(chitDividendRecord(chit, 3, 25_000)).toBeNull();
-    expect(chitDividendRecord({ ...chit, installment_records: [{ no: 3, dividend: 4_000 }] }, 3, 18_000)).toBeNull();
+    expect(chitDividendRecord({ ...chit, installment_records: [{ no: 3, dividend: 4_000 }] }, 3, 21_000)).toBeNull();
+    expect(chitDividendRecord({ ...chit, installment_records: [{ no: 3, payable: 18_750, dividend: 6_250 }] }, 3, 18_750)).toBeNull();
+  });
+  it("a changed payment amount (25,000 → 18,750) counts the 6,250 left as dividend", () => {
+    expect(chitDividendRecord(chit, 4, 18_750)).toEqual([{ no: 4, payable: 18_750, dividend: 6_250 }]);
+    // Even when the plan for that month already said 25,000.
+    expect(chitDividendRecord({ ...chit, installment_records: [{ no: 4, payable: 25_000 }] }, 4, 18_750)).toEqual([{ no: 4, payable: 18_750, dividend: 6_250 }]);
+    // Or an earlier auction result said otherwise: what was paid wins.
+    expect(chitDividendRecord({ ...chit, installment_records: [{ no: 4, dividend: 4_000 }] }, 4, 18_750)).toEqual([{ no: 4, payable: 18_750, dividend: 6_250 }]);
   });
   it("finds the installment for a date", () => {
     expect(chitInstallmentOn(chit, "2026-12-01")).toBe(3);
