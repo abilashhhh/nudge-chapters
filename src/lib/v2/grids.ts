@@ -191,6 +191,19 @@ function billsFirst(groups: GridGroup[], months: string[]): GridGroup[] {
   });
 }
 
+/** The bill (statement date and due date) of a card that falls due in `month` ("2026-11"). */
+export function billInMonth(card: Dataset["credit_cards"][number], month: string): { statement: ISODate; due: ISODate } {
+  let st = statementDateOnOrAfter(card, addDays(`${month}-01`, -75));
+  for (let i = 0; i < 6; i++) {
+    const due = dueDateFor(card, st);
+    if (monthKey(due) === month) return { statement: st, due };
+    if (monthKey(due) > month) break;
+    st = statementDateOnOrAfter(card, addDays(st, 1));
+  }
+  const due = `${month}-${String(Math.min(card.due_day || 1, 28)).padStart(2, "0")}`;
+  return { statement: addDays(due, -20), due };
+}
+
 export function rowTotal(cells: Record<string, GridCell>, months: string[]): number {
   return round2(months.reduce((s, m) => s + (cells[m]?.amount ?? 0), 0));
 }
@@ -255,8 +268,23 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
       emiRows.push({ id: `emi:${loanId}`, label: loan?.name ?? "EMI", note: loan?.reimbursable_person || "Me", cells, ref: { kind: "loan", id: loanId } });
     }
 
-    // Every spend on its own row, on the bill that carries it. Recorded spends open their entry when tapped.
+    // Every spend on its own row, on the bill that carries it. A spend with the same name in other months (the
+    // same thing bought again, or a bill you record every month) stays on one row. Recorded spends open their entry.
     const spendRows: GridRow[] = [];
+    const byName = new Map<string, GridRow>();
+    const put = (name: string, m: string, cell: GridCell, date: ISODate) => {
+      const k = name.trim().toLowerCase();
+      let row = byName.get(k);
+      if (!row) {
+        row = { id: `spend:${card.id}:${k}`, label: name.trim(), hint: formatShortDate(date), hintDate: date, note: "Me", cells: {}, ref: { kind: "card-spends", id: card.id } };
+        byName.set(k, row);
+        spendRows.push(row);
+      } else if (row.hintDate !== date) row.hint = undefined;
+      const prev = row.cells[m];
+      row.cells[m] = prev
+        ? { ...prev, amount: round2(prev.amount + cell.amount), eventKeys: [...prev.eventKeys, ...cell.eventKeys], estimated: prev.estimated || cell.estimated }
+        : cell;
+    };
     const asEvent = (date: ISODate): FinEvent => ({ date, status: "planned" }) as FinEvent;
     for (const t of ds.transactions) {
       if (t.card_id !== card.id || t.type !== "card_spend") continue;
@@ -265,15 +293,7 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
       const bill = billCells[m];
       // No bill that month means nothing is left to pay on it: it was paid (often ahead of time).
       const status: CellStatus = bill ? bill.status : t.date > today ? "upcoming" : "paid";
-      spendRows.push({
-        id: `spend:${t.id}`,
-        label: t.description || t.category || "Card spend",
-        hint: formatShortDate(t.date),
-        hintDate: t.date,
-        note: "Me",
-        cells: { [m]: { amount: round2(t.amount), status, estimated: false, eventKeys: [`tx:${t.id}`] } },
-        ref: { kind: "card-spends", id: card.id },
-      });
+      put(t.description || t.category || "Card spend", m, { amount: round2(t.amount), status, estimated: false, eventKeys: [`tx:${t.id}`] }, t.date);
     }
     // Repeating spends on this card that aren't recorded yet (subscriptions and the like).
     for (const e of events) {
@@ -281,15 +301,7 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
       const m = placed(e);
       if (!months.includes(m)) continue;
       const bill = billCells[m];
-      spendRows.push({
-        id: `spend:${e.key}`,
-        label: e.title,
-        hint: formatShortDate(e.date),
-        hintDate: e.date,
-        note: "Me",
-        cells: { [m]: { ...makeCell([e], today), status: bill ? bill.status : cellStatus([e], today) } },
-        ref: { kind: "card-spends", id: card.id },
-      });
+      put(e.title, m, { ...makeCell([e], today), status: bill ? bill.status : cellStatus([e], today) }, e.date);
     }
     spendRows.sort((a, b) => ((a.hintDate ?? "") < (b.hintDate ?? "") ? -1 : 1));
     const emiSum = sumCells(emiRows.map((r) => r.cells), months);
@@ -319,14 +331,18 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
         };
         for (const r of emiRows) if (r.cells[m]) assign(r.cells[m].amount, true);
         for (const r of spendRows) if (r.cells[m]) assign(r.cells[m].amount, false);
+        const seen = new Map<string, number>();
         for (const x of inMonth) {
           const rest = round2(left.get(x) ?? 0);
           if (rest <= 0.5) continue;
           const st = x.statementId ? ds.card_statements.find((y) => y.id === x.statementId) : null;
           const note = st?.notes?.trim();
           const label = note && note.length <= 28 && !/emi/i.test(note) && note.toLowerCase() !== "spends" ? note : st ? "Bill" : spendRows.length ? "Other on the bill" : "Spends (bill)";
-          const id = `rest:${card.id}:${st ? st.id : "est"}`;
-          const row = restRows.get(id) ?? { id, label, hint: st && inMonth.length > 1 ? `Bill of ${formatShortDate(st.statement_date)}` : undefined, note: "Me", cells: {}, ref: { kind: "card-spends", id: card.id } };
+          // The same kind of bill every month stays on one row; a second bill in the same month gets a row of its own.
+          const n = (seen.get(label) ?? 0) + 1;
+          seen.set(label, n);
+          const id = `rest:${card.id}:${label}:${n}`;
+          const row = restRows.get(id) ?? { id, label: n > 1 ? `${label} ${n}` : label, note: "Me", cells: {}, ref: { kind: "card-spends", id: card.id } };
           row.cells[m] = { ...makeCell([x], today), amount: rest };
           restRows.set(id, row);
         }

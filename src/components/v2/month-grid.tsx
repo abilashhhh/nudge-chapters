@@ -73,7 +73,7 @@ export function useGridMonths(): string[] {
 }
 
 /** Open what's behind a cell. Returns false when there's nothing to open (paid before you started tracking). */
-function openCell(cell: GridCell | undefined): boolean {
+export function openCell(cell: GridCell | undefined): boolean {
   if (!cell?.eventKeys.length) return false;
   const key = cell.eventKeys.find((k) => !k.startsWith("before:"));
   if (!key) return false;
@@ -99,8 +99,18 @@ function monthOpen(data: MonthGridData, m: string): boolean {
   });
 }
 
-function Cell({ cell, current, bold, onOpen }: { cell?: GridCell; current: boolean; bold?: boolean; onOpen?: () => void }) {
+function Cell({ cell, current, bold, onOpen, onAdd, addLabel }: { cell?: GridCell; current: boolean; bold?: boolean; onOpen?: () => void; onAdd?: () => void; addLabel?: string }) {
   if (!cell || (Math.abs(cell.amount) < 0.005 && cell.status !== "skipped")) {
+    if (onAdd) {
+      return (
+        <td className={cn("p-0 text-right", current && "bg-surface-2")}>
+          <button type="button" onClick={onAdd} title={addLabel} aria-label={addLabel} className="group flex w-full items-center justify-end px-2 py-2 text-ink-3 hover:bg-surface-3/60 hover:text-ink sm:px-3">
+            <span className="group-hover:hidden">–</span>
+            <Plus className="hidden h-3.5 w-3.5 group-hover:block" aria-hidden />
+          </button>
+        </td>
+      );
+    }
     return <td className={cn("px-2 py-2 text-right text-ink-3 sm:px-3", current && "bg-surface-2")}>–</td>;
   }
   const word = cell.incoming && cell.status === "paid" ? "Received" : STATUS_WORD[cell.status];
@@ -143,6 +153,8 @@ export interface MonthGridProps {
   groupDetails?: (group: GridGroup) => ReactNode;
   /** "+ Add" inside each group (e.g. add a spend to this card). */
   groupAdd?: { label: string | ((g: GridGroup) => string); run: (g: GridGroup) => void };
+  /** Add something to one group in one month (e.g. a bill due that month). Tapping an empty month offers it. */
+  monthAdd?: { label: (m: string) => string; run: (g: GridGroup, m: string) => void };
   /** "+ Add" under the table (e.g. add a card). */
   bottomAdd?: { label: string; run: () => void };
   /** File name for "Download Excel" (without extension). */
@@ -154,7 +166,7 @@ export interface MonthGridProps {
   footnote?: ReactNode;
 }
 
-export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "Grand total", onRow, groupDetails, groupAdd, bottomAdd, exportName, empty, incoming, footnote }: MonthGridProps) {
+export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "Grand total", onRow, groupDetails, groupAdd, monthAdd, bottomAdd, exportName, empty, incoming, footnote }: MonthGridProps) {
   const { today, ctx } = useFinance();
   const range = useGridRange();
   const phone = usePhone();
@@ -174,6 +186,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
       incoming={incoming}
       onClose={() => setPeek(null)}
       add={groupAdd}
+      monthAdd={monthAdd}
     />
   );
 
@@ -369,6 +382,11 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                           {t.incoming ? "Mark received" : "Pay / mark paid"}
                         </Button>
                       )}
+                      {monthAdd && (
+                        <Button size="sm" variant="ghost" icon={<Plus className="h-4 w-4" />} onClick={() => monthAdd.run(g, lm)}>
+                          {monthAdd.label(lm)}
+                        </Button>
+                      )}
                       {groupAdd && (
                         <Button size="sm" variant="ghost" icon={<Plus className="h-4 w-4" />} onClick={() => groupAdd.run(g)}>
                           {typeof groupAdd.label === "function" ? groupAdd.label(g) : groupAdd.label}
@@ -382,7 +400,17 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
             );
           })}
           {withAmount.length === 0 && <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">Nothing in {monthLabel(lm)}.</p>}
-          {nothing.length > 0 && withAmount.length > 0 && (
+          {nothing.length > 0 && monthAdd && (
+            <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
+              <span className="text-[12.5px] text-ink-3">Nothing in {monthLabel(lm)} on:</span>
+              {nothing.map((g) => (
+                <button key={g.id} type="button" onClick={() => monthAdd.run(g, lm)} className="inline-flex items-center gap-1 rounded-full bg-surface-3/70 px-2.5 py-1 text-[12.5px] font-medium text-ink-2 hover:text-ink">
+                  <Plus className="h-3.5 w-3.5" aria-hidden /> {g.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {nothing.length > 0 && withAmount.length > 0 && !monthAdd && (
             <p className="hidden px-1 text-[12.5px] text-ink-3 lg:block">
               Nothing in {monthLabel(lm)}: {nothing.map((g) => g.label).join(", ")}
             </p>
@@ -453,7 +481,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                     </th>
                     {showFor && <td className="hidden px-3 py-2 font-semibold text-ink-2 sm:table-cell">{g.total.label}</td>}
                     {months.map((m) => (
-                      <Cell key={m} cell={g.total.cells[m]} current={m === cur} bold onOpen={() => setPeek({ g, m })} />
+                      <Cell key={m} cell={g.total.cells[m]} current={m === cur} bold onOpen={() => setPeek({ g, m })} onAdd={monthAdd && (() => monthAdd.run(g, m))} addLabel={monthAdd?.label(m)} />
                     ))}
                     <TotalCell cells={g.total.cells} months={months} bold />
                   </tr>
@@ -531,7 +559,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
 }
 
 /** Everything behind one month of one group (e.g. every spend and EMI on a card's bill), each on its own line. */
-function Breakdown({ group, month, incoming, onClose, add }: { group: GridGroup; month: string; incoming?: boolean; onClose: () => void; add?: MonthGridProps["groupAdd"] }) {
+function Breakdown({ group, month, incoming, onClose, add, monthAdd }: { group: GridGroup; month: string; incoming?: boolean; onClose: () => void; add?: MonthGridProps["groupAdd"]; monthAdd?: MonthGridProps["monthAdd"] }) {
   const t = group.total.cells[month];
   const rows = group.rows.filter((r) => r.cells[month] && Math.abs(r.cells[month].amount) > 0.005);
   const open = (c: GridCell | undefined) => {
@@ -547,6 +575,18 @@ function Breakdown({ group, month, incoming, onClose, add }: { group: GridGroup;
       description={t ? <StatusText status={t.status} incoming={t.incoming ?? incoming} /> : undefined}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
+          {monthAdd && (
+            <Button
+              variant="ghost"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() => {
+                onClose();
+                monthAdd.run(group, month);
+              }}
+            >
+              {monthAdd.label(month)}
+            </Button>
+          )}
           {add && (
             <Button
               variant="ghost"

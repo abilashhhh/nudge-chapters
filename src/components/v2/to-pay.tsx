@@ -1,22 +1,23 @@
 "use client";
 
-import { CreditCard, Landmark, PiggyBank } from "lucide-react";
+import { Check, ChevronRight, CreditCard, Landmark, PiggyBank } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/dates";
+import { formatDate, monthKey, startOfMonth } from "@/lib/dates";
 import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
 import { useFinance } from "@/lib/finance";
 import { formatMoney, formatPct } from "@/lib/money";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
-import { cardGrid, chitSipGrid, loanGrid, sumCells, type GridGroup } from "@/lib/v2/grids";
+import { billInMonth, cardGrid, chitSipGrid, loanGrid, monthRange, orderForMonth, sumCells, type GridGroup } from "@/lib/v2/grids";
+import { useStore } from "@/lib/store";
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { EmptyState, Tabs } from "../ui/misc";
 import { LoanPlanSheet } from "./loan-sheet";
-import { MonthGrid, useGridMonths } from "./month-grid";
-import { StatTile, useRangeEvents, V2PageHeader } from "./ui";
+import { MonthGrid, monthLabel, monthPaid, openCell, useGridMonths } from "./month-grid";
+import { AMOUNT_CLS, StatTile, StatusText, useRangeEvents, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 
 const TABS = ["all", "cards", "chits", "loans"] as const;
@@ -44,7 +45,7 @@ export function ToPayScreen() {
           { id: "loans", label: "Loans & borrowed" },
         ]}
       />
-      {tab === "all" && <AllToPay />}
+      {tab === "all" && <AllToPay goTab={setTab} />}
       {tab === "cards" && <Cards />}
       {tab === "chits" && <ChitsSips />}
       {tab === "loans" && <Loans />}
@@ -73,6 +74,7 @@ function Cards() {
       }}
       groupDetails={(g) => <CardDetails g={g} />}
       groupAdd={{ label: "Add spend", run: (g) => g.ref && ui.openTx({ type: "card_spend", card_id: g.ref.id }) }}
+      monthAdd={{ label: (m) => `Add bill for ${monthLabel(m)}`, run: (g, m) => addBill(g, m) }}
       bottomAdd={{ label: "Add a card", run: () => ui.openEditor("card") }}
       empty={<EmptyState icon={CreditCard} title="No credit cards yet" body="Add each card with its bill date and due date. Its EMIs and spends then show here month by month." />}
       footnote="Card total = EMIs + spends on that bill. EMIs on a card are paid through the card bill, so they are never added to the total twice."
@@ -80,38 +82,106 @@ function Cards() {
   );
 }
 
-/** Everything to pay — cards, chits, SIPs, loans and money borrowed — month by month in one table. */
-function AllToPay() {
+/** Everything to pay in one month — one line per card, chit, SIP or loan — kept deliberately simple. */
+function AllToPay({ goTab }: { goTab: (t: Tab) => void }) {
   const { ds, positions, today } = useFinance();
-  const months = useGridMonths();
+  const months = useMemo(() => monthRange(startOfMonth(today), 6), [today]);
   const events = useRangeEvents(months);
-  const data = useMemo(() => {
-    const parts = [cardGrid(ds, positions, events, months, today), chitSipGrid(ds, positions, events, months, today), loanGrid(ds, positions, events, months, today)];
-    const groups = parts.flatMap((p) => p.groups);
-    return { months, groups, grand: sumCells(groups.map((g) => g.total.cells), months) };
-  }, [ds, positions, events, months, today]);
-  const ui = useUI.getState();
-  return (
-    <MonthGrid
-      data={data}
-      nameHeader="What"
-      forHeader="For"
-      grandLabel="All to pay"
-      exportName="all-to-pay"
-      onRow={(row) => {
-        const r = row.ref;
-        if (!r) return;
-        if (r.kind === "loan") ui.openEditor("loan", r.id);
-        else if (r.kind === "card" || r.kind === "card-spends") ui.openEditor("card", r.id);
-        else if (r.kind === "chit") ui.openChitSheet(r.id);
-        else if (r.kind === "sip") ui.openEditor("investment", r.id);
-        else if (r.kind === "lending") ui.openEditor("lending", r.id);
-      }}
-      groupDetails={(g) => (g.id.startsWith("card:") ? <CardDetails g={g} /> : null)}
-      empty={<EmptyState icon={CreditCard} title="Nothing to pay" body="Add a credit card, chit, SIP or loan and what you pay each month shows here." />}
-      footnote="Every card spend, EMI, chit, SIP and loan payment, month by month. Paid in green, due this week in amber, late in red."
-    />
+  const parts = useMemo(
+    () => [
+      { tab: "cards" as const, title: "Credit cards", data: cardGrid(ds, positions, events, months, today) },
+      { tab: "chits" as const, title: "Chits & SIPs", data: chitSipGrid(ds, positions, events, months, today) },
+      { tab: "loans" as const, title: "Loans & borrowed", data: loanGrid(ds, positions, events, months, today) },
+    ],
+    [ds, positions, events, months, today],
   );
+  const all = useMemo(() => {
+    const groups = parts.flatMap((p) => p.data.groups);
+    return { months, groups, grand: sumCells(groups.map((g) => g.total.cells), months) };
+  }, [parts, months]);
+  const cur = monthKey(today);
+  const firstOpen = months.find((m) => monthOpenAll(all, m)) ?? cur;
+  const [pick, setPick] = useState<string | null>(null);
+  const m = pick && months.includes(pick) ? pick : firstOpen;
+  const cells = parts.flatMap((p) => p.data.groups.map((g) => ({ p, g, c: g.total.cells[m] }))).filter((x) => x.c && Math.abs(x.c.amount) > 0.005);
+  const left = cells.filter((x) => x.c!.status !== "paid" && x.c!.status !== "skipped").reduce((s2, x) => s2 + x.c!.amount, 0);
+  const paid = cells.filter((x) => x.c!.status === "paid").reduce((s2, x) => s2 + x.c!.amount, 0);
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="no-scrollbar -mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="radiogroup" aria-label="Month">
+        {months.map((k) => (
+          <button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={m === k}
+            onClick={() => setPick(k)}
+            className={cn("h-8 shrink-0 whitespace-nowrap rounded-full px-3 text-[12.5px] font-medium", m === k ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+          >
+            {monthPaid(all, k) && <Check className="-ml-0.5 mr-1 inline h-3.5 w-3.5 text-ok" aria-label="All paid" />}
+            {monthLabel(k)}
+            {k === cur ? " · now" : ""}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-2xl bg-inverse px-4 py-3 text-on-inverse">
+          <p className="text-[12.5px] opacity-75">Still to pay in {monthLabel(m)}</p>
+          <Money value={left} decimals className="text-[20px] font-semibold text-inherit" />
+        </div>
+        <div className="rounded-2xl border border-line bg-surface px-4 py-3">
+          <p className="text-[12.5px] text-ink-3">Paid</p>
+          <Money value={paid} decimals className="text-[20px] font-semibold text-ok" />
+        </div>
+      </div>
+      {cells.length === 0 && <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[14px] text-ink-2">Nothing to pay in {monthLabel(m)}.</p>}
+      {parts.map((p) => {
+        const list = orderForMonth(p.data.groups, m).filter((g) => g.total.cells[m] && Math.abs(g.total.cells[m].amount) > 0.005);
+        if (!list.length) return null;
+        return (
+          <section key={p.tab} aria-label={p.title} className="overflow-hidden rounded-2xl border border-line bg-surface">
+            <button type="button" onClick={() => goTab(p.tab)} className="flex w-full items-center justify-between border-b border-line px-4 py-2.5 text-left hover:bg-surface-2">
+              <span className="text-[13px] font-semibold text-ink-2">{p.title}</span>
+              <span className="inline-flex items-center gap-0.5 text-[12.5px] text-ink-3">
+                Details <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+              </span>
+            </button>
+            <ul className="divide-y divide-line/70">
+              {list.map((g) => {
+                const c = g.total.cells[m];
+                return (
+                  <li key={g.id}>
+                    <button type="button" onClick={() => !openCell(c) && goTab(p.tab)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14.5px] font-medium">{g.label}</span>
+                        <StatusText status={c.status} className="text-[12px]" />
+                      </span>
+                      <Money value={c.amount} decimals projected={c.estimated && c.status === "upcoming"} className={cn("shrink-0 text-[15px] font-semibold", AMOUNT_CLS[c.status])} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function monthOpenAll(data: { groups: GridGroup[] }, m: string) {
+  return data.groups.some((g) => {
+    const c = g.total.cells[m];
+    return !!c && Math.abs(c.amount) > 0.005 && c.status !== "paid" && c.status !== "skipped";
+  });
+}
+
+/** Record a bill on a card, due in the month you tapped. */
+function addBill(g: GridGroup, m: string) {
+  const card = g.ref?.kind === "card" ? useStore.getState().ds?.credit_cards.find((c) => c.id === g.ref!.id) : undefined;
+  if (!card) return;
+  const b = billInMonth(card, m);
+  useUI.getState().openEditor("statement", undefined, { card_id: card.id, statement_date: b.statement, due_date: b.due, total_due: 0 });
 }
 
 function CardDetails({ g }: { g: GridGroup }) {
