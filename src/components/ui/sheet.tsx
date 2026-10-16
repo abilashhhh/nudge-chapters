@@ -48,7 +48,9 @@ export function Sheet({
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   // Latest onClose without re-running the open/close effect (which would steal focus mid-typing).
   const onCloseRef = useRef(onClose);
   useEffect(() => {

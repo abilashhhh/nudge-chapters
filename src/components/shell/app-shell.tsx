@@ -123,7 +123,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     navEl.current = n;
     showActive(n);
   }, []);
-  useEffect(() => showActive(navEl.current), [pathname, v2, simple]);
+  useEffect(() => {
+    showActive(navEl.current);
+  }, [pathname, v2, simple]);
 
   // Keyboard: Ctrl/Cmd+K or / = search
   useEffect(() => {

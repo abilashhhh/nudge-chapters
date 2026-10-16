@@ -4,9 +4,11 @@ import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Banknote, CalendarPlus, CreditCard, HandCoins, Landmark, LineChart, PiggyBank, Repeat, Scale, Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/dates";
 import { TX_TYPE_LABEL } from "@/lib/engine/defaults";
+import { chitDividendRecord, chitInstallmentOn } from "@/lib/engine/chits";
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
@@ -191,6 +193,16 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
       } else {
         await add("transactions", body);
         if (type === "chit_payout" && body.chit_id) await patch("chits", body.chit_id, { payout_status: "received", payout_amount: body.amount, payout_date: body.date });
+        // Paid less than the plan for this installment: the difference is that month's dividend (profit).
+        if (type === "chit_installment" && body.chit_id && body.occurrence_date && !body.is_partial && body.amount) {
+          const chit = ds.chits.find((c) => c.id === body.chit_id);
+          const no = chit ? chitInstallmentOn(chit, body.occurrence_date) : null;
+          const records = chit && no ? chitDividendRecord(chit, no, body.amount) : null;
+          if (chit && records) {
+            await patch("chits", chit.id, { installment_records: records });
+            toast.success(`${formatMoney((chit.monthly_contribution || 0) - body.amount, ctx)} counted as this month's dividend.`);
+          }
+        }
       }
       if (andAnother) {
         setD({ ...init(), type: d.type, payWith: d.payWith, account_id: d.account_id, date: d.date, amount: undefined, description: "", category: d.category });

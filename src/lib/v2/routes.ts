@@ -30,7 +30,7 @@ export const V2_DAILY: { tab: string; label: string }[] = [
 export const V2_TABS: Record<string, Record<string, string>> = {
   "/my-money": { accounts: "Bank accounts", owed: "People owe me" },
   "/to-pay": { cards: "Credit cards", chits: "Chits & SIPs", loans: "Loans & borrowed" },
-  "/savings": { funds: "Mutual funds", chits: "Chits", other: "Other savings" },
+  "/savings": { funds: "Mutual funds", stocks: "Stocks", epf: "EPF & PF", chits: "Chits", commodities: "Commodities", other: "Other savings" },
   "/daily": Object.fromEntries(V2_DAILY.map((d) => [d.tab, d.label])),
   "/menu/settings": {
     profile: "Profile",
@@ -86,7 +86,8 @@ export function toV2Href(pathname: string, search: string | URLSearchParams = ""
     case "/assets":
       if (tab === "lending") return "/my-money?tab=owed";
       if (tab === "investments") return "/savings?tab=funds";
-      if (tab === "retirement" || tab === "property") return "/savings?tab=other";
+      if (tab === "retirement") return "/savings?tab=epf";
+      if (tab === "property") return "/savings?tab=other";
       return "/my-money?tab=accounts";
     case "/liabilities":
       if (tab === "chits") return "/to-pay?tab=chits";

@@ -108,6 +108,25 @@ export function upsertChitRecord(chit: Chit, rec: ChitInstallmentRecord): ChitIn
   return (hasData ? [...others, clean] : others).sort((a, b) => a.no - b.no);
 }
 
+/**
+ * Paying installment `no` in full with `paid` (less than the plan): record `paid` as the actual amount and the
+ * difference from the base as your dividend. Returns the new records, or null when nothing needs saving
+ * (paid the full base or more, or the installment already has its own auction result entered).
+ */
+export function chitDividendRecord(chit: Chit, no: number, paid: number): ChitInstallmentRecord[] | null {
+  const rec = chitRecord(chit, no);
+  if (rec && (rec.payable != null || rec.dividend != null)) return null;
+  const base = rec?.base_amount ?? chit.monthly_contribution;
+  if (!(paid > 0) || paid >= base - 0.5) return null;
+  return upsertChitRecord(chit, { ...(rec ?? { no }), no, payable: round2(paid), dividend: round2(base - paid + (rec?.fees ?? 0)) });
+}
+
+/** Which installment (1-based) is scheduled on `date`, if any. */
+export function chitInstallmentOn(chit: Chit, date: ISODate): number | null {
+  for (let no = 1; no <= chit.installments; no++) if (chitScheduledDate(chit, no) === date) return no;
+  return null;
+}
+
 /** The scheduled date of installment `no` (1-based). */
 export function chitScheduledDate(chit: Chit, no: number): ISODate {
   const sd = parseISO(chit.start_date);

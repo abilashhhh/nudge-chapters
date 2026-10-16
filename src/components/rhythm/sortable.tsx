@@ -38,7 +38,9 @@ export function SortableList<T extends { id: string }>({
   // Keep the shown order while the save goes through, so the row doesn't jump back for a moment.
   const [pending, setPending] = useState<string[] | null>(null);
   const ids = items.map((i) => i.id).join("|");
-  useEffect(() => setPending(null), [ids]);
+  useEffect(() => {
+    setPending(null);
+  }, [ids]);
   const shown = pending ? (pending.map((id) => items.find((i) => i.id === id)).filter(Boolean) as T[]) : items;
 
   const commit = (from: number, to: number) => {

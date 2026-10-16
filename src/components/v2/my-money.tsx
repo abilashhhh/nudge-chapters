@@ -297,6 +297,37 @@ function Owed() {
                 ) : undefined
               }
             >
+              <ul className="mt-3 divide-y divide-line rounded-lg border border-line">
+                {g.items.map((i) => (
+                  <li key={i.lending.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13.5px] font-medium">
+                        {formatMoney(i.lending.amount, ctx, { decimals: true })}
+                        {i.lending.notes ? <span className="font-normal text-ink-3"> · {i.lending.notes}</span> : null}
+                      </span>
+                      <span className="block text-[12px] text-ink-3">
+                        {formatDate(i.lending.date)}
+                        {i.lending.expected_date ? ` · back by ${formatDate(i.lending.expected_date, "short")}` : ""}
+                        {i.lending.written_off ? " · skipped (not counted)" : i.outstanding > 0.5 ? ` · ${formatMoney(i.outstanding, ctx, { decimals: true })} left` : " · settled"}
+                      </span>
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => ui.openEditor("lending", i.lending.id)}>
+                      Edit
+                    </Button>
+                    {i.lending.written_off ? (
+                      <Button size="sm" onClick={() => void useStore.getState().patch("lendings", i.lending.id, { written_off: false }).catch(() => undefined)}>
+                        Count it again
+                      </Button>
+                    ) : (
+                      i.outstanding > 0.5 && (
+                        <Button size="sm" variant="ghost" className="text-ink-3" onClick={() => void useStore.getState().patch("lendings", i.lending.id, { written_off: true }).catch(() => undefined)}>
+                          Won&apos;t get it back
+                        </Button>
+                      )
+                    )}
+                  </li>
+                ))}
+              </ul>
               {g.cardRisk && (
                 <p className="mt-2 flex items-start gap-1 text-[12.5px] text-warn">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />

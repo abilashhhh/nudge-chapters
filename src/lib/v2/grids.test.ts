@@ -193,7 +193,7 @@ describe("Version 2 redirects", () => {
     expect(toV2Href("/cash-flow", "?tab=transactions")).toBe("/my-money?tab=accounts");
     expect(toV2Href("/cash-flow", "?tab=recurring")).toBe("/menu/budgets");
     expect(toV2Href("/assets", "?tab=investments")).toBe("/savings?tab=funds");
-    expect(toV2Href("/assets", "?tab=retirement")).toBe("/savings?tab=other");
+    expect(toV2Href("/assets", "?tab=retirement")).toBe("/savings?tab=epf");
     expect(toV2Href("/assets", "?tab=property")).toBe("/savings?tab=other");
     expect(toV2Href("/budgets", "")).toBe("/menu/budgets");
     expect(toV2Href("/plan", "")).toBe("/daily?tab=todo");
@@ -214,5 +214,24 @@ describe("Version 2 redirects", () => {
     expect(toV2Href("/settings/", "")).toBe("/menu/settings");
     expect(hrefForV2("/liabilities?tab=loans&loan=9")).toBe("/to-pay?tab=loans&loan=9");
     expect(hrefForV2("/to-pay")).toBe("/to-pay");
+  });
+});
+
+import { orderForMonth, type GridGroup } from "./grids";
+
+describe("orderForMonth", () => {
+  const g = (id: string, amount: number, status: "paid" | "due" | "late" | "upcoming", due: string): GridGroup => ({
+    id, label: id, rows: [], total: { id, label: id, cells: amount ? { "2026-10": { amount, status, estimated: false, eventKeys: [] } } : {} }, meta: { "due:2026-10": due },
+  });
+  it("unpaid first (late on top), then paid by earliest due / biggest, then nothing", () => {
+    const order = orderForMonth([
+      g("paid-big", 9000, "paid", "2026-10-05"),
+      g("none", 0, "upcoming", "9999"),
+      g("upcoming", 1000, "upcoming", "2026-10-25"),
+      g("late", 500, "late", "2026-10-02"),
+      g("due-soon", 2000, "due", "2026-10-18"),
+      g("paid-small", 100, "paid", "2026-10-05"),
+    ], "2026-10").map((x) => x.id);
+    expect(order).toEqual(["late", "due-soon", "upcoming", "paid-big", "paid-small", "none"]);
   });
 });

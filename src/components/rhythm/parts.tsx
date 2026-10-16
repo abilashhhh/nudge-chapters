@@ -274,7 +274,9 @@ function ChecklistRow({ o, future, onOpenHabit }: { o: Occurrence; future: boole
   const act = useRhythmActions();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState(o.log?.notes ?? "");
-  useEffect(() => setNote(o.log?.notes ?? ""), [o.log?.notes]);
+  useEffect(() => {
+    setNote(o.log?.notes ?? "");
+  }, [o.log?.notes]);
   const { ds } = useRhythm();
   const done = o.status === "completed";
   const h = o.habit;

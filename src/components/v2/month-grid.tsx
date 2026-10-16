@@ -11,7 +11,7 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
-import { monthRange, rowTotal, type GridCell, type GridGroup, type GridRow, type MonthGridData } from "@/lib/v2/grids";
+import { monthRange, orderForMonth, rowTotal, type GridCell, type GridGroup, type GridRow, type MonthGridData } from "@/lib/v2/grids";
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { ChipGroup, StatusIcon, StatusText, STATUS_WORD } from "./ui";
@@ -261,7 +261,8 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
 
   if (view === "list") {
     const lm = range.listMonth && months.includes(range.listMonth) ? range.listMonth : months.includes(cur) ? cur : months[0];
-    const withAmount = data.groups.filter((g) => g.total.cells[lm] && Math.abs(g.total.cells[lm].amount) > 0.005);
+    // Still to pay this month first, then paid (earliest due / biggest first).
+    const withAmount = orderForMonth(data.groups.filter((g) => g.total.cells[lm] && Math.abs(g.total.cells[lm].amount) > 0.005), lm);
     const nothing = data.groups.filter((g) => !withAmount.includes(g));
     return (
       <div>
