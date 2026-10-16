@@ -174,6 +174,27 @@ export function buildAlerts(args: {
     }
   }
 
+  // Spending limits: warn at 80% of a category's limit, and again when it's gone over.
+  for (const e of events) {
+    const b = e.budget;
+    if (!b || b.limit <= 0 || e.date > today || b.periodEnd < today || e.status === "skipped" || e.status === "cancelled") continue;
+    const used = b.spent / b.limit;
+    if (used < 0.8) continue;
+    const over = used > 1;
+    const name = e.title.replace(/^Budget · /, "");
+    out.push({
+      key: `budget:${e.key}:${over ? "over" : "80"}`,
+      priority: over ? "high" : "normal",
+      module: "spending",
+      title: over ? `${name}: over the limit` : `${name}: ${Math.round(used * 100)}% of the limit used`,
+      body: over
+        ? `${m(b.spent)} spent of ${m(b.limit)} — ${m(b.spent - b.limit)} over, ${relativeDays(today, b.periodEnd)} left in this period.`
+        : `${m(b.spent)} of ${m(b.limit)} spent. ${m(b.limit - b.spent)} left until ${formatDate(b.periodEnd)}.`,
+      date: today,
+      href: "/menu/budgets",
+    });
+  }
+
   // Large unusual expenses in the last 7 days (≥ 3× the category's typical size)
   const recent = ds.transactions.filter((t) => !isOpening(t) && t.date > addDays(today, -7) && t.date <= today && classify(t).expense > 0);
   for (const t of recent) {

@@ -95,10 +95,22 @@ export function AllMoney() {
     },
     {
       title: "People owe me",
-      lines: ds.lendings
-        .filter((l) => l.direction === "lent" && !l.written_off)
-        .map((l) => ({ id: l.id, label: l.person, sub: l.notes ?? undefined, value: positions.lendings.get(l.id)?.outstanding ?? 0, href: "/my-money?tab=owed" }))
-        .filter(nz),
+      // One line per person, with everything they owe added up.
+      lines: [
+        ...ds.lendings
+          .filter((l) => l.direction === "lent" && !l.written_off)
+          .reduce((map, l) => {
+            // "Surya — laptop EMI 1/7" and "Surya — laptop EMI 2/7" are both Surya.
+            const name = l.person.split(/\s+[—–-]\s+/)[0].trim() || l.person.trim();
+            const k = name.toLowerCase();
+            const cur = map.get(k) ?? { id: `p:${k}`, label: name, value: 0, href: "/my-money?tab=owed" };
+            cur.value += positions.lendings.get(l.id)?.outstanding ?? 0;
+            return map.set(k, cur);
+          }, new Map<string, Line>())
+          .values(),
+      ]
+        .filter(nz)
+        .sort((a, b) => b.value - a.value),
     },
     {
       title: "Savings",

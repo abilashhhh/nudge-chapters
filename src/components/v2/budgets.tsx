@@ -33,7 +33,7 @@ function budgetState(b: FinEvent) {
   const limit = b.budget?.limit ?? 0;
   const spent = b.budget?.spent ?? 0;
   const used = limit > 0 ? spent / limit : 0;
-  return { limit, spent, left: limit - spent, used, state: used > 1 ? "over" : used >= 0.85 ? "near" : "ok" };
+  return { limit, spent, left: limit - spent, used, state: used > 1 ? "over" : used >= 0.8 ? "near" : "ok" };
 }
 
 function BudgetStatus({ b }: { b: FinEvent }) {
