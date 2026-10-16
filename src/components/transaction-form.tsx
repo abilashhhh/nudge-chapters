@@ -104,6 +104,22 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
     return opts.sort((a, b) => (a.due < b.due ? -1 : 1));
   }, [spendCard, d.date, today]);
   const naturalDue = billOptions.find((o) => o.natural)?.due ?? null;
+  // Things you've recorded before on this card (or account): pick one to fill in the same name, amount and category.
+  const pastSpends = useMemo(() => {
+    if (editing || (d.type ?? "expense") !== "expense" || !d.payWith) return [];
+    const [kind, id] = d.payWith.split(":");
+    const seen = new Set<string>();
+    const out: Transaction[] = [];
+    for (const t of [...ds.transactions].sort((a, b) => (a.date < b.date ? 1 : -1))) {
+      if (!t.description || (kind === "card" ? t.card_id !== id || t.type !== "card_spend" : t.account_id !== id || t.type !== "expense")) continue;
+      const k = t.description.trim().toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
+      if (out.length >= 8) break;
+    }
+    return out;
+  }, [editing, d.type, d.payWith, ds.transactions]);
   const pickedDue = billDue && billOptions.some((o) => o.due === billDue) ? billDue : naturalDue;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -292,6 +308,26 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
             )}
           </Select>
         </Field>
+          {pastSpends.length > 0 && (
+            <Field label="Same as before" htmlFor="tx-past">
+              <div id="tx-past" className="no-scrollbar flex gap-1.5 overflow-x-auto">
+                {pastSpends.map((t) => {
+                  const on = (d.description ?? "").trim().toLowerCase() === t.description!.trim().toLowerCase();
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => set({ description: t.description, amount: d.amount || t.amount, category: t.category ?? d.category })}
+                      className={cn("shrink-0 rounded-full px-3 py-1.5 text-[13px] font-medium", on ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
+                    >
+                      {t.description} <span className="opacity-70">· {formatMoney(t.amount, ctx)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
           {billOptions.length > 1 && (
             <Field label="Pay it with the bill due in" htmlFor="tx-bill">
               <div id="tx-bill" className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Bill">

@@ -31,6 +31,7 @@ import { CommandPalette } from "./command-palette";
 
 import { V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
 import { V2QuickAddSheet } from "../v2/quick-add";
+import { SmsSync } from "../v2/sms";
 import { useGridRange } from "../v2/month-grid";
 import { useMonth } from "../ui/month-picker";
 
@@ -276,6 +277,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {v2 ? <V2QuickAddSheet /> : <QuickAddSheet />}
       <TransactionSheet />
       <EventSheet />
+      <SmsSync />
       <ChitInstallmentsSheet />
       <LifeEditorSheet />
       <AlarmWatcher />

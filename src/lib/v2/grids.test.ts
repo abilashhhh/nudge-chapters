@@ -109,6 +109,18 @@ describe("credit card spends", () => {
   });
 });
 
+describe("same spend every month", () => {
+  it("stays on one row across months", () => {
+    const ds = cardSheet();
+    const bob = ds.credit_cards.find((c) => c.name === "BOB OneCard")!;
+    ds.transactions.push({ ...cardSpend(bob.id, "2026-10-09", 199), description: "Netflix" }, { ...cardSpend(bob.id, "2026-11-09", 199), description: "netflix " });
+    const g = gridFor(ds).groups.find((x) => x.label === "BOB OneCard")!;
+    const rows = g.rows.filter((r) => r.id.startsWith("spend:"));
+    expect(rows).toHaveLength(1);
+    expect(Object.keys(rows[0].cells)).toHaveLength(2);
+  });
+});
+
 describe("Version 2 month tables", () => {
   it("credit cards: EMIs and spends grouped under each card, totals match the sheet, nothing counted twice", () => {
     const g = gridFor(cardSheet());
