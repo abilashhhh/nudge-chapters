@@ -50,6 +50,8 @@ export interface Column<T> {
   align?: "right";
   /** Hide on phones (the value stays available in the row's details). */
   wide?: boolean;
+  /** In the tiles look, the big number on each tile (default: the last right-aligned column). */
+  main?: boolean;
   className?: string;
 }
 
@@ -93,7 +95,7 @@ export function DataTable<T>({
 
   if (look === "tiles" && !noLookToggle) {
     const [title, ...rest] = columns;
-    const main = [...rest].reverse().find((c) => c.align === "right");
+    const main = rest.find((c) => c.main) ?? [...rest].reverse().find((c) => c.align === "right");
     const others = rest.filter((c) => c !== main);
     return (
       <div>
