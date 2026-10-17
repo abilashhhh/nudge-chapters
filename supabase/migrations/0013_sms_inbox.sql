@@ -79,3 +79,7 @@ revoke all on function public.ingest_sms(text, text, text, timestamptz) from pub
 grant execute on function public.ingest_sms(text, text, text, timestamptz) to anon, authenticated;
 
 create trigger sms_inbox_updated_at before update on public.sms_inbox for each row execute function public.set_updated_at();
+
+-- Debit card digits on the account it belongs to (SMS about card payments quote the card, not the account).
+alter table public.accounts add column if not exists card_last4 text;
+alter table public.accounts add constraint accounts_card_last4_check check (card_last4 is null or card_last4 = '' or card_last4 ~ '^[0-9]{3,6}$');

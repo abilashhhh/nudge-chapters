@@ -20,6 +20,8 @@ export interface Account extends Owned {
   institution?: string | null;
   /** Last digits of the account number, to match bank SMS ("A/c XX1234"). */
   last4?: string | null;
+  /** Last digits of the account's debit card ("Debit Card XX5625" in SMS). */
+  card_last4?: string | null;
   currency: string;
   opening_balance: number;
   opening_date: ISODate;

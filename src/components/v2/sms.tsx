@@ -309,7 +309,7 @@ export function SmsScreen() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-  const missing = [...ds.accounts.filter((a) => !a.archived && a.type !== "cash" && !a.last4).map((a) => a.name), ...ds.credit_cards.filter((c) => !c.archived && !c.last4).map((c) => c.name)];
+  const missing = [...ds.accounts.filter((a) => !a.archived && a.type !== "cash" && a.type !== "wallet" && !a.last4 && !a.card_last4).map((a) => a.name), ...ds.credit_cards.filter((c) => !c.archived && !c.last4).map((c) => c.name)];
 
   if (!available) {
     return (

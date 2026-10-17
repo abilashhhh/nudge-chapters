@@ -71,13 +71,13 @@ function findCard(ds: Dataset, p: ParsedSms): { card?: CreditCard; sure: boolean
 function findAccount(ds: Dataset, p: ParsedSms): { account?: Account; sure: boolean } {
   const list = ds.accounts.filter((a) => !a.archived);
   if (p.last4) {
-    const hit = list.filter((a) => ends(a.last4, p.last4));
+    const hit = list.filter((a) => ends(a.last4, p.last4) || ends(a.card_last4, p.last4));
     if (hit.length === 1) return { account: hit[0], sure: true };
   }
   const re = p.bank ? FIRST[p.bank] : null;
   if (re) {
     const hit = list.filter((a) => re.test(`${a.institution ?? ""} ${a.name}`));
-    if (hit.length === 1) return { account: hit[0], sure: !p.last4 || !hit[0].last4 };
+    if (hit.length === 1) return { account: hit[0], sure: !p.last4 || (!hit[0].last4 && !hit[0].card_last4) };
   }
   return { sure: false };
 }
