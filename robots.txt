@@ -1,0 +1,6 @@
+User-Agent: *
+Allow: /
+Disallow: /onboarding/
+Disallow: /reset-password/
+
+Sitemap: https://nudgechapters.in/sitemap.xml
