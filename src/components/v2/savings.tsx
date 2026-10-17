@@ -1,6 +1,6 @@
 "use client";
 
-import { LineChart, PiggyBank, Plus, Wallet } from "lucide-react";
+import { LineChart, PiggyBank, Plus, RefreshCw, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/dates";
@@ -19,6 +19,9 @@ import { Sheet } from "../ui/sheet";
 import { StatTile, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 import { AllSavings } from "./all-money";
+import { refreshPrices, usePrices } from "../price-refresher";
+import { priceItems } from "@/lib/prices";
+import { toast } from "sonner";
 
 const TABS = ["all", "funds", "stocks", "epf", "chits", "commodities", "other"] as const;
 type Tab = (typeof TABS)[number];
@@ -60,6 +63,7 @@ export function SavingsScreen() {
         <StatTile label="Money put in" value={putIn} />
         <StatTile label={profit >= 0 ? "Profit" : "Loss"} value={profit} tone="auto" note={putIn > 0 ? `${formatPct((profit / putIn) * 100)}` : undefined} />
       </div>
+      <LivePricesBar />
       <Tabs<Tab>
         className="mb-4"
         value={tab}
@@ -70,7 +74,9 @@ export function SavingsScreen() {
       {tab === "funds" && <Funds list={invs.filter(isFund)} />}
       {tab === "chits" && <Chits />}
       {(tab === "stocks" || tab === "epf" || tab === "commodities" || tab === "other") && <Other list={invs.filter((p) => sectionOf(p) === tab)} section={tab} />}
-      <p className="mt-4 hidden text-[12.5px] text-ink-3 lg:block">Values are what you type in — this app doesn&apos;t fetch live prices.</p>
+      <p className="mt-4 hidden text-[12.5px] text-ink-3 lg:block">
+        Stocks and mutual funds update with the latest NSE/BSE price and AMFI NAV when you open the app. Other savings are the values you type in.
+      </p>
     </>
   );
 }
@@ -367,6 +373,50 @@ function Other({ list, section }: { list: InvestmentPosition[]; section: "stocks
         }}
         footer={["Total", <Money key="v" value={list.reduce((s, p) => s + p.valueBase, 0)} decimals className="font-bold" />]}
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/** "Prices updated 4:12 pm · Refresh" — shown for signed-in accounts holding stocks or funds. */
+function LivePricesBar() {
+  const ds = useStore((s) => s.ds);
+  const kind = useStore((s) => s.repo?.kind);
+  const { busy, at, failed } = usePrices();
+  if (!ds || kind !== "supabase" || ds.profile.preferences.livePrices?.off) return null;
+  const items = priceItems(ds.investments, ds.profile.preferences.livePrices?.codes);
+  if (!items.length) return null;
+  const names = new Map(ds.investments.map((i) => [i.id, i.name]));
+  const when = at ? new Date(at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : null;
+  return (
+    <div className="mb-4 rounded-2xl border border-line bg-surface px-3.5 py-2.5">
+      <div className="flex items-center gap-3">
+        <p className="min-w-0 flex-1 text-[13px] text-ink-2">
+          {busy ? "Getting the latest prices…" : when ? `Live prices · checked ${when}` : "Live prices for your stocks and funds"}
+        </p>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<RefreshCw className={cn("h-4 w-4", busy && "animate-spin")} />}
+          disabled={busy}
+          onClick={async () => {
+            try {
+              const n = await refreshPrices(true);
+              toast.success(n ? `Updated ${n} price${n === 1 ? "" : "s"}` : "Prices are already up to date");
+            } catch {
+              toast.error("Couldn't get prices right now. Try again in a bit.");
+            }
+          }}
+        >
+          Refresh
+        </Button>
+      </div>
+      {failed.length > 0 && !busy && (
+        <p className="mt-1 text-[12.5px] text-warn">
+          No price for {failed.map((f) => names.get(f.id) ?? "a holding").join(", ")}. Put its NSE symbol or AMFI scheme code in “Folio, symbol” (Edit).
+        </p>
+      )}
     </div>
   );
 }

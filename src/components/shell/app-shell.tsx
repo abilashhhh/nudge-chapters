@@ -18,6 +18,7 @@ import { Editors } from "../editors";
 import { ChitInstallmentsSheet } from "../chits";
 import { AlarmWatcher } from "../alarm";
 import { InsuranceReminderSync } from "../insurance/actions";
+import { PriceRefresher } from "../price-refresher";
 import { RhythmReminders } from "../rhythm/reminders";
 import { LifeEditorSheet } from "../life";
 import { EventSheet } from "../event-sheet";
@@ -282,6 +283,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <LifeEditorSheet />
       <AlarmWatcher />
       <InsuranceReminderSync />
+      <PriceRefresher />
       <RhythmReminders />
       <Editors />
       <CommandPalette />

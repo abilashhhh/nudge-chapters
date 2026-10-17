@@ -390,6 +390,8 @@ export interface SinkingFund {
 
 export interface Preferences {
   theme?: "system" | "light" | "dark";
+  /** Live prices for stocks and mutual funds, fetched when the app opens. `codes` = what each holding was matched to by name. */
+  livePrices?: { off?: boolean; codes?: Record<string, { code: string; matched?: string }> };
   /** Bank SMS import: add confident matches without asking, and match balances to the SMS. */
   sms?: { autoAdd?: boolean; matchBalance?: boolean; selfNames?: string[] };
   /** Tax estimate: amounts you typed in (anything left out comes from your data). */
