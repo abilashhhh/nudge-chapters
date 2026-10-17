@@ -55,6 +55,9 @@
   /* Daily Rhythm: done vs missed marks (validated for colour-blind separation on each surface) */
   --rh-done: #1baf7a;
   --rh-missed: #c4314b;
+  /* Trading Training candles: hollow up, filled down (shape tells them apart as well as colour) */
+  --candle-up: #0f7d5f;
+  --candle-down: #ef6a3f;
   /* Inverted surfaces (hero cards, selected chips, active nav): dark on light, a deep green in dark mode */
   --inverse: #15201c;
   --on-inverse: #eef1ec;
@@ -114,6 +117,8 @@
     --alloc-other: #9085e9;
     --rh-done: #33ad80;
     --rh-missed: #b8384a;
+    --candle-up: #249f80;
+    --candle-down: #e2603f;
     --inverse: #22463a;
     --on-inverse: #eef4f0;
     --future-on-inverse: #c4b8ff;
@@ -153,6 +158,8 @@
   --chart-grid: #222c27;
   --rh-done: #33ad80;
   --rh-missed: #b8384a;
+  --candle-up: #249f80;
+  --candle-down: #e2603f;
   --inverse: #22463a;
   --on-inverse: #eef4f0;
   --future-on-inverse: #c4b8ff;
@@ -189,6 +196,8 @@
   --color-on-inverse: var(--on-inverse);
   --color-rh-done: var(--rh-done);
   --color-rh-missed: var(--rh-missed);
+  --color-candle-up: var(--candle-up);
+  --color-candle-down: var(--candle-down);
   --shadow-panel: var(--shadow);
   --breakpoint-xs: 26rem;
 }

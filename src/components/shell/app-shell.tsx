@@ -2,7 +2,7 @@
 
 import {
   Bell, Eye, EyeOff, Home, LogOut, Moon, Plus, Search, Sun, 
-  TrendingUp, Wallet, Menu as MenuIcon, Receipt, CalendarCheck } from "lucide-react";
+  TrendingUp, Wallet, Menu as MenuIcon, Receipt, CalendarCheck, ChartCandlestick } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
@@ -37,7 +37,7 @@ import { useGridRange } from "../v2/month-grid";
 import { useMonth } from "../ui/month-picker";
 
 /** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
-const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/savings": TrendingUp, "/daily": CalendarCheck, "/menu": MenuIcon };
+const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/savings": TrendingUp, "/daily": CalendarCheck, "/trading-training": ChartCandlestick, "/menu": MenuIcon };
 
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [pathname, router]);
   const sideNav = V2_NAV.map((n) => ({ href: n.href, label: n.label, icon: V2_ICONS[n.href] }));
   const sideNavGroups = [{ title: null as string | null, items: sideNav }];
-  const mobileNav = sideNav;
+  const mobileNav = sideNav.filter((n) => !V2_NAV.find((v) => v.href === n.href)?.desktopOnly);
 
   // Long sidebar on a short screen: keep the current page's item in view.
   // (A callback ref too, because the sidebar can mount after this effect — e.g. once the app lock opens.)
@@ -241,8 +241,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      {/* Global add button */}
-      <button
+      {/* Global add button (not over Trading Training, where it would cover lesson and quiz controls) */}
+      {!isActiveV2(pathname, "/trading-training") && <button
         type="button"
         onClick={() => ui.openQuick()}
         aria-label="Quick add"
@@ -250,13 +250,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <Plus className="h-5 w-5" aria-hidden />
         <span className="hidden text-[14.5px] font-semibold lg:inline">Add</span>
-      </button>
+      </button>}
 
       {/* Mobile bottom navigation */}
       <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
         <div className={cn("mx-auto grid max-w-lg", mobileNav.length >= 6 ? "grid-cols-6" : mobileNav.length === 5 ? "grid-cols-5" : mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
           {mobileNav.map((n) => {
-            const active = isActiveV2(pathname, n.href);
+            // Sections left off the bar are opened from Menu, so Menu stays lit there.
+            const active = isActiveV2(pathname, n.href) || (n.href === "/menu" && V2_NAV.some((v) => v.desktopOnly && isActiveV2(pathname, v.href)));
             return (
               <Link
                 key={n.href}

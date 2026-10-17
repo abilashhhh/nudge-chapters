@@ -6,6 +6,8 @@ export interface V2NavItem {
   label: string;
   /** One line shown under the page title. */
   meaning: string;
+  /** Left off the phone's bottom bar (it has room for six); reached from Menu there instead. */
+  desktopOnly?: boolean;
 }
 
 export const V2_NAV: V2NavItem[] = [
@@ -14,6 +16,7 @@ export const V2_NAV: V2NavItem[] = [
   { href: "/to-pay", label: "To Pay", meaning: "Bills, EMIs and installments you have to pay" },
   { href: "/savings", label: "Savings", meaning: "What your savings and investments are worth" },
   { href: "/daily", label: "Daily", meaning: "Your daily rhythm, to-do, reminders, notes and wishlist" },
+  { href: "/trading-training", label: "Trading Training", meaning: "Learn to read candlestick charts: lessons, quizzes and daily practice", desktopOnly: true },
   { href: "/menu", label: "Menu", meaning: "Planning tools and settings" },
 ];
 
