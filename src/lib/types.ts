@@ -617,6 +617,57 @@ export interface InsurancePolicy extends Owned {
 }
 
 // ---------------------------------------------------------------------------
+// Trading Training: what you did, never the lesson content (that ships with the app)
+// ---------------------------------------------------------------------------
+
+/** How you practised. */
+export type TrainingMode = "learn" | "quiz" | "pattern" | "predict" | "analysis" | "revision" | "challenge" | "daily";
+
+/** One sitting: a quiz, a practice round, a lesson's knowledge check or the daily challenge. */
+export interface TrainingSession extends Owned {
+  mode: TrainingMode;
+  /** The lesson whose check this was, when it was one. */
+  lesson_id?: string | null;
+  /** Your date when it started (your time zone). */
+  day: ISODate;
+  started_at: string;
+  finished_at?: string | null;
+  /** XP for finishing it (daily challenge, revision round); answers carry their own. */
+  bonus_xp: number;
+}
+
+/** One answer. The first answer to a question in a sitting is the only one kept. */
+export interface TrainingAttempt extends Owned {
+  session_id: UUID;
+  question_id: string;
+  mode: TrainingMode;
+  topic: string;
+  /** 1 beginner · 2 intermediate · 3 advanced */
+  difficulty: 1 | 2 | 3;
+  answer: unknown;
+  correct: boolean;
+  /** 0–1: partial credit (multi-select, matching) or direction + reasoning for predictions. */
+  score: number;
+  /** Predictions only: how good the reasons you gave were, 0–1 (kept apart from the direction). */
+  reasoning_score?: number | null;
+  /** The how-manyth time you've answered this question (1 = first try). */
+  attempt_no: number;
+  time_ms: number;
+  xp: number;
+  day: ISODate;
+}
+
+/** A lesson you opened or finished. */
+export interface TrainingLesson extends Owned {
+  lesson_id: string;
+  status: "started" | "completed";
+  completed_on?: ISODate | null;
+  last_opened_at: string;
+  /** Seconds spent reading it. */
+  time_spent_s: number;
+}
+
+// ---------------------------------------------------------------------------
 // The full in-memory dataset for a user
 // ---------------------------------------------------------------------------
 
@@ -661,6 +712,9 @@ export interface Dataset {
   habit_logs: HabitLog[];
   insurance_policies: InsurancePolicy[];
   contacts: Contact[];
+  training_sessions: TrainingSession[];
+  training_attempts: TrainingAttempt[];
+  training_lessons: TrainingLesson[];
 }
 
 export type TableName = Exclude<keyof Dataset, "profile">;
@@ -686,6 +740,9 @@ export const TABLES: TableName[] = [
   "habit_logs",
   "insurance_policies",
   "contacts",
+  "training_sessions",
+  "training_attempts",
+  "training_lessons",
 ];
 
 export type RowOf<T extends TableName> = Dataset[T][number];

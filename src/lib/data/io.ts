@@ -28,7 +28,7 @@ export function makeBackup(ds: Dataset): Backup {
 
 const FK_FIELDS = [
   "account_id", "to_account_id", "card_id", "statement_id", "loan_id", "chit_id", "investment_id", "lending_id",
-  "rule_id", "payment_account_id", "sip_account_id", "goal_id", "source_id", "habit_id", "reminder_id",
+  "rule_id", "payment_account_id", "sip_account_id", "goal_id", "source_id", "habit_id", "reminder_id", "session_id",
 ];
 const FK_ARRAYS = ["linked_account_ids", "linked_investment_ids"];
 
@@ -54,6 +54,9 @@ const COLUMNS: Record<TableName, string[]> = {
   habit_logs: ["id", "habit_id", "date", "status", "actual_value", "notes", "completed_at"],
   insurance_policies: ["id", "name", "type", "insurer", "policy_number", "insured", "nominee", "sum_assured", "premium", "frequency", "premium_due_date", "start_date", "end_date", "account_id", "card_id", "notify", "notify_time", "notify_days_before", "rule_id", "reminder_id", "status", "notes"],
   contacts: ["id", "name", "phones", "emails", "org", "title", "birthday", "address", "notes", "favorite"],
+  training_sessions: ["id", "mode", "lesson_id", "day", "started_at", "finished_at", "bonus_xp"],
+  training_attempts: ["id", "session_id", "question_id", "mode", "topic", "difficulty", "answer", "correct", "score", "reasoning_score", "attempt_no", "time_ms", "xp", "day"],
+  training_lessons: ["id", "lesson_id", "status", "completed_on", "last_opened_at", "time_spent_s"],
 };
 
 /** Fields that must be present for a row to be saved. */

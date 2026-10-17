@@ -111,10 +111,23 @@ export class LocalRepo implements Repo {
   async insert<T extends TableName>(table: T, row: RowOf<T>): Promise<RowOf<T>> {
     const now = new Date().toISOString();
     const full = { ...row, id: (row as { id?: string }).id || newId(), created_at: now, updated_at: now } as RowOf<T>;
+    if (this.clashes(table, full)) throw new Error(`duplicate key value violates unique constraint on ${table}`);
     this.rows(table).push(full);
     this.persist();
     if (table !== "net_worth_snapshots") this.log(table, "insert", (full as { id: string }).id, null, full);
     return structuredClone(full);
+  }
+
+  /** The unique rules the database enforces for Trading Training (so retries behave the same on this device). */
+  private clashes<T extends TableName>(table: T, row: RowOf<T>): boolean {
+    if (!table.startsWith("training_")) return false;
+    const r = row as unknown as Record<string, unknown>;
+    const list = this.rows(table) as unknown as Record<string, unknown>[];
+    if (list.some((x) => x.id === r.id)) return true;
+    if (table === "training_attempts") return list.some((x) => x.session_id === r.session_id && x.question_id === r.question_id);
+    if (table === "training_lessons") return list.some((x) => x.lesson_id === r.lesson_id);
+    if (table === "training_sessions" && r.mode === "daily") return list.some((x) => x.mode === "daily" && x.day === r.day);
+    return false;
   }
 
   async insertMany<T extends TableName>(table: T, rows: RowOf<T>[]): Promise<RowOf<T>[]> {
@@ -144,6 +157,7 @@ export class LocalRepo implements Repo {
     if (table === "credit_cards") this.ds.card_statements = this.ds.card_statements.filter((s) => s.card_id !== id);
     if (table === "investments") this.ds.investment_valuations = this.ds.investment_valuations.filter((v) => v.investment_id !== id);
     if (table === "habits") this.ds.habit_logs = (this.ds.habit_logs ?? []).filter((l) => l.habit_id !== id);
+    if (table === "training_sessions") this.ds.training_attempts = (this.ds.training_attempts ?? []).filter((a) => a.session_id !== id);
     this.persist();
     this.log(table, "delete", id, old, null);
   }
