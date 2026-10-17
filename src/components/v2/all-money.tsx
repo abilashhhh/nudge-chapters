@@ -194,7 +194,7 @@ export function AllSavings() {
               <span className="block truncate text-[14px]">{l.label}</span>
               <span className="block truncate text-[12px] text-ink-3">{l.sub}</span>
             </span>
-            <Money value={l.gain} decimals tone="auto" className="text-right text-[13px]" />
+            <Money value={l.gain} decimals tone="pl" className="text-right text-[13px]" />
             <Money value={l.value} decimals className="w-24 text-right text-[14px] font-semibold sm:w-28" />
           </li>
         ))}

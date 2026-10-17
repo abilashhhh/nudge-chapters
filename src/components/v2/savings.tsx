@@ -61,7 +61,7 @@ export function SavingsScreen() {
       <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
         <StatTile label="Total saved" value={value} note="Value today" />
         <StatTile label="Money put in" value={putIn} />
-        <StatTile label={profit >= 0 ? "Profit" : "Loss"} value={profit} tone="auto" note={putIn > 0 ? `${formatPct((profit / putIn) * 100)}` : undefined} />
+        <StatTile label={profit >= 0 ? "Profit" : "Loss"} value={profit} tone="pl" note={putIn > 0 ? `${formatPct((profit / putIn) * 100)}` : undefined} />
       </div>
       <Tabs<Tab>
         className="mb-4"
@@ -123,7 +123,7 @@ function Funds({ list }: { list: InvestmentPosition[] }) {
             <Details
               items={[
                 ["Money put in", m(p.invested)],
-                ["Profit", `${m(p.gain)} (${formatPct(p.gainPct)})`],
+                [p.gain < 0 ? "Loss" : "Profit", <span key="g" className={plClass(p.gain)}>{`${m(p.gain)} (${formatPct(p.gainPct)})`}</span>],
                 ["Monthly SIP", i.sip_active && i.sip_amount > 0 ? `${m(i.sip_amount)} · every ${i.sip_day ?? "month"}` : "–"],
                 ["Yearly return", p.xirr != null ? formatPct(p.xirr) : "Not enough history"],
                 ...priceDetails(p, m),
@@ -346,7 +346,7 @@ function Other({ list, section }: { list: InvestmentPosition[]; section: "stocks
             <Details
               items={[
                 ["Money put in", m(p.invested)],
-                ...(section === "stocks" ? ([["Profit", `${m(p.gain)} (${formatPct(p.gainPct)})`], ...priceDetails(p, m)] as [string, string][]) : []),
+                ...(section === "stocks" ? ([[p.gain < 0 ? "Loss" : "Profit", <span key="g" className={plClass(p.gain)}>{`${m(p.gain)} (${formatPct(p.gainPct)})`}</span>], ...priceDetails(p, m)] as [ReactNode, ReactNode][]) : []),
                 ["Last updated", i.value_as_of ? formatDate(i.value_as_of, "short") : "–"],
                 ...(retirement(i.type) ? ([["Goes in each month", monthly > 0 ? m(monthly) : "–"]] as [string, string][]) : []),
                 ...(i.institution ? ([["Where", i.institution]] as [string, string][]) : []),
@@ -433,13 +433,18 @@ function marketColumns(ctx: MoneyContext, title: string): Column<InvestmentPosit
       header: "Profit / loss",
       align: "right",
       cell: (p) => (
-        <span className={cn("block", p.gain < 0 ? "text-danger" : "text-ok")}>
+        <span className={cn("block", plClass(p.gain))}>
           <Money value={p.gain} decimals sign currency={p.investment.currency} />
           {p.invested > 0 && <span className="block text-[11.5px]">{formatPct(p.gainPct)}</span>}
         </span>
       ),
     },
   ];
+}
+
+/** Green for a profit, red for a loss. */
+function plClass(n: number) {
+  return n > 0 ? "text-ok" : n < 0 ? "text-danger" : "text-ink";
 }
 
 function marketFooter(invested: number, value: number): ReactNode[] {
@@ -450,7 +455,7 @@ function marketFooter(invested: number, value: number): ReactNode[] {
     null,
     <Money key="i" value={invested} decimals className="font-bold" />,
     <Money key="v" value={value} decimals className="font-bold" />,
-    <span key="g" className={cn("block font-bold", gain < 0 ? "text-danger" : "text-ok")}>
+    <span key="g" className={cn("block font-bold", plClass(gain))}>
       <Money value={gain} decimals sign />
       {invested > 0 && <span className="block text-[11.5px]">{formatPct((gain / invested) * 100)}</span>}
     </span>,

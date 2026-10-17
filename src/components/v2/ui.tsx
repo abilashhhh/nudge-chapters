@@ -63,7 +63,7 @@ export function StatTile({
   href?: string;
   onClick?: () => void;
   projected?: boolean;
-  tone?: "auto" | "danger";
+  tone?: "auto" | "pl" | "danger";
   dark?: boolean;
 }) {
   const body = (
@@ -72,7 +72,7 @@ export function StatTile({
       <Money
         value={value}
         projected={projected}
-        tone={tone === "auto" ? "auto" : undefined}
+        tone={tone === "auto" || tone === "pl" ? tone : undefined}
         className={cn("display mt-0.5 block truncate text-[17px] font-semibold leading-tight sm:text-[22px]", tone === "danger" && value > 0.5 && "text-danger", dark && "text-inherit")}
       />
       {note && <span className={cn("mt-0.5 block truncate text-[11.5px]", dark ? "opacity-70" : "text-ink-3")}>{note}</span>}
