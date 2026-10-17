@@ -24,7 +24,8 @@ export function Money({
   sign?: boolean;
   decimals?: boolean;
   className?: string;
-  tone?: "auto" | "in" | "out";
+  /** auto: red when negative. pl (profit/loss): green above zero, red below. */
+  tone?: "auto" | "pl" | "in" | "out";
   currency?: string;
 }) {
   const { ctx, ds } = useFinance();
@@ -32,7 +33,9 @@ export function Money({
   const c = currency ? { ...ctx, currency } : ctx;
   const text = compact ? formatCompact(value, c) : formatMoney(value, c, { sign, decimals });
   const toneCls =
-    tone === "in" ? "text-ok" : tone === "out" ? "text-ink" : tone === "auto" ? (value < 0 ? "text-danger" : "text-ink") : "";
+    tone === "in" ? "text-ok" : tone === "out" ? "text-ink" : tone === "auto" ? (value < 0 ? "text-danger" : "text-ink")
+    : tone === "pl" ? (value > 0 ? "text-ok" : value < 0 ? "text-danger" : "text-ink")
+    : "";
   return (
     <span
       className={cn("num", projected && "projected", masked && "masked", !projected && toneCls, className)}
