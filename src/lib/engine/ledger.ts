@@ -72,7 +72,13 @@ export function isRefund(t: Pick<Transaction, "tags" | "type">): boolean {
   return t.type === "income" && Array.isArray(t.tags) && t.tags.includes("refund");
 }
 
+/** Your own money moving between your own accounts, cards and wallets (e.g. loading a wallet with a card): neither spending nor income. */
+export function isSelfTransfer(t: Pick<Transaction, "tags">): boolean {
+  return Array.isArray(t.tags) && t.tags.includes("self-transfer");
+}
+
 export function classify(t: Transaction): { income: number; expense: number; invested: number; debtPaid: number } {
+  if (isSelfTransfer(t)) return { income: 0, expense: 0, invested: 0, debtPaid: 0 };
   if (isRefund(t)) return { income: 0, expense: -t.amount, invested: 0, debtPaid: 0 };
   if (isReimbursable(t) && (t.type === "expense" || t.type === "card_spend" || t.type === "loan_emi" || t.type === "income")) {
     return { income: 0, expense: 0, invested: 0, debtPaid: 0 };

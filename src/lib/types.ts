@@ -391,7 +391,7 @@ export interface SinkingFund {
 export interface Preferences {
   theme?: "system" | "light" | "dark";
   /** Bank SMS import: add confident matches without asking, and match balances to the SMS. */
-  sms?: { autoAdd?: boolean; matchBalance?: boolean };
+  sms?: { autoAdd?: boolean; matchBalance?: boolean; selfNames?: string[] };
   /** Tax estimate: amounts you typed in (anything left out comes from your data). */
   tax?: Partial<Record<"salary" | "other" | "employerNps" | "c80" | "d80" | "d80Parents" | "nps" | "homeLoanInterest" | "hra" | "otherDeductions" | "professionalTax", number>>;
   /** Sinking funds: money put aside every month for a cost that comes once or a few times a year. */
@@ -618,6 +618,25 @@ export interface InsurancePolicy extends Owned {
 // The full in-memory dataset for a user
 // ---------------------------------------------------------------------------
 
+export interface ContactPhone {
+  label: string;
+  number: string;
+}
+
+/** Someone in your address book (imported from a .vcf file). */
+export interface Contact extends Owned {
+  name: string;
+  phones: ContactPhone[];
+  emails: string[];
+  org?: string | null;
+  title?: string | null;
+  /** Year 1604 means the year isn't known. */
+  birthday?: ISODate | null;
+  address?: string | null;
+  notes?: string | null;
+  favorite: boolean;
+}
+
 export interface Dataset {
   profile: Profile;
   accounts: Account[];
@@ -639,6 +658,7 @@ export interface Dataset {
   habits: Habit[];
   habit_logs: HabitLog[];
   insurance_policies: InsurancePolicy[];
+  contacts: Contact[];
 }
 
 export type TableName = Exclude<keyof Dataset, "profile">;
@@ -663,6 +683,7 @@ export const TABLES: TableName[] = [
   "habits",
   "habit_logs",
   "insurance_policies",
+  "contacts",
 ];
 
 export type RowOf<T extends TableName> = Dataset[T][number];

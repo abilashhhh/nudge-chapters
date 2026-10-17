@@ -17,6 +17,8 @@ export interface ParsedSms {
   last4: string | null;
   bank: string | null;
   merchant: string | null;
+  /** The other account in the message ("credited to XX1766 … debited from a/c XX6080"), when there is one. */
+  counterLast4: string | null;
   /** UPI / IMPS / NEFT reference, used to spot the same payment reported twice. */
   ref: string | null;
   date: ISODate | null;
@@ -60,6 +62,7 @@ const BANKS: [RegExp, string][] = [
   [/\bamex|american express/i, "American Express"],
   [/\bau ?bank|\bau small/i, "AU Bank"],
   [/\bpaytm/i, "Paytm"],
+  [/credwl|cred wallet|\bcred\b/i, "CRED"],
 ];
 
 /** Bank SMS dates: 16-10-26, 16/10/2026, 16Oct26, 16-Oct-26, 2026-10-15, 16 Oct 2026. */
@@ -109,12 +112,14 @@ function merchantOf(text: string): string | null {
 export function parseSms(body: string, sender?: string | null, today: ISODate = new Date().toISOString().slice(0, 10)): ParsedSms {
   const text = body.replace(/\s+/g, " ").trim();
   const low = text.toLowerCase();
-  const out: ParsedSms = { amount: null, direction: null, instrument: null, last4: null, bank: null, merchant: null, ref: null, date: null, balance: null, availableLimit: null, cardPayment: false, ignore: null, confidence: 0 };
+  const out: ParsedSms = { amount: null, direction: null, instrument: null, last4: null, bank: null, merchant: null, ref: null, counterLast4: null, date: null, balance: null, availableLimit: null, cardPayment: false, ignore: null, confidence: 0 };
 
   if (/\botp\b|one[ -]time password|verification code/.test(low)) out.ignore = "OTP";
   else if (/\b(declined|failed|unsuccessful|could not be processed|reversed? (?:of|for)?\s*failed)\b/.test(low) && !/refund|reversal of/.test(low)) out.ignore = "Failed or declined";
   else if (/\b(will be debited|is due|due on|due date|payment due|min(?:imum)? (?:amount )?due|total (?:amount )?due|statement (?:for|of)|bill (?:is )?generated|e-?mandate|auto ?pay .*scheduled|requested money|collect request)\b/.test(low) && !/\b(debited|credited|spent|received)\b(?! by)/.test(low.replace(/will be debited/g, "")))
     out.ignore = "Reminder, not a payment";
+  else if (/round ?-?ups?\b/.test(low)) out.ignore = "Moved within the account (round-ups)";
+  else if (/beneficiary/.test(low) && !/\b(debited|credited|sent|paid)\b/.test(low)) out.ignore = "Not a payment";
   else if (/\b(offer|cashback up to|win|apply now|pre-?approved|loan of up to|limit increase)\b/.test(low) && !/\b(debited|credited|spent)\b/.test(low)) out.ignore = "Offer";
 
   // Bank
@@ -149,6 +154,12 @@ export function parseSms(body: string, sender?: string | null, today: ISODate = 
     out.instrument = "wallet";
   }
 
+  // The other account: "credited … and debited from a/c no. XX6080", "sent … to a/c XX1234".
+  if (out.last4) {
+    const all = [...text.matchAll(/\b(?:a\/?c|acct|account)\b(?:\s+(?:no\.?|number))?[\s:.]*(?:xx|x+|\*+|\.{2,})?\s*[x*]*(\d{3,6})\b/gi)].map((m) => m[1].slice(-4));
+    out.counterLast4 = all.find((l) => l !== out.last4) ?? null;
+  }
+
   // Direction
   const debitWords = /\b(debited|spent|paid|sent|withdrawn|purchase|txn of|transaction of|used|dr\b|debit)\b/;
   const creditWords = /\b(credited|received|deposited|refund(?:ed)?|reversal|cr\b|added to)\b/;
@@ -163,7 +174,7 @@ export function parseSms(body: string, sender?: string | null, today: ISODate = 
   }
 
   // Reference
-  const ref = text.match(/\b(?:upi\s*ref(?:erence)?(?:\s*no)?|ref(?:erence)?\s*(?:no|number|id)?|refno|rrn|utr|txn\s*(?:id|no)|imps\s*ref)\s*[.:#-]?\s*([A-Za-z0-9]{6,22})\b/i);
+  const ref = text.match(/\bupi\s*txn\s*:?\s*\/?\s*(\d{9,22})/i) ?? text.match(/\b(?:upi\s*ref(?:erence)?(?:\s*no)?|ref(?:erence)?\s*(?:no|number|id)?|refno|rrn|utr|txn\s*(?:id|no)|imps\s*ref)\s*[.:#-]?\s*([A-Za-z0-9]{6,22})\b/i);
   out.ref = ref ? ref[1] : null;
 
   out.date = parseDate(text, Number(today.slice(0, 4)));

@@ -11,7 +11,7 @@ import type {
   Certainty, CreditCard, Dataset, EventOverride, ISODate, OverrideSource, RecurringRule, ScenarioAssumptions, Transaction, TxType,
 } from "../types";
 import { DEFAULT_ASSUMPTIONS } from "./defaults";
-import { computePositions, isOpening, isRefund, isReimbursable, type Positions } from "./ledger";
+import { computePositions, isOpening, isRefund, isReimbursable, isSelfTransfer, type Positions } from "./ledger";
 import { nextOccurrenceAfter, occurrences } from "./schedule";
 
 export type EventKind =
@@ -232,6 +232,7 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
           (t) =>
             (t.type === "expense" || t.type === "card_spend" || (t.type === "income" && isRefund(t))) &&
             !isReimbursable(t) &&
+            !isSelfTransfer(t) &&
             t.date >= o &&
             t.date <= periodEnd &&
             ((t.rule_id == null && t.category === rule.category) || (t.rule_id === rule.id)),

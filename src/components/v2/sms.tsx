@@ -10,7 +10,7 @@ import { cashDeltas } from "@/lib/engine/ledger";
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { INGEST_API_KEY, INGEST_URL, smsAvailable, useSms } from "@/lib/sms/inbox";
-import { appBalance, proposeFromSms, type SmsProposal, type SmsRow } from "@/lib/sms/match";
+import { appBalance, pairSms, proposeFromSms, type SmsProposal, type SmsRow } from "@/lib/sms/match";
 import { parseSms } from "@/lib/sms/parse";
 import { useStore } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
@@ -29,7 +29,7 @@ const TYPE_WORD: Record<string, string> = {
   loan_emi: "EMI paid",
   chit_installment: "Chit paid",
   invest_buy: "SIP paid",
-  transfer: "Transfer",
+  transfer: "Self transfer",
   lend_repayment: "Paid back to you",
   borrow_repayment: "You paid back",
 };
@@ -40,13 +40,16 @@ type Item = { row: SmsRow; p: SmsProposal };
 export function useSmsItems(): Item[] {
   const { ds, positions, events, today } = useFinance();
   const rows = useSms((s) => s.rows);
-  return useMemo(
+  const list = useMemo(
     () =>
       rows
         .filter((r) => r.status === "new")
-        .map((row) => ({ row, p: proposeFromSms(row, parseSms(row.body, row.sender, today), ds, positions, events, today) })),
+        .map((row) => ({ row, p: proposeFromSms(row, parseSms(row.body, row.sender, today), ds, positions, events, today) }))
+        // Oldest first, so pairs (bank + card, or both halves of a transfer) are read in the order they came.
+        .reverse(),
     [rows, ds, positions, events, today],
   );
+  return useMemo(() => pairSms(list, ds).reverse(), [list, ds]);
 }
 
 /** Adds the proposed transaction (and, when asked, matches the account balance to what the SMS says). */
@@ -56,8 +59,10 @@ async function addItem({ row, p }: Item, matchBalance: boolean, latestForAccount
   const before = p.balance && snapshot ? appBalance(snapshot.positions, p.balance.accountId) : null;
   const tx = await add("transactions", { ...p.tx, tags: [...(p.tx.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>);
   await useSms.getState().mark(row.id, "added", tx.id);
+  const more: Transaction[] = [];
+  for (const extra of p.also ?? []) more.push(await add("transactions", { ...extra, tags: [...(extra.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>));
   if (matchBalance && latestForAccount && p.balance && before != null) {
-    const after = before + cashDeltas(tx as Transaction).reduce((s, [id, d]) => s + (id === p.balance!.accountId ? d : 0), 0);
+    const after = before + [tx, ...more].flatMap((t) => cashDeltas(t as Transaction)).reduce((s, [id, d]) => s + (id === p.balance!.accountId ? d : 0), 0);
     const diff = Math.round((p.balance.bank - after) * 100) / 100;
     if (Math.abs(diff) >= 1) {
       await add("transactions", { date: tx.date, type: "adjustment", amount: diff, account_id: p.balance.accountId, description: "Balance matched with bank SMS", is_partial: false, reconciled: true, tags: ["reconcile", "sms"] });
@@ -175,7 +180,8 @@ function SmsInboxSheet() {
     }
   };
   const ready = items.filter((i) => i.p.state === "ready");
-  const where = (p: SmsProposal) => p.card?.name ?? p.account?.name ?? null;
+  const name = (id?: string | null) => (id ? ds.accounts.find((a) => a.id === id)?.name : null) ?? "which account?";
+  const where = (p: SmsProposal) => (p.tx?.type === "transfer" ? `${name(p.tx.account_id)} → ${name(p.tx.to_account_id)}` : (p.card?.name ?? p.account?.name ?? null));
   return (
     <Sheet
       open
@@ -298,8 +304,28 @@ function CopyField({ label, value, secret }: { label: string; value: string; sec
   );
 }
 
+/** The names banks use for you ("ABILASH N"), so money you send to yourself is a transfer, not spending. */
+function SelfNames({ names, onSave }: { names: string[]; onSave: (n: string[]) => void }) {
+  const [v, setV] = useState(names.join(", "));
+  const save = () => onSave(v.split(",").map((x) => x.trim()).filter(Boolean));
+  return (
+    <div>
+      <label htmlFor="sms-self" className="text-[13px] font-medium text-ink-2">
+        Your name as banks write it
+      </label>
+      <div className="mt-1 flex gap-2">
+        <input id="sms-self" value={v} onChange={(e) => setV(e.target.value)} onBlur={save} placeholder="e.g. ABILASH N" className="h-10 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-[14px]" />
+        <Button size="sm" onClick={save}>
+          Save
+        </Button>
+      </div>
+      <p className="mt-1 text-[12px] text-ink-3">Money sent to or received from this name is treated as a transfer between your own accounts. Separate several with commas.</p>
+    </div>
+  );
+}
+
 export function SmsScreen() {
-  const { ds } = useFinance();
+  const { ds, ctx } = useFinance();
   const { rows, key, loaded, refresh } = useSms();
   const [newKey, setNewKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -347,74 +373,75 @@ export function SmsScreen() {
     { t: "Make two more the same way", d: <>Duplicate the automation for <code>INR</code> and for <code>debited</code>, so every bank's wording is caught. A message caught twice is only kept once.</> },
   ];
 
-  const recent = rows.slice(0, 30);
+  const recent = rows.slice(0, 50);
+  const setupOpen = !key || !rows.length;
+  const txOf = (id: string | null) => (id ? ds.transactions.find((t) => t.id === id) : undefined);
+  const WORD: Record<string, string> = { transfer: "Self transfer", card_spend: "Card spend", card_payment: "Card bill paid", expense: "Spent", income: "Received" };
   return (
     <>
       <V2PageHeader title="Bank SMS" />
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-          <div className="flex items-start gap-3">
-            <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden />
-            <div className="min-w-0">
-              <h2 className="text-[16px] font-semibold">Add payments from your bank SMS</h2>
-              <p className="mt-1 text-[13.5px] text-ink-2">
-                iPhones don&apos;t let apps read your messages. Apple&apos;s free <b>Shortcuts</b> app can send just your bank messages here when they arrive. Only messages about money are kept; OTPs and everything else are dropped before they&apos;re saved. It works when the app is closed: payments wait here until you open it.
-              </p>
+        <section className="rounded-2xl border border-line bg-surface">
+          <div className="flex items-center justify-between px-4 py-3 sm:px-5">
+            <div>
+              <h2 className="text-[15px] font-semibold">Received</h2>
+              <p className="text-[12px] text-ink-3">{key?.last_used_at ? `Last message ${formatDate(key.last_used_at.slice(0, 10), "short")}` : key ? "Set up — waiting for the first message" : "Not set up yet"}</p>
             </div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-          <h2 className="flex items-center gap-2 text-[15px] font-semibold">
-            <KeyRound className="h-4 w-4 text-ink-3" aria-hidden /> 1 · Your personal key
-          </h2>
-          {newKey ? (
-            <div className="mt-3 flex flex-col gap-3">
-              <p className="text-[13px] font-medium text-warn">Copy it into the shortcut now — it&apos;s shown only once.</p>
-              <CopyField label="Personal key" value={newKey} />
-            </div>
-          ) : key ? (
-            <p className="mt-2 text-[13.5px] text-ink-2">
-              Made {formatDate(key.created_at.slice(0, 10))}. {key.last_used_at ? `Last message received ${formatDate(key.last_used_at.slice(0, 10))}.` : "No messages received yet."}
-            </p>
-          ) : (
-            <p className="mt-2 text-[13.5px] text-ink-2">Make a key for your phone. Anyone with it can add messages to your inbox (nothing else), so keep it to yourself.</p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant={key ? "secondary" : "primary"} loading={busy} icon={<KeyRound className="h-4 w-4" />} onClick={make}>
-              {key ? "Make a new key (the old one stops working)" : "Make my key"}
-            </Button>
-            {key && (
-              <Button variant="ghost" icon={<Trash2 className="h-4 w-4" />} onClick={() => void useSms.getState().removeKey().then(() => toast.success("Key removed — the phone can't send any more"))}>
-                Turn off
+            <div className="flex gap-1.5">
+              {rows.some((r) => r.status === "new") && (
+                <Button size="sm" variant="primary" onClick={() => useSms.getState().openSheet(true)}>
+                  Review {rows.filter((r) => r.status === "new").length}
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void refresh()}>
+                Refresh
               </Button>
-            )}
+            </div>
           </div>
+          {!loaded ? (
+            <p className="px-4 pb-4 text-[13.5px] text-ink-3 sm:px-5">Loading…</p>
+          ) : recent.length === 0 ? (
+            <p className="px-4 pb-4 text-[13.5px] text-ink-2 sm:px-5">Nothing yet. Set up the shortcut below.</p>
+          ) : (
+            <ul className="divide-y divide-line border-t border-line">
+              {recent.map((r) => {
+                const t = txOf(r.transaction_id);
+                return (
+                  <li key={r.id} className="flex items-start gap-3 px-4 py-2.5 sm:px-5">
+                    <span className={cn("mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", r.status === "added" ? "bg-ok/15 text-ok" : r.status === "ignored" ? "bg-surface-3 text-ink-3" : "bg-warn/15 text-warn")}>
+                      {r.status === "added" ? "Added" : r.status === "ignored" ? "Ignored" : "Waiting"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      {t && (
+                        <button type="button" onClick={() => useUI.getState().openTx(null, t)} className="block text-left text-[13px] font-medium hover:underline">
+                          {WORD[t.type] ?? t.type} · {t.description ?? ""} · {formatMoney(t.amount, ctx)}
+                        </button>
+                      )}
+                      <span className="line-clamp-2 block text-[12.5px] text-ink-2">{r.body}</span>
+                      <span className="block text-[11.5px] text-ink-3">
+                        {r.sender ? `${r.sender} · ` : ""}
+                        {formatDate(r.received_at.slice(0, 10), "short")}
+                      </span>
+                    </span>
+                    {r.status === "new" ? (
+                      <Button size="sm" onClick={() => useSms.getState().openSheet(true)}>
+                        Review
+                      </Button>
+                    ) : r.status === "ignored" ? (
+                      <Button size="sm" variant="ghost" onClick={() => void useSms.getState().mark(r.id, "new")}>
+                        Look again
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
 
         <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-          <h2 className="text-[15px] font-semibold">2 · Set up the shortcut on your iPhone (about 5 minutes, once)</h2>
-          <ol className="mt-3 flex flex-col gap-3">
-            {steps.map((s, i) => (
-              <li key={s.t} className="flex gap-3">
-                <span className="num flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-inverse text-[12px] font-semibold text-on-inverse">{i + 1}</span>
-                <span className="min-w-0 text-[13.5px]">
-                  <span className="block font-medium">{s.t}</span>
-                  <span className="block text-ink-2">{s.d}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <CopyField label="Address" value={INGEST_URL} />
-            <CopyField label="App key (apikey header — this one is public)" value={INGEST_API_KEY} />
-          </div>
-          <p className="mt-3 text-[12.5px] text-ink-3">To test: after setting up, any bank message (or a text to yourself like “Rs 1 debited from A/c XX1234”) appears below within a minute of opening the app.</p>
-        </section>
-
-        <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-          <h2 className="text-[15px] font-semibold">3 · Match messages to your accounts</h2>
-          <p className="mt-1 text-[13.5px] text-ink-2">Messages are matched by the last 4 digits of the account or card.</p>
+          <h2 className="text-[15px] font-semibold">How messages are matched</h2>
+          <p className="mt-1 text-[13.5px] text-ink-2">By the last 4 digits of the account, debit card or credit card.</p>
           {missing.length > 0 ? (
             <p className="mt-2 text-[13px] text-warn">
               Add the last 4 digits to: {missing.join(", ")}. Edit them in <Link className="underline" href="/my-money?tab=accounts">My Money</Link> and <Link className="underline" href="/to-pay?tab=cards">To Pay → Credit cards</Link>.
@@ -422,6 +449,9 @@ export function SmsScreen() {
           ) : (
             <p className="mt-2 text-[13px] text-ok">Every account and card has its last digits.</p>
           )}
+          <div className="mt-3 border-t border-line pt-3">
+            <SelfNames names={prefs.selfNames ?? []} onSave={(n) => void updatePrefs({ sms: { ...prefs, selfNames: n } })} />
+          </div>
           <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
             <Switch
               checked={!!prefs.autoAdd}
@@ -438,41 +468,65 @@ export function SmsScreen() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-line bg-surface">
-          <div className="flex items-center justify-between px-4 py-3 sm:px-5">
-            <h2 className="text-[15px] font-semibold">Received</h2>
-            <Button size="sm" variant="ghost" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void refresh()}>
-              Refresh
-            </Button>
-          </div>
-          {!loaded ? (
-            <p className="px-4 pb-4 text-[13.5px] text-ink-3 sm:px-5">Loading…</p>
-          ) : recent.length === 0 ? (
-            <p className="px-4 pb-4 text-[13.5px] text-ink-2 sm:px-5">Nothing yet.</p>
-          ) : (
-            <ul className="divide-y divide-line border-t border-line">
-              {recent.map((r) => (
-                <li key={r.id} className="flex items-start gap-3 px-4 py-2.5 sm:px-5">
-                  <span className={cn("mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", r.status === "added" ? "bg-ok/15 text-ok" : r.status === "ignored" ? "bg-surface-3 text-ink-3" : "bg-warn/15 text-warn")}>
-                    {r.status === "added" ? "Added" : r.status === "ignored" ? "Ignored" : "Waiting"}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 block text-[12.5px] text-ink-2">{r.body}</span>
-                    <span className="block text-[11.5px] text-ink-3">
-                      {r.sender ? `${r.sender} · ` : ""}
-                      {formatDate(r.received_at.slice(0, 10), "short")}
+        <details open={setupOpen} className="group rounded-2xl border border-line bg-surface">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            <span className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-brand" aria-hidden />
+              <span className="text-[15px] font-semibold">Set up on your iPhone</span>
+            </span>
+            <span className="text-[12.5px] text-ink-3 group-open:hidden">{key ? "Done · show steps" : "Show steps"}</span>
+            <span className="hidden text-[12.5px] text-ink-3 group-open:inline">Hide</span>
+          </summary>
+          <div className="flex flex-col gap-4 border-t border-line px-4 py-4 sm:px-5">
+            <p className="text-[13.5px] text-ink-2">
+              iPhones don&apos;t let apps read your messages. Apple&apos;s free <b>Shortcuts</b> app can send just your bank messages here when they arrive. Only messages about money are kept; OTPs and everything else are dropped before they&apos;re saved. Payments wait here until you open the app.
+            </p>
+            <div>
+              <h3 className="flex items-center gap-2 text-[14px] font-semibold">
+                <KeyRound className="h-4 w-4 text-ink-3" aria-hidden /> 1 · Your personal key
+              </h3>
+              {newKey ? (
+                <div className="mt-2 flex flex-col gap-3">
+                  <p className="text-[13px] font-medium text-warn">Copy it into the shortcut now — it&apos;s shown only once.</p>
+                  <CopyField label="Personal key" value={newKey} />
+                </div>
+              ) : key ? (
+                <p className="mt-1 text-[13.5px] text-ink-2">Made {formatDate(key.created_at.slice(0, 10))}.</p>
+              ) : (
+                <p className="mt-1 text-[13.5px] text-ink-2">Make a key for your phone. Anyone with it can add messages to your inbox (nothing else), so keep it to yourself.</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" variant={key ? "secondary" : "primary"} loading={busy} icon={<KeyRound className="h-4 w-4" />} onClick={make}>
+                  {key ? "Make a new key (the old one stops working)" : "Make my key"}
+                </Button>
+                {key && (
+                  <Button size="sm" variant="ghost" icon={<Trash2 className="h-4 w-4" />} onClick={() => void useSms.getState().removeKey().then(() => toast.success("Key removed — the phone can't send any more"))}>
+                    Turn off
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold">2 · Make the shortcut (about 5 minutes, once)</h3>
+              <ol className="mt-2 flex flex-col gap-3">
+                {steps.map((st, i) => (
+                  <li key={st.t} className="flex gap-3">
+                    <span className="num flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-inverse text-[12px] font-semibold text-on-inverse">{i + 1}</span>
+                    <span className="min-w-0 text-[13.5px]">
+                      <span className="block font-medium">{st.t}</span>
+                      <span className="block text-ink-2">{st.d}</span>
                     </span>
-                  </span>
-                  {r.status === "new" && (
-                    <Button size="sm" onClick={() => useSms.getState().openSheet(true)}>
-                      Review
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-3 grid grid-cols-1 gap-3">
+                <CopyField label="Address" value={INGEST_URL} />
+                <CopyField label="App key (apikey header — this one is public)" value={INGEST_API_KEY} />
+              </div>
+              <p className="mt-2 text-[12.5px] text-ink-3">To test: send yourself a text like “Rs 1 debited from A/c XX1234”. It appears under Received within a minute of opening the app.</p>
+            </div>
+          </div>
+        </details>
       </div>
     </>
   );

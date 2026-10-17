@@ -53,6 +53,7 @@ export const V2_MENU_PAGES: Record<string, string> = {
   "/menu/goals": "Goals",
   "/menu/calendar": "Calendar",
   "/menu/sms": "Bank SMS",
+  "/menu/contacts": "Contacts",
   "/menu/sinking": "Sinking funds",
   "/menu/tax": "Tax estimate",
   "/menu/future": "Future",
