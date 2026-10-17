@@ -163,7 +163,8 @@ export function SmsBanner() {
 
 function SmsInboxSheet() {
   const open = useSms((s) => s.sheet);
-  const items = useSmsItems().filter((i) => i.p.state === "ready" || i.p.state === "check");
+  // Everything still waiting, including messages that aren't payments (so they can be cleared with one tap).
+  const items = useSmsItems().filter((i) => i.p.state !== "duplicate");
   const { ds, ctx } = useFinance();
   const [busy, setBusy] = useState<string | null>(null);
   if (!open) return null;
@@ -231,7 +232,7 @@ function SmsInboxSheet() {
                         </p>
                       </>
                     ) : (
-                      <p className="text-[14px] font-semibold">Couldn&apos;t read this one</p>
+                      <p className="text-[14px] font-semibold">{p.state === "ignore" ? "Not a payment" : "Couldn't read this one"}</p>
                     )}
                     {p.reason && <p className="mt-0.5 text-[12.5px] font-medium text-warn">{p.reason}</p>}
                   </div>
@@ -245,7 +246,12 @@ function SmsInboxSheet() {
                   </p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {tx && (p.account || p.card) && (
+                  {p.state === "ignore" && (
+                    <Button size="sm" variant="primary" icon={<X className="h-3.5 w-3.5" />} onClick={() => run(row.id, () => useSms.getState().mark(row.id, "ignored"))}>
+                      Ignore — nothing to add
+                    </Button>
+                  )}
+                  {p.state !== "ignore" && tx && (p.account || p.card) && (
                     <Button size="sm" variant="primary" loading={busy === row.id} icon={<Check className="h-3.5 w-3.5" />} onClick={() => run(row.id, () => addItem(it, matchBalance, true))}>
                       Add
                     </Button>
@@ -259,9 +265,11 @@ function SmsInboxSheet() {
                   >
                     Change & add
                   </Button>
-                  <Button size="sm" variant="ghost" icon={<X className="h-3.5 w-3.5" />} onClick={() => run(row.id, () => useSms.getState().mark(row.id, "ignored"))}>
-                    Ignore
-                  </Button>
+                  {p.state !== "ignore" && (
+                    <Button size="sm" variant="ghost" icon={<X className="h-3.5 w-3.5" />} onClick={() => run(row.id, () => useSms.getState().mark(row.id, "ignored"))}>
+                      Ignore
+                    </Button>
+                  )}
                 </div>
               </li>
             );
@@ -326,6 +334,7 @@ function SelfNames({ names, onSave }: { names: string[]; onSave: (n: string[]) =
 
 export function SmsScreen() {
   const { ds, ctx } = useFinance();
+  const items = useSmsItems();
   const { rows, key, loaded, refresh } = useSms();
   const [newKey, setNewKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -374,6 +383,8 @@ export function SmsScreen() {
   ];
 
   const recent = rows.slice(0, 50);
+  const waiting = new Map(items.map((i) => [i.row.id, i]));
+  const toReview = items.filter((i) => i.p.state === "ready" || i.p.state === "check").length;
   const setupOpen = !key || !rows.length;
   const txOf = (id: string | null) => (id ? ds.transactions.find((t) => t.id === id) : undefined);
   const WORD: Record<string, string> = { transfer: "Self transfer", card_spend: "Card spend", card_payment: "Card bill paid", expense: "Spent", income: "Received" };
@@ -388,9 +399,9 @@ export function SmsScreen() {
               <p className="text-[12px] text-ink-3">{key?.last_used_at ? `Last message ${formatDate(key.last_used_at.slice(0, 10), "short")}` : key ? "Set up — waiting for the first message" : "Not set up yet"}</p>
             </div>
             <div className="flex gap-1.5">
-              {rows.some((r) => r.status === "new") && (
+              {toReview > 0 && (
                 <Button size="sm" variant="primary" onClick={() => useSms.getState().openSheet(true)}>
-                  Review {rows.filter((r) => r.status === "new").length}
+                  Review {toReview}
                 </Button>
               )}
               <Button size="sm" variant="ghost" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void refresh()}>
@@ -414,16 +425,21 @@ export function SmsScreen() {
                     <span className="min-w-0 flex-1">
                       {t && (
                         <button type="button" onClick={() => useUI.getState().openTx(null, t)} className="block text-left text-[13px] font-medium hover:underline">
-                          {WORD[t.type] ?? t.type} · {t.description ?? ""} · {formatMoney(t.amount, ctx)}
+                          {[WORD[t.type] ?? t.type, t.description && t.description !== WORD[t.type] ? t.description : null, formatMoney(t.amount, ctx)].filter(Boolean).join(" · ")}
                         </button>
                       )}
+                      {r.status === "new" && waiting.get(r.id)?.p.reason && <span className="block text-[12.5px] font-medium text-warn">{waiting.get(r.id)?.p.reason}</span>}
                       <span className="line-clamp-2 block text-[12.5px] text-ink-2">{r.body}</span>
                       <span className="block text-[11.5px] text-ink-3">
                         {r.sender ? `${r.sender} · ` : ""}
                         {formatDate(r.received_at.slice(0, 10), "short")}
                       </span>
                     </span>
-                    {r.status === "new" ? (
+                    {r.status === "new" && waiting.get(r.id)?.p.state === "ignore" ? (
+                      <Button size="sm" onClick={() => void useSms.getState().mark(r.id, "ignored")} title={waiting.get(r.id)?.p.reason}>
+                        Ignore
+                      </Button>
+                    ) : r.status === "new" ? (
                       <Button size="sm" onClick={() => useSms.getState().openSheet(true)}>
                         Review
                       </Button>
