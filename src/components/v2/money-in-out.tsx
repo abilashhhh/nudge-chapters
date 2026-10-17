@@ -25,7 +25,8 @@ export function MoneyInOut({ month }: { month: string }) {
   const ui = useUI.getState();
 
   const data = useMemo(() => {
-    const inMonth = ds.transactions.filter((t) => t.date.startsWith(month));
+    // Moving your own money between your accounts, cards and wallets is neither spending nor earning.
+    const inMonth = ds.transactions.filter((t) => t.date.startsWith(month) && !t.tags?.includes("self-transfer"));
     const amt = (t: Transaction) => {
       const acct = t.account_id ? ds.accounts.find((a) => a.id === t.account_id) : null;
       return toBase(t.amount, acct?.currency ?? ctx.currency, ctx);

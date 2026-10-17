@@ -53,6 +53,7 @@ const COLUMNS: Record<TableName, string[]> = {
   habits: ["id", "name", "description", "category", "icon", "color", "frequency", "days", "interval_days", "schedule_history", "target_value", "target_unit", "start_date", "end_date", "time", "end_time", "reminder_time", "sort_order", "archived", "archived_on"],
   habit_logs: ["id", "habit_id", "date", "status", "actual_value", "notes", "completed_at"],
   insurance_policies: ["id", "name", "type", "insurer", "policy_number", "insured", "nominee", "sum_assured", "premium", "frequency", "premium_due_date", "start_date", "end_date", "account_id", "card_id", "notify", "notify_time", "notify_days_before", "rule_id", "reminder_id", "status", "notes"],
+  contacts: ["id", "name", "phones", "emails", "org", "title", "birthday", "address", "notes", "favorite"],
 };
 
 /** Fields that must be present for a row to be saved. */
@@ -75,6 +76,7 @@ const REQUIRED: Partial<Record<TableName, string[]>> = {
   habits: ["name", "start_date"],
   habit_logs: ["habit_id", "date", "status"],
   insurance_policies: ["name"],
+  contacts: ["name"],
 };
 
 /** Other names some files use for the same field (older exports, spreadsheets, hand-edited files). */

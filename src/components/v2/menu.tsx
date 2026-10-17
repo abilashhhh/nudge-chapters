@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Briefcase, CalendarDays, HelpCircle, Landmark, MessageSquareText, PiggyBank, Repeat, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
+import { Bell, Briefcase, CalendarDays, HelpCircle, Landmark, MessageSquareText, PiggyBank, Repeat, Users, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useFinance } from "@/lib/finance";
@@ -40,6 +40,7 @@ export function MenuScreen() {
     {
       title: "App",
       tiles: [
+        { href: "/menu/contacts", label: "Contacts", icon: Users, hint: ds.contacts?.length ? `${ds.contacts.length} people` : "Import from your phone (.vcf)" },
         { href: "/menu/sms", label: "Bank SMS", icon: MessageSquareText, hint: "Add payments from bank messages (iPhone)" },
         { href: "/menu/settings", label: "Settings", icon: Settings, hint: "Profile, import & export, security, look" },
         { href: "/menu/help", label: "Help & support", icon: HelpCircle, hint: "Questions and answers" },

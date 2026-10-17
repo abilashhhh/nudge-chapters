@@ -41,6 +41,13 @@ describe("SMS → transaction", () => {
     const again = propose(d, "Payment of Rs 1,155.97 has been received on your HDFC Bank Credit Card ending 3996 on 16-10-2026.");
     expect(again.state).toBe("duplicate");
   });
+  it("a debit card payment goes to the account the card belongs to", () => {
+    const d = ds();
+    d.accounts[0].card_last4 = "5625";
+    const p = propose(d, "Rs 450.00 spent on your Kotak Bank Debit Card XX5625 at DMART on 16-10-26. Avl bal Rs 19,550.00");
+    expect(p.state).toBe("ready");
+    expect(p.tx).toMatchObject({ type: "expense", account_id: "a1", amount: 450 });
+  });
   it("an unknown account waits for you", () => {
     const p = propose(ds(), "Rs.500 debited from A/c XX7777 on 16-10-26 to VPA abc@upi");
     expect(p.state).toBe("check");

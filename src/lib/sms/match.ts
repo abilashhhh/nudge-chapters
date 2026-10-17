@@ -28,8 +28,18 @@ export interface SmsProposal {
   duplicateOf?: Transaction;
   /** When the SMS states a balance: what the bank says vs what the app will show after adding this. */
   balance?: { accountId: string; bank: number };
+  /** More entries to add with this one (e.g. loading a wallet with a card: the wallet's side and the card's fee). */
+  also?: (Partial<Transaction> & { type: TxType; amount: number; date: ISODate })[];
   parsed: ParsedSms;
 }
+
+/** Your own names as banks write them ("ABILASH N"), to spot money you send to yourself. */
+export function selfNames(ds: Dataset): string[] {
+  const set = ds.profile.preferences?.sms?.selfNames ?? [];
+  return [...set, ds.profile.name ?? ""].map((n) => n.trim()).filter((n) => n.length >= 4);
+}
+const mentions = (body: string, names: string[]) =>
+  names.some((n) => new RegExp(`(^|[^A-Za-z])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}([^A-Za-z]|$)`, "i").test(body));
 
 const FIRST: Record<string, RegExp> = {
   "HDFC Bank": /hdfc/i,
@@ -49,6 +59,7 @@ const FIRST: Record<string, RegExp> = {
   Slice: /slice/i,
   "American Express": /amex|american express/i,
   "AU Bank": /\bau\b/i,
+  CRED: /\bcred\b/i,
   Paytm: /paytm/i,
 };
 
@@ -71,13 +82,13 @@ function findCard(ds: Dataset, p: ParsedSms): { card?: CreditCard; sure: boolean
 function findAccount(ds: Dataset, p: ParsedSms): { account?: Account; sure: boolean } {
   const list = ds.accounts.filter((a) => !a.archived);
   if (p.last4) {
-    const hit = list.filter((a) => ends(a.last4, p.last4));
+    const hit = list.filter((a) => ends(a.last4, p.last4) || ends(a.card_last4, p.last4));
     if (hit.length === 1) return { account: hit[0], sure: true };
   }
   const re = p.bank ? FIRST[p.bank] : null;
   if (re) {
     const hit = list.filter((a) => re.test(`${a.institution ?? ""} ${a.name}`));
-    if (hit.length === 1) return { account: hit[0], sure: !p.last4 || !hit[0].last4 };
+    if (hit.length === 1) return { account: hit[0], sure: !p.last4 || (!hit[0].last4 && !hit[0].card_last4) };
   }
   return { sure: false };
 }
@@ -147,6 +158,25 @@ export function proposeFromSms(row: SmsRow, p: ParsedSms, ds: Dataset, positions
   const balance = p.balance != null ? { accountId: account.id, bank: p.balance } : undefined;
   const dup = findDuplicate(ds, amount, date, { accountId: account.id }, p.ref);
 
+  // Your own money moving between your accounts: the message names your other account, or you as the payee/payer.
+  const counter = p.counterLast4 ? ds.accounts.find((a) => !a.archived && a.id !== account.id && (ends(a.last4, p.counterLast4) || ends(a.card_last4, p.counterLast4))) : undefined;
+  if (counter || mentions(row.body, selfNames(ds))) {
+    const from = p.direction === "debit" ? account : counter;
+    const to = p.direction === "debit" ? counter : account;
+    const tx = { ...base, type: "transfer" as const, account_id: from?.id ?? null, to_account_id: to?.id ?? null, card_id: null, description: "Self transfer", category: null };
+    const known = !!from && !!to;
+    const dupT = ds.transactions.find((t) => t.type === "transfer" && Math.abs(t.amount - amount) <= 0.5 && Math.abs(diffDays(t.date, date)) <= 2 && (t.account_id === account.id || t.to_account_id === account.id));
+    if (dupT || dup) return { state: "duplicate", tx, account, duplicateOf: dupT ?? dup, balance, parsed: p };
+    return {
+      state: known && sure ? "ready" : "check",
+      reason: known ? (sure ? undefined : "Check the account") : p.direction === "debit" ? "Sent to yourself — which of your accounts got it?" : "From your own account — which one?",
+      tx,
+      account,
+      balance,
+      parsed: p,
+    };
+  }
+
   if (p.direction === "debit") {
     // Paying something planned from this account: a card bill, an EMI, rent, a chit or SIP.
     const ev = plannedMatch(events, amount, date, "out", (e) => !e.accountId || e.accountId === account.id || e.kind === "card_bill");
@@ -176,4 +206,74 @@ export function proposeFromSms(row: SmsRow, p: ParsedSms, ds: Dataset, positions
 /** What the app says the account holds now (in its own currency). */
 export function appBalance(positions: Positions, accountId: string): number | null {
   return positions.accounts.get(accountId)?.balance ?? null;
+}
+
+type Item = { row: SmsRow; p: SmsProposal };
+const open = (i: Item) => i.p.state === "ready" || i.p.state === "check";
+const near = (a: Item, b: Item, days: number) => Math.abs(diffDays(a.p.tx!.date, b.p.tx!.date)) <= days;
+
+/**
+ * Looks across all waiting messages, because one payment often sends two or three:
+ * - the same UPI reference twice (the bank's two messages for one credit) → one entry;
+ * - "sent to yourself" from one account + "received from yourself" in another → one transfer between them;
+ * - a card spend at CRED / Dreamplug + "credited to your CRED wallet" → loading the wallet with the card
+ *   (not spending), with the small difference as the card's fee.
+ */
+export function pairSms(items: Item[], ds: Dataset): Item[] {
+  const out = items.map((i) => ({ row: i.row, p: { ...i.p } }));
+  const dupOf = (i: Item, reason: string) => {
+    i.p = { ...i.p, state: "duplicate", reason };
+  };
+  // 1. Same reference number.
+  const byRef = new Map<string, Item[]>();
+  for (const i of out) if (open(i) && i.p.parsed.ref && i.p.tx) byRef.set(i.p.parsed.ref, [...(byRef.get(i.p.parsed.ref) ?? []), i]);
+  for (const list of byRef.values()) {
+    if (list.length < 2) continue;
+    const score = (i: Item) => (i.p.tx?.type === "transfer" ? (i.p.tx.account_id ? 1 : 0) + (i.p.tx.to_account_id ? 1 : 0) : 0) + (i.p.balance ? 0.5 : 0);
+    const best = [...list].sort((a, b) => score(b) - score(a))[0];
+    // Keep the balance from whichever message had it.
+    const bal = list.find((i) => i.p.balance)?.p.balance;
+    if (bal && !best.p.balance) best.p.balance = bal;
+    for (const i of list) if (i !== best) dupOf(i, "Same payment as another message");
+  }
+  // 2. Two halves of a transfer to yourself.
+  const halves = out.filter((i) => open(i) && i.p.tx?.type === "transfer" && (!i.p.tx.account_id || !i.p.tx.to_account_id));
+  for (const a of halves) {
+    if (!open(a) || a.p.tx!.to_account_id) continue; // a: money out, destination unknown
+    const b = halves.find((x) => x !== a && open(x) && !x.p.tx!.account_id && x.p.tx!.to_account_id && x.p.tx!.to_account_id !== a.p.tx!.account_id && Math.abs(x.p.tx!.amount - a.p.tx!.amount) <= 1 && near(a, x, 2));
+    if (!b) continue;
+    a.p = { ...a.p, state: "ready", reason: undefined, tx: { ...a.p.tx!, to_account_id: b.p.tx!.to_account_id } };
+    dupOf(b, "The other half of a transfer between your accounts");
+  }
+  // 2b. Money out of a wallet with no payee + money in from yourself elsewhere.
+  for (const a of out) {
+    if (!open(a) || a.p.tx?.type !== "expense" || a.p.account?.type !== "wallet" || a.p.parsed.merchant) continue;
+    const b = out.find((x) => x !== a && open(x) && x.p.tx?.type === "transfer" && !x.p.tx.account_id && x.p.tx.to_account_id && Math.abs(x.p.tx.amount - a.p.tx!.amount) <= 1 && near(a, x, 2));
+    if (!b) continue;
+    a.p = { ...a.p, state: "ready", reason: undefined, tx: { ...a.p.tx!, type: "transfer", to_account_id: b.p.tx!.to_account_id, description: "Self transfer", category: null } };
+    dupOf(b, "The other half of a transfer between your accounts");
+  }
+  // 3. Loading the CRED wallet with a credit card.
+  const fees = ds.categories.find((c) => c.kind === "expense" && /fee|charge/i.test(c.name))?.name ?? null;
+  for (const c of out) {
+    if (!open(c) || c.p.tx?.type !== "card_spend" || !/dreamplug|\bcred\b/i.test(`${c.p.parsed.merchant ?? ""} ${c.row.body}`)) continue;
+    const w = out.find((x) => x !== c && open(x) && x.p.account?.type === "wallet" && x.p.parsed.direction === "credit" && x.p.tx && x.p.tx.amount <= c.p.tx!.amount + 0.5 && x.p.tx.amount >= c.p.tx!.amount / 1.035 && near(c, x, 1));
+    if (!w) continue;
+    const loaded = w.p.tx!.amount;
+    const fee = Math.round((c.p.tx!.amount - loaded) * 100) / 100;
+    const tag = ["self-transfer"];
+    c.p = {
+      ...c.p,
+      state: "ready",
+      reason: undefined,
+      tx: { ...c.p.tx!, amount: loaded, description: `${w.p.account!.name} top-up`, category: null, tags: tag },
+      also: [
+        { ...w.p.tx!, type: "income", account_id: w.p.account!.id, description: `Top-up from ${c.p.card?.name ?? "card"}`, category: null, tags: tag },
+        ...(fee >= 0.5 ? [{ ...c.p.tx!, amount: fee, description: "Wallet top-up fee", category: fees, tags: [] }] : []),
+      ],
+      balance: w.p.balance ?? c.p.balance,
+    };
+    dupOf(w, "Wallet top-up from your card");
+  }
+  return out;
 }

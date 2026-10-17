@@ -24,6 +24,7 @@ export const accountFields: FieldDef<Account>[] = [
   { name: "type", label: "Type", type: "select", options: opts({ savings: "Savings", current: "Current", cash: "Cash", wallet: "Wallet (Paytm, Amazon Pay…)", other: "Other" }), half: true },
   { name: "institution", label: "Bank / provider", type: "text", optional: true, half: true },
   { name: "last4", label: "Last 4 digits of the account", type: "text", optional: true, half: true, placeholder: "1234", help: "Lets bank SMS be matched to this account." },
+  { name: "card_last4", label: "Debit card last 4 digits", type: "text", optional: true, half: true, placeholder: "5678", help: "For SMS about debit card payments." },
   { name: "opening_balance", label: "Balance", type: "money", allowNegative: true, required: true, half: true, help: "What the account holds at the start of the date beside it." },
   { name: "opening_date", label: "Balance as of", type: "date", required: true, half: true },
   { name: "currency", label: "Currency", type: "select", options: CURRENCIES.map((c) => ({ value: c, label: c })), half: true },
