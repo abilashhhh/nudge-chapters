@@ -20,6 +20,7 @@ import { AlarmWatcher } from "../alarm";
 import { InsuranceReminderSync } from "../insurance/actions";
 import { PriceRefresher } from "../price-refresher";
 import { RhythmReminders } from "../rhythm/reminders";
+import { ViewportFix } from "./viewport-fix";
 import { LifeEditorSheet } from "../life";
 import { EventSheet } from "../event-sheet";
 import { ExplainSheet } from "../explain";
@@ -246,14 +247,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         type="button"
         onClick={() => ui.openQuick()}
         aria-label="Quick add"
-        className="no-print fixed bottom-[calc(80px+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand text-on-brand shadow-panel transition-transform hover:scale-105 lg:bottom-8 lg:right-8 lg:h-auto lg:w-auto lg:gap-2 lg:rounded-xl lg:px-5 lg:py-3"
+        className="vv-pin no-print fixed bottom-[calc(80px+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand text-on-brand shadow-panel transition-transform hover:scale-105 lg:bottom-8 lg:right-8 lg:h-auto lg:w-auto lg:gap-2 lg:rounded-xl lg:px-5 lg:py-3"
       >
         <Plus className="h-5 w-5" aria-hidden />
         <span className="hidden text-[14.5px] font-semibold lg:inline">Add</span>
       </button>}
 
       {/* Mobile bottom navigation */}
-      <nav className="no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
+      <nav className="vv-pin no-print pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur-md lg:hidden" aria-label="Main">
         <div className={cn("mx-auto grid max-w-lg", mobileNav.length >= 6 ? "grid-cols-6" : mobileNav.length === 5 ? "grid-cols-5" : mobileNav.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
           {mobileNav.map((n) => {
             // Sections left off the bar are opened from Menu, so Menu stays lit there.
@@ -286,6 +287,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <InsuranceReminderSync />
       <PriceRefresher />
       <RhythmReminders />
+      <ViewportFix />
       <Editors />
       <CommandPalette />
       <AlertsPanel />

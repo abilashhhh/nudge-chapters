@@ -281,6 +281,11 @@ body {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }
 
+/* Bars pinned to the bottom follow the visible screen edge when iOS Safari leaves a stale gap (see ViewportFix). */
+.vv-pin {
+  translate: 0 var(--vv-gap, 0px);
+}
+
 /* The projection ribbon thumb */
 input[type="range"].ribbon {
   -webkit-appearance: none;
