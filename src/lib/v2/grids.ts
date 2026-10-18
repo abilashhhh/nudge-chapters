@@ -389,7 +389,7 @@ export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
 }
 
 // ---------------------------------------------------------------------------
-// To Pay → Chits & SIPs
+// To Pay → Monthly investments (chits and SIPs)
 // ---------------------------------------------------------------------------
 
 export function chitSipGrid(ds: Dataset, positions: Positions, events: FinEvent[], months: string[], today: ISODate): MonthGridData {
@@ -435,7 +435,7 @@ export function chitSipGrid(ds: Dataset, positions: Positions, events: FinEvent[
       ref: { kind: "sip" as const, id: i.id },
     }));
   if (sipRows.length)
-    groups.push({ id: "sips", label: "Monthly investments (SIP)", total: { id: "sips-total", label: "All SIPs", cells: sumCells(sipRows.map((r) => r.cells), months) }, rows: sipRows });
+    groups.push({ id: "sips", label: "Mutual funds", total: { id: "sips-total", label: "All SIPs", cells: sumCells(sipRows.map((r) => r.cells), months) }, rows: sipRows });
 
   return { months, groups, grand: sumCells(groups.map((g) => g.total.cells), months) };
 }

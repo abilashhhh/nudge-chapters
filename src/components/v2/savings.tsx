@@ -19,6 +19,7 @@ import { StatTile, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details, type Column } from "./data-table";
 import { AllSavings } from "./all-money";
 import { HoldingTile } from "./detail-pages";
+import { EntityIcon } from "./entity-icon";
 import { useRouter } from "next/navigation";
 import { refreshPrices, usePrices } from "../price-refresher";
 import { priceItems } from "@/lib/prices";
@@ -262,7 +263,7 @@ function Chits() {
         rows={list}
         rowKey={(cp) => cp.chit.id}
         columns={[
-          { key: "n", header: "Chit", cell: (cp) => <Cell2 main={cp.chit.name} sub={`${cp.summary.paidCount} of ${cp.chit.installments} paid`} /> },
+          { key: "n", header: "Chit", cell: (cp) => <Cell2 icon={<EntityIcon kind="chit" name={cp.chit.name} />} main={cp.chit.name} sub={`${cp.summary.paidCount} of ${cp.chit.installments} paid`} /> },
           { key: "d", header: "Dividend", align: "right", wide: true, cell: (cp) => <span className="text-ok">{m(cp.summary.auctionSavings)}</span> },
           { key: "p", header: "Paid so far", align: "right", cell: (cp) => <span className="font-semibold">{m(cp.summary.actualPaid + (cp.summary.unrecordedEstimate || 0))}</span> },
         ]}
@@ -346,7 +347,7 @@ function Other({ list, section }: { list: InvestmentPosition[]; section: "stocks
           section === "stocks"
             ? marketColumns(ctx, "Stock")
             : [
-                { key: "n", header: "Name", cell: (p) => <Cell2 main={p.investment.name} sub={INVESTMENT_TYPE_LABEL[p.investment.type] ?? "Other"} /> },
+                { key: "n", header: "Name", cell: (p) => <Cell2 icon={<EntityIcon kind="saving" name={p.investment.name} />} main={p.investment.name} sub={INVESTMENT_TYPE_LABEL[p.investment.type] ?? "Other"} /> },
                 { key: "v", header: "Value today", align: "right", cell: (p) => <Money value={p.value} decimals currency={p.investment.currency} className="font-semibold" /> },
               ]
         }
@@ -406,6 +407,7 @@ function marketColumns(ctx: MoneyContext, title: string): Column<InvestmentPosit
         const sip = i.sip_active && i.sip_amount > 0 ? `SIP ${formatMoney(i.sip_amount, ctx)} a month` : null;
         return (
           <Cell2
+            icon={<EntityIcon kind={i.type === "mutual_fund" ? "fund" : "stock"} name={i.name} />}
             main={i.name}
             sub={
               <>

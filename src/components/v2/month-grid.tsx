@@ -15,6 +15,7 @@ import { monthRange, orderForMonth, rowTotal, type GridCell, type GridGroup, typ
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { Sheet } from "../ui/sheet";
+import { EntityIcon } from "./entity-icon";
 import { AMOUNT_CLS, ChipGroup, StatusIcon, StatusText, STATUS_WORD } from "./ui";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -339,14 +340,17 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
             return (
               <section key={g.id} className="overflow-hidden rounded-2xl border border-line bg-surface" aria-label={g.label}>
                 <button type="button" onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))} aria-expanded={isOpen} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-2">
-                  <span className="min-w-0">
-                    <span className="block truncate text-[15px] font-semibold">{g.label}</span>
-                    <StatusText status={t.status} incoming={t.incoming ?? incoming} className="text-[12px]" />
-                    {g.sub && (
-                      <span className="block truncate text-[12px] text-ink-3">
-                        {g.sub.label} <Money value={g.sub.value} className="font-medium text-ink-2" />
-                      </span>
-                    )}
+                  <span className="flex min-w-0 items-center gap-3">
+                    <RefIcon r={g.ref} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[15px] font-semibold">{g.label}</span>
+                      <StatusText status={t.status} incoming={t.incoming ?? incoming} className="text-[12px]" />
+                      {g.sub && (
+                        <span className="block truncate text-[12px] text-ink-3">
+                          {g.sub.label} <Money value={g.sub.value} className="font-medium text-ink-2" />
+                        </span>
+                      )}
+                    </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <Money value={t.amount} decimals projected={t.estimated && t.status === "upcoming"} className={cn("text-[16px] font-semibold", AMOUNT_CLS[t.status])} />
@@ -361,11 +365,14 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                           const c = r.cells[lm];
                           return (
                             <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                              <button type="button" className="min-w-0 text-left" onClick={() => onRow?.(r, g)}>
+                              <button type="button" className="flex min-w-0 items-center gap-2.5 text-left" onClick={() => onRow?.(r, g)}>
+                                <RowIcon r={r} g={g} />
+                                <span className="min-w-0">
                                 <span className="block truncate text-[14px]">{r.label}</span>
                                 {(r.hint || (r.note && r.note !== "Me")) && (
                                   <span className="block truncate text-[12px] text-ink-3">{[r.hint, r.note && r.note !== "Me" ? `For ${r.note}` : null].filter(Boolean).join(" · ")}</span>
                                 )}
+                                </span>
                               </button>
                               <button type="button" className="shrink-0 text-right" onClick={() => open1(c, g, lm)}>
                                 <Money value={c.amount} decimals projected={c.estimated && c.status === "upcoming"} className={cn("block text-[14px] font-medium", AMOUNT_CLS[c.status])} />
@@ -467,6 +474,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                         onClick={() => (hasDetails ? setOpen((o) => ({ ...o, [g.id]: !o[g.id] })) : onRow?.(g.total, g))}
                         aria-expanded={hasDetails ? isOpen : undefined}
                       >
+                        <RefIcon r={g.ref} size="xs" className="mr-1 mt-0.5" />
                         <span className="min-w-0">
                           <span className="block truncate text-[13.5px] font-semibold text-ink sm:text-[14px]">{g.label}</span>
                           <span className="block truncate text-[11.5px] font-normal text-ink-3 sm:hidden">{g.total.label}</span>
@@ -496,11 +504,12 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                     <tr key={r.id} className="border-t border-line/70">
                       <th scope="row" className={cn(nameCls, "px-0 py-0 text-left font-normal")}>
                         <button type="button" className="block w-full px-3 py-2 pl-5 text-left hover:bg-surface-2" onClick={() => onRow?.(r, g)}>
-                          <span className="block truncate text-[13px] text-ink sm:text-[13.5px]">
+                          <span className="flex items-center gap-1.5 truncate text-[13px] text-ink sm:text-[13.5px]">
                             <span className="text-ink-3" aria-hidden>
-                              ↳{" "}
+                              ↳
                             </span>
-                            {r.label}
+                            <RowIcon r={r} g={g} size="xs" />
+                            <span className="truncate">{r.label}</span>
                           </span>
                           {r.hint && <span className="block truncate pl-4 text-[11.5px] text-ink-3">{r.hint}</span>}
                           {showFor && r.note && <span className="block truncate text-[11.5px] text-ink-3 sm:hidden">{r.note}</span>}
@@ -619,6 +628,7 @@ function Breakdown({ group, month, incoming, onClose, add, monthAdd }: { group: 
             return (
               <li key={r.id}>
                 <button type="button" disabled={before} onClick={() => open(c)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 disabled:hover:bg-transparent">
+                  <RowIcon r={r} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px]">{r.label}</span>
                     <span className="block truncate text-[12px] text-ink-3">
@@ -637,4 +647,35 @@ function Breakdown({ group, month, incoming, onClose, add, monthAdd }: { group: 
       )}
     </Sheet>
   );
+}
+
+/** The badge for what a row stands for: a card in its colours, a fund, a person, a loan or a chit. */
+function RefIcon({ r, size = "md", className }: { r?: GridRow["ref"]; size?: "xs" | "sm" | "md"; className?: string }) {
+  const { ds } = useFinance();
+  if (!r) return null;
+  if (r.kind === "card" || r.kind === "card-spends") {
+    const c = ds.credit_cards.find((x) => x.id === r.id);
+    return c ? <EntityIcon kind="card" name={c.name} issuer={c.issuer} color={c.color} size={size} className={className} /> : null;
+  }
+  if (r.kind === "sip") {
+    const i = ds.investments.find((x) => x.id === r.id);
+    return i ? <EntityIcon kind="fund" name={i.name} size={size} className={className} /> : null;
+  }
+  if (r.kind === "loan") {
+    const l = ds.loans.find((x) => x.id === r.id);
+    return <EntityIcon kind="loan" name={l?.name ?? "Loan"} size={size} className={className} />;
+  }
+  if (r.kind === "chit") return <EntityIcon kind="chit" name="Chit" size={size} className={className} />;
+  if (r.kind === "person") return <EntityIcon kind="person" name={r.id} size={size} className={className} />;
+  if (r.kind === "lending") {
+    const l = ds.lendings.find((x) => x.id === r.id);
+    return <EntityIcon kind="person" name={l?.person ?? "?"} size={size} className={className} />;
+  }
+  return null;
+}
+
+/** Rows get a badge only when they stand for something other than their group (not each spend on a card). */
+function RowIcon({ r, g, size = "sm" }: { r: GridRow; g?: GridGroup; size?: "xs" | "sm" }) {
+  if (!r.ref || r.ref.kind === "card-spends" || r.ref.kind === "rule" || (g?.ref && g.ref.kind === r.ref.kind && g.ref.id === r.ref.id)) return null;
+  return <RefIcon r={r.ref} size={size} />;
 }

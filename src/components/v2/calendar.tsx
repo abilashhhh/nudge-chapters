@@ -18,7 +18,7 @@ const FILTERS: { id: Filter; label: string; test: (e: FinEvent) => boolean }[] =
   { id: "all", label: "All", test: () => true },
   { id: "cards", label: "Card bills", test: (e) => e.kind === "card_bill" },
   { id: "emis", label: "EMIs", test: (e) => e.kind === "emi" },
-  { id: "chits", label: "Chits & SIPs", test: (e) => e.kind === "chit" || e.kind === "sip" || e.kind === "chit_payout" },
+  { id: "chits", label: "Monthly investments", test: (e) => e.kind === "chit" || e.kind === "sip" || e.kind === "chit_payout" },
   { id: "income", label: "Income", test: (e) => e.flow === "in" },
 ];
 

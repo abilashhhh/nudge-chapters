@@ -14,6 +14,7 @@ export const V2_NAV: V2NavItem[] = [
   { href: "/", label: "Home", meaning: "Your money at a glance" },
   { href: "/my-money", label: "My Money", meaning: "Your bank accounts, money others owe you, and your savings and investments" },
   { href: "/to-pay", label: "To Pay", meaning: "Bills, EMIs and installments you have to pay" },
+  { href: "/trading", label: "Trading", meaning: "Your intraday and swing trades, stocks you hold, and IPOs" },
   { href: "/daily", label: "Daily", meaning: "Your daily rhythm, to-do, reminders, notes and wishlist" },
   { href: "/trading-training", label: "Trading Training", meaning: "Learn to read candlestick charts: lessons, quizzes and daily practice", desktopOnly: true },
   { href: "/menu", label: "Menu", meaning: "Planning tools and settings" },
@@ -31,7 +32,8 @@ export const V2_DAILY: { tab: string; label: string }[] = [
 /** Tab names per screen, for breadcrumbs. */
 export const V2_TABS: Record<string, Record<string, string>> = {
   "/my-money": { accounts: "Bank accounts", owed: "People owe me", savings: "All savings", funds: "Mutual funds", stocks: "Stocks", epf: "EPF & PF", chits: "Chits", commodities: "Commodities", other: "Other savings" },
-  "/to-pay": { cards: "Credit cards", chits: "Chits & SIPs", loans: "Loans & borrowed" },
+  "/to-pay": { cards: "Credit cards", chits: "Monthly investments", loans: "Loans & borrowed" },
+  "/trading": { intraday: "Intraday", trades: "Swing & F&O", holdings: "Holdings", ipos: "IPOs" },
   "/daily": Object.fromEntries(V2_DAILY.map((d) => [d.tab, d.label])),
   "/menu/settings": {
     profile: "Profile",
