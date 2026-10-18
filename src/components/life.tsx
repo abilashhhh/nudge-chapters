@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, CheckSquare, ExternalLink, Pin, Plus, Repeat as RepeatIcon, Square, StickyNote, Trash2, X } from "lucide-react";
+import { Bell, CheckSquare, ExternalLink, Pencil, Pin, Plus, Repeat as RepeatIcon, Square, StickyNote, Trash2, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { formatDate, relativeDays } from "@/lib/dates";
@@ -111,7 +112,26 @@ export function TaskRow({ item }: { item: LifeItem }) {
           <ChapterChip goalId={item.goal_id} />
         </span>
       </button>
+      <EditButton item={item} />
     </div>
+  );
+}
+
+/** A visible way to edit (tapping the title works too). */
+export function EditButton({ item, className }: { item: LifeItem; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        useUI.getState().openLife(item.kind, item.id);
+      }}
+      aria-label={`Edit "${item.title}"`}
+      title="Edit"
+      className={cn("inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink", className)}
+    >
+      <Pencil className="h-4 w-4" />
+    </button>
   );
 }
 
@@ -138,7 +158,10 @@ export function ChecklistCard({ item }: { item: LifeItem }) {
             {p.done} of {p.total} done{item.repeat !== "none" ? ` · resets ${REPEAT_LABEL[item.repeat].toLowerCase()}` : ""}
           </p>
         </button>
-        <ChapterChip goalId={item.goal_id} />
+        <span className="flex items-center gap-1">
+          <ChapterChip goalId={item.goal_id} />
+          <EditButton item={item} className="-mr-2 -mt-1" />
+        </span>
       </div>
       <Progress className="mt-2" value={p.total ? p.done / p.total : 0} label={`${item.title} progress`} />
       <ul className="mt-2">
@@ -157,26 +180,6 @@ export function ChecklistCard({ item }: { item: LifeItem }) {
         </Button>
       )}
     </div>
-  );
-}
-
-export function NoteCard({ item }: { item: LifeItem }) {
-  return (
-    <button type="button" onClick={() => useUI.getState().openLife("note", item.id)} className="flex w-full flex-col rounded-2xl border border-line bg-surface p-4 text-left hover:border-line-strong">
-      <span className="flex items-start justify-between gap-2">
-        <span className="text-[15px] font-semibold">{item.title}</span>
-        {item.pinned && <Pin className="h-4 w-4 shrink-0 text-ink-3" aria-label="Pinned" />}
-      </span>
-      {item.body && <span className="mt-1 line-clamp-4 whitespace-pre-line text-[13.5px] text-ink-2">{item.body}</span>}
-      <span className="mt-2 flex flex-wrap items-center gap-1.5">
-        <ChapterChip goalId={item.goal_id} />
-        {item.tags.map((t) => (
-          <span key={t} className="rounded-full bg-surface-3 px-2 py-0.5 text-[11.5px] text-ink-2">
-            #{t}
-          </span>
-        ))}
-      </span>
-    </button>
   );
 }
 
@@ -269,7 +272,18 @@ export function NudgeCard({ n, onDismiss }: { n: Nudge; onDismiss?: () => void }
 export function LifeEditorSheet() {
   const life = useUI((s) => s.life);
   if (!life) return null;
+  // Notes open as a full page (Daily → Notes), not in a popup.
+  if (life.kind === "note") return <OpenNotePage id={life.id} />;
   return <LifeEditor key={`${life.kind}:${life.id ?? "new"}`} kind={life.kind} id={life.id} preset={life.preset} />;
+}
+
+function OpenNotePage({ id }: { id?: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    useUI.getState().closeLife();
+    router.push(`/daily?tab=notes&note=${id ?? "new"}`);
+  }, [id, router]);
+  return null;
 }
 
 function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?: Partial<LifeItem> }) {

@@ -242,8 +242,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      {/* Global add button (not over Trading Training, where it would cover lesson and quiz controls) */}
-      {!isActiveV2(pathname, "/trading-training") && <button
+      {/* Global add button (not over Trading Training or Passwords, which have their own controls there) */}
+      {!isActiveV2(pathname, "/trading-training") && !isActiveV2(pathname, "/menu/vault") && <button
         type="button"
         onClick={() => ui.openQuick()}
         aria-label="Quick add"

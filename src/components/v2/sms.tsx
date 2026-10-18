@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/dates";
 import { cashDeltas } from "@/lib/engine/ledger";
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
+import { getSupabase } from "@/lib/data/supabase";
 import { INGEST_API_KEY, INGEST_URL, smsAvailable, useSms } from "@/lib/sms/inbox";
 import { appBalance, pairSms, proposeFromSms, type SmsProposal, type SmsRow } from "@/lib/sms/match";
 import { parseSms } from "@/lib/sms/parse";
@@ -85,20 +86,35 @@ export function SmsSync() {
   const prefs = f.ds.profile.preferences?.sms;
   const busy = useRef(false);
   const tried = useRef(new Set<string>());
+  // Bumped when a batch finishes, so messages that arrived during it are picked up straight away.
+  const [pass, setPass] = useState(0);
 
   useEffect(() => {
     if (!smsAvailable()) return;
     void refresh();
-    const onVis = () => {
+    const now = () => {
       if (document.visibilityState === "visible") void refresh();
     };
-    document.addEventListener("visibilitychange", onVis);
-    const t = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, 60_000);
+    document.addEventListener("visibilitychange", now);
+    window.addEventListener("focus", now);
+    window.addEventListener("online", now);
+    window.addEventListener("pageshow", now);
+    // New messages arrive live (Supabase Realtime) within a second or two of the phone sending them.
+    // The timer is only a safety net for when the live connection drops (sleep, network change).
+    const live = getSupabase()
+      .channel("sms-inbox")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "sms_inbox" }, () => void refresh())
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void refresh();
+      });
+    const t = window.setInterval(now, 20_000);
     return () => {
-      document.removeEventListener("visibilitychange", onVis);
+      document.removeEventListener("visibilitychange", now);
+      window.removeEventListener("focus", now);
+      window.removeEventListener("online", now);
+      window.removeEventListener("pageshow", now);
       window.clearInterval(t);
+      void getSupabase().removeChannel(live);
     };
   }, [refresh]);
 
@@ -134,10 +150,11 @@ export function SmsSync() {
         /* the store shows the error; the message stays in the inbox */
       } finally {
         busy.current = false;
+        setPass((n) => n + 1);
       }
       if (added) toast.success(`${added} payment${added === 1 ? "" : "s"} added from bank SMS`);
     })();
-  }, [items, prefs?.autoAdd, prefs?.matchBalance]);
+  }, [items, prefs?.autoAdd, prefs?.matchBalance, pass]);
 
   return <SmsInboxSheet />;
 }
@@ -338,6 +355,7 @@ export function SmsScreen() {
   const { rows, key, loaded, refresh } = useSms();
   const [newKey, setNewKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [platform, setPlatform] = useState<"ios" | "android">(() => (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent) ? "android" : "ios"));
   const updatePrefs = useStore((s) => s.updatePrefs);
   const prefs = ds.profile.preferences?.sms ?? {};
   const available = smsAvailable();
@@ -382,6 +400,29 @@ export function SmsScreen() {
     { t: "Make two more the same way", d: <>Duplicate the automation for <code>INR</code> and for <code>debited</code>, so every bank's wording is caught. A message caught twice is only kept once.</> },
   ];
 
+  // Android: the free, open-source "SMS to URL Forwarder" app posts each SMS to the same address the iPhone uses.
+  const keyText = newKey ?? "PASTE-YOUR-PERSONAL-KEY";
+  const androidTemplate = `{"key":"${keyText}","body":"%text%","sender":"%from%"}`;
+  const androidHeaders = `{"apikey":"${INGEST_API_KEY}","Content-Type":"application/json"}`;
+  const androidSteps: { t: string; d: React.ReactNode }[] = [
+    {
+      t: "Install “SMS to URL Forwarder” (free, no ads, open source)",
+      d: (
+        <>
+          From the{" "}
+          <a className="font-medium underline" href="https://play.google.com/store/apps/details?id=tech.bogomolov.incomingsmsgateway" target="_blank" rel="noopener noreferrer">Play Store</a>{" "}
+          or{" "}
+          <a className="font-medium underline" href="https://f-droid.org/packages/tech.bogomolov.incomingsmsgateway/" target="_blank" rel="noopener noreferrer">F-Droid</a>. Open it and allow it to read SMS.
+        </>
+      ),
+    },
+    { t: "Tap + to add a forwarding rule", d: <>Sender: <code>*</code> (every sender — the app here keeps only money messages and drops OTPs and chats before saving anything).</> },
+    { t: "Webhook URL", d: <>Paste the <b>Address</b> below.</> },
+    { t: "Payload template", d: <>Replace the whole template with the <b>Payload template</b> below{newKey ? " (your key is already in it)" : <> and put your personal key in place of <code>PASTE-YOUR-PERSONAL-KEY</code></>}. Keep <code>%text%</code> and <code>%from%</code> exactly as they are — the app fills them in.</> },
+    { t: "Headers", d: <>Replace the headers with the <b>Headers</b> below. Leave “Ignore SSL errors” and “Chunked mode” off, then Save.</> },
+    { t: "Let it run in the background", d: <>Android Settings → Apps → SMS to URL Forwarder → Battery → <b>Unrestricted</b>, so it still forwards when the phone is idle.</> },
+  ];
+
   const recent = rows.slice(0, 50);
   const waiting = new Map(items.map((i) => [i.row.id, i]));
   const toReview = items.filter((i) => i.p.state === "ready" || i.p.state === "check").length;
@@ -412,7 +453,7 @@ export function SmsScreen() {
           {!loaded ? (
             <p className="px-4 pb-4 text-[13.5px] text-ink-3 sm:px-5">Loading…</p>
           ) : recent.length === 0 ? (
-            <p className="px-4 pb-4 text-[13.5px] text-ink-2 sm:px-5">Nothing yet. Set up the shortcut below.</p>
+            <p className="px-4 pb-4 text-[13.5px] text-ink-2 sm:px-5">Nothing yet. Set up your phone below (iPhone or Android).</p>
           ) : (
             <ul className="divide-y divide-line border-t border-line">
               {recent.map((r) => {
@@ -488,14 +529,26 @@ export function SmsScreen() {
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5">
             <span className="flex items-center gap-2">
               <Smartphone className="h-4 w-4 text-brand" aria-hidden />
-              <span className="text-[15px] font-semibold">Set up on your iPhone</span>
+              <span className="text-[15px] font-semibold">Set up on your phone</span>
             </span>
             <span className="text-[12.5px] text-ink-3 group-open:hidden">{key ? "Done · show steps" : "Show steps"}</span>
             <span className="hidden text-[12.5px] text-ink-3 group-open:inline">Hide</span>
           </summary>
           <div className="flex flex-col gap-4 border-t border-line px-4 py-4 sm:px-5">
+            <div className="flex gap-1" role="radiogroup" aria-label="Your phone">
+              {(["ios", "android"] as const).map((p) => (
+                <button key={p} type="button" role="radio" aria-checked={platform === p} onClick={() => setPlatform(p)} className={cn("h-9 rounded-full px-4 text-[13.5px] font-medium transition-colors", platform === p ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}>
+                  {p === "ios" ? "iPhone" : "Android"}
+                </button>
+              ))}
+            </div>
             <p className="text-[13.5px] text-ink-2">
-              iPhones don&apos;t let apps read your messages. Apple&apos;s free <b>Shortcuts</b> app can send just your bank messages here when they arrive. Only messages about money are kept; OTPs and everything else are dropped before they&apos;re saved. Payments wait here until you open the app.
+              {platform === "ios" ? (
+                <>iPhones don&apos;t let apps read your messages. Apple&apos;s free <b>Shortcuts</b> app can send just your bank messages here when they arrive.</>
+              ) : (
+                <>Websites can&apos;t read SMS on Android either, so a small free app forwards each message here as it arrives — no paid service, no server of your own.</>
+              )}{" "}
+              Only messages about money are kept; OTPs and everything else are dropped before they&apos;re saved. Payments wait here until you open the app.
             </p>
             <div>
               <h3 className="flex items-center gap-2 text-[14px] font-semibold">
@@ -503,7 +556,7 @@ export function SmsScreen() {
               </h3>
               {newKey ? (
                 <div className="mt-2 flex flex-col gap-3">
-                  <p className="text-[13px] font-medium text-warn">Copy it into the shortcut now — it&apos;s shown only once.</p>
+                  <p className="text-[13px] font-medium text-warn">Copy it into your phone&apos;s setup now — it&apos;s shown only once.</p>
                   <CopyField label="Personal key" value={newKey} />
                 </div>
               ) : key ? (
@@ -522,6 +575,29 @@ export function SmsScreen() {
                 )}
               </div>
             </div>
+            {platform === "android" ? (
+            <div>
+              <h3 className="text-[14px] font-semibold">2 · Set up the forwarder (about 3 minutes, once)</h3>
+              <ol className="mt-2 flex flex-col gap-3">
+                {androidSteps.map((st, i) => (
+                  <li key={st.t} className="flex gap-3">
+                    <span className="num flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-inverse text-[12px] font-semibold text-on-inverse">{i + 1}</span>
+                    <span className="min-w-0 text-[13.5px]">
+                      <span className="block font-medium">{st.t}</span>
+                      <span className="block text-ink-2">{st.d}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-3 grid grid-cols-1 gap-3">
+                <CopyField label="Address (Webhook URL)" value={INGEST_URL} />
+                <CopyField label="Payload template" value={androidTemplate} />
+                <CopyField label="Headers" value={androidHeaders} />
+              </div>
+              {!newKey && <p className="mt-2 text-[12.5px] text-warn">Your personal key is shown only once, when it&apos;s made. If you don&apos;t have it any more, make a new key above — the template then fills it in for you (your iPhone shortcut would need the new key too).</p>}
+              <p className="mt-2 text-[12.5px] text-ink-3">To test: tap the rule&apos;s Test button, or send yourself a text like “Rs 1 debited from A/c XX1234”. It appears under Received within a minute of opening the app.</p>
+            </div>
+            ) : (
             <div>
               <h3 className="text-[14px] font-semibold">2 · Make the shortcut (about 5 minutes, once)</h3>
               <ol className="mt-2 flex flex-col gap-3">
@@ -541,6 +617,7 @@ export function SmsScreen() {
               </div>
               <p className="mt-2 text-[12.5px] text-ink-3">To test: send yourself a text like “Rs 1 debited from A/c XX1234”. It appears under Received within a minute of opening the app.</p>
             </div>
+            )}
           </div>
         </details>
       </div>
