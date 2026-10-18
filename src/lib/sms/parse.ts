@@ -92,6 +92,8 @@ function clean(s: string): string {
 function merchantOf(text: string): string | null {
   const pats = [
     /\b(?:at|@)\s+([A-Za-z0-9][A-Za-z0-9 &'._*\-/]{1,40}?)(?=\s+(?:on|via|ref|avl|avbl|bal|txn|upi|using|for|is|was|\d{1,2}[-/])\b|[.,]|$)/i,
+    // ICICI cards: "… on 18-Oct-26 on AMAZON PAY IN G. Avl Limit …"
+    /\bon\s+\d{1,2}[-/ ](?:[A-Za-z]{3}|\d{1,2})[-/ ]\d{2,4}\s+(?:on|at)\s+([A-Za-z0-9][A-Za-z0-9 &'._*\-/]{1,40}?)(?=\.\s|\.$|[,;]|\s+(?:avl|avbl|bal|ref|via)\b|$)/i,
     /\bVPA\s+([A-Za-z0-9._\-]+@[A-Za-z0-9.\-]+)/i,
     /\b(?:to|trf to|transfer to|paid to|towards)\s+(?:VPA\s+)?([A-Za-z0-9][A-Za-z0-9 &'._@\-/]{1,40}?)(?=\s+(?:on|via|ref|refno|upi|avl|avbl|bal|from|for|is|was|\(|\d{1,2}[-/]|not\b)|[.,(]|$)/i,
     /\b(?:from|by)\s+(?:VPA\s+)?([A-Za-z0-9][A-Za-z0-9 &'._@\-/]{1,40}?)(?=\s+(?:on|via|ref|refno|upi|avl|avbl|bal|is|was|\(|\d{1,2}[-/])|[.,(]|$)/i,

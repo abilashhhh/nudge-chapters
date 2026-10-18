@@ -62,4 +62,8 @@ describe("bank SMS", () => {
     expect(guessCategory("AMAZON", [{ description: "Amazon", category: "Fuel" }], cats)).toBe("Fuel");
     expect(guessCategory("Random Shop", [], cats)).toBeNull();
   });
+  it("reads the merchant after the date (ICICI cards)", () => {
+    const p = parseSms("INR 970.00 spent using ICICI Bank Card XX5001 on 18-Oct-26 on AMAZON PAY IN G. Avl Limit: INR 92,429.35. If not you, call 1800 2662/SMS BLOCK 5001 to 9215676766", "ICICIT", "2026-10-18");
+    expect(p).toMatchObject({ amount: 970, direction: "debit", instrument: "card", last4: "5001", date: "2026-10-18", merchant: "AMAZON PAY IN G", availableLimit: 92429.35 });
+  });
 });
