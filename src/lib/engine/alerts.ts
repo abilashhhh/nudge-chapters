@@ -133,6 +133,7 @@ export function buildAlerts(args: {
   }
 
   // Card statements generated in the last 5 days and still unpaid
+  const utilGroups = new Set<string>();
   for (const cp of positions.cards.values()) {
     for (const st of cp.statements) {
       const age = diffDays(st.statement.statement_date, today);
@@ -148,12 +149,15 @@ export function buildAlerts(args: {
         });
       }
     }
-    if (cp.utilization > 0.7 && cp.card.credit_limit > 0) {
+    // Cards sharing one limit get one alert for the group.
+    const group = cp.card.shared_limit_group?.trim().toLowerCase();
+    if (cp.utilization > 0.7 && cp.card.credit_limit > 0 && !(group && utilGroups.has(group))) {
+      if (group) utilGroups.add(group);
       out.push({
-        key: `util:${cp.card.id}:${today.slice(0, 7)}`,
+        key: group ? `util:group:${group}:${today.slice(0, 7)}` : `util:${cp.card.id}:${today.slice(0, 7)}`,
         priority: "normal",
         module: "cards",
-        title: `${cp.card.name} is ${Math.round(cp.utilization * 100)}% utilised`,
+        title: group ? `Your ${cp.card.shared_limit_group!.trim()} cards are ${Math.round(cp.utilization * 100)}% utilised` : `${cp.card.name} is ${Math.round(cp.utilization * 100)}% utilised`,
         body: "High utilisation can lower your credit score. Try to keep it under 30%.",
         href: "/liabilities",
       });

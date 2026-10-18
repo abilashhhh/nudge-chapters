@@ -10,7 +10,6 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney, formatPct, toBase, type MoneyContext } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
-import { useTab } from "@/lib/use-tab";
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { NumberInput } from "../ui/form";
@@ -19,16 +18,19 @@ import { Sheet } from "../ui/sheet";
 import { StatTile, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details, type Column } from "./data-table";
 import { AllSavings } from "./all-money";
+import { HoldingTile } from "./detail-pages";
+import { useRouter } from "next/navigation";
 import { refreshPrices, usePrices } from "../price-refresher";
 import { priceItems } from "@/lib/prices";
 import { toast } from "sonner";
 
-const TABS = ["all", "funds", "stocks", "epf", "chits", "commodities", "other"] as const;
-type Tab = (typeof TABS)[number];
+export const SAVINGS_TABS = ["savings", "funds", "stocks", "epf", "chits", "commodities", "other"] as const;
+export type SavingsTab = (typeof SAVINGS_TABS)[number];
+type Tab = SavingsTab;
 
 const isFund = (p: InvestmentPosition) => p.investment.type === "mutual_fund";
 /** Each saving goes to exactly one section. */
-function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits" | "all"> {
+function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits" | "savings"> {
   const t = p.investment.type;
   if (t === "mutual_fund") return "funds";
   if (t === "stock" || t === "etf") return "stocks";
@@ -43,33 +45,25 @@ const SECTION: Record<"stocks" | "epf" | "commodities" | "other", { label: strin
   other: { label: "Other savings", addType: "fd", empty: "FDs, RDs, bonds, property or a vehicle", table: "Other savings" },
 };
 
-export function SavingsScreen() {
-  const [tab0, setTab] = useTab(TABS, "all");
+/** Savings totals and the savings tabs worth showing (Mutual funds and Chits always; the rest once they hold something). */
+export function useSavings() {
   const { positions, ctx } = useFinance();
   const invs = [...positions.investments.values()].filter((p) => !p.investment.archived);
   const chits = [...positions.chits.values()];
   const value = invs.reduce((s, p) => s + p.valueBase, 0) + chits.reduce((s, c) => s + c.asset, 0);
   const putIn = invs.reduce((s, p) => s + toBase(p.invested, p.investment.currency, ctx), 0) + chits.reduce((s, c) => s + c.asset, 0);
-  const profit = value - putIn;
-  const count = (t: Tab) => invs.filter((p) => sectionOf(p) === t).length;
-  // Mutual funds and Chits are always there; the others show up once you have something in them.
-  const visible = TABS.filter((t) => t === "all" || t === "funds" || t === "chits" || count(t) > 0);
-  const tab: Tab = visible.includes(tab0) ? tab0 : "all";
+  const count = (t: Tab) => (t === "chits" ? chits.length : invs.filter((p) => sectionOf(p) === t).length);
+  const visible = SAVINGS_TABS.filter((t) => t === "savings" || t === "funds" || t === "chits" || count(t) > 0);
+  const tabs = visible.map((id) => ({ id, label: id === "savings" ? "All savings" : id === "funds" ? "Mutual funds" : id === "chits" ? "Chits" : SECTION[id].label, count: id === "savings" ? undefined : count(id) }));
+  return { invs, value, putIn, profit: value - putIn, tabs };
+}
+
+/** The body of one savings tab inside My Money. */
+export function SavingsTabBody({ tab }: { tab: Tab }) {
+  const { invs } = useSavings();
   return (
     <>
-      <V2PageHeader title="Savings" />
-      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
-        <StatTile label="Total saved" value={value} note="Value today" />
-        <StatTile label="Money put in" value={putIn} />
-        <StatTile label={profit >= 0 ? "Profit" : "Loss"} value={profit} tone="pl" note={putIn > 0 ? `${formatPct((profit / putIn) * 100)}` : undefined} />
-      </div>
-      <Tabs<Tab>
-        className="mb-4"
-        value={tab}
-        onChange={setTab}
-        tabs={visible.map((id) => ({ id, label: id === "all" ? "All" : id === "funds" ? "Mutual funds" : id === "chits" ? "Chits" : SECTION[id].label, count: id === "all" ? undefined : id === "chits" ? chits.length : count(id) }))}
-      />
-      {tab === "all" && <AllSavings />}
+      {tab === "savings" && <AllSavings />}
       {tab === "funds" && <Funds list={invs.filter(isFund)} />}
       {tab === "chits" && <Chits />}
       {(tab === "stocks" || tab === "epf" || tab === "commodities" || tab === "other") && <Other list={invs.filter((p) => sectionOf(p) === tab)} section={tab} />}
@@ -82,6 +76,21 @@ export function SavingsScreen() {
 }
 
 // ---------------------------------------------------------------------------
+
+/** Each holding as a tile: tap one to open its page (value history, purchases, edit). */
+function HoldingStrip({ ids, label }: { ids: string[]; label: string }) {
+  const router = useRouter();
+  if (!ids.length) return null;
+  return (
+    <section aria-label={label} className="no-scrollbar -mx-4 mb-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
+      {ids.map((id, i) => (
+        <div key={id} className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
+          <HoldingTile id={id} index={i} onClick={() => router.push(`/my-money/holding?id=${id}`)} />
+        </div>
+      ))}
+    </section>
+  );
+}
 
 function Funds({ list }: { list: InvestmentPosition[] }) {
   const { ctx } = useFinance();
@@ -112,6 +121,7 @@ function Funds({ list }: { list: InvestmentPosition[] }) {
           Add a fund
         </Button>
       </div>
+      <HoldingStrip label="Your mutual funds" ids={[...list].sort((a, b) => b.valueBase - a.valueBase).map((p) => p.investment.id)} />
       <DataTable
         label="Mutual funds"
         rows={list}
@@ -327,6 +337,7 @@ function Other({ list, section }: { list: InvestmentPosition[]; section: "stocks
           {section === "other" ? "Add savings" : `Add to ${meta.label}`}
         </Button>
       </div>
+      {section === "stocks" && <HoldingStrip label="Your stocks" ids={sorted.map((p) => p.investment.id)} />}
       <DataTable
         label={meta.table}
         rows={sorted}

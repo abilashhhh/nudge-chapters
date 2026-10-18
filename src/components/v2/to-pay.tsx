@@ -1,9 +1,9 @@
 "use client";
 
 import { Check, ChevronRight, CreditCard, Landmark, PiggyBank } from "lucide-react";
-import { AddCardTile, CardVisual } from "./card-visual";
+import { CardVisual } from "./card-visual";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { formatDate, monthKey, startOfMonth } from "@/lib/dates";
 import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
@@ -62,8 +62,17 @@ function Cards() {
   const events = useRangeEvents(months);
   const data = useMemo(() => cardGrid(ds, positions, events, months, today), [ds, positions, events, months, today]);
   const ui = useUI.getState();
-  const cards = ds.credit_cards.filter((c) => !c.archived);
+  const router = useRouter();
   const month = today.slice(0, 7);
+  // Cards with a bill to pay come first (late, then soonest due), then the rest by what's owed on them.
+  const order = new Map(orderForMonth(data.groups, month).map((g, i) => [g.ref?.id, Math.abs(g.total.cells[month]?.amount ?? 0) > 0.005 && g.total.cells[month]?.status !== "paid" ? i : 1000]));
+  const owed = (id: string) => positions.cards.get(id)?.outstanding ?? 0;
+  const cards = ds.credit_cards.filter((c) => !c.archived).sort((a, b) => (order.get(a.id) ?? 1000) - (order.get(b.id) ?? 1000) || owed(b.id) - owed(a.id));
+  const shared = (c: (typeof cards)[number]) => {
+    const k = c.shared_limit_group?.trim().toLowerCase();
+    if (!k || cards.filter((x) => x.shared_limit_group?.trim().toLowerCase() === k).length < 2) return undefined;
+    return `Shared ${c.shared_limit_group} limit · ${Math.round((positions.cards.get(c.id)?.utilization ?? 0) * 100)}% used`;
+  };
   return (
     <>
     {cards.length > 0 && (
@@ -75,13 +84,10 @@ function Cards() {
           const due = cell && cell.amount > 0 ? `${formatMoney(cell.amount, ctx)} ${cell.status === "paid" ? "paid" : cell.status === "late" ? "late" : "this month"}` : "Nothing due this month";
           return (
             <div key={c.id} className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
-              <CardVisual card={c} index={i} used={positions.cards.get(c.id)?.utilization} due={due} dueTone={tone} onClick={() => ui.openEditor("card", c.id)} />
+              <CardVisual card={c} index={i} used={positions.cards.get(c.id)?.utilization} usedLabel={shared(c)} due={due} dueTone={tone} onClick={() => router.push(`/to-pay/card?id=${c.id}`)} />
             </div>
           );
         })}
-        <div className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
-          <AddCardTile onClick={() => ui.openEditor("card")} />
-        </div>
       </section>
     )}
     <MonthGrid

@@ -90,7 +90,7 @@ export function AllMoney() {
       title: "Bank & cash",
       lines: ds.accounts
         .filter((a) => !a.archived)
-        .map((a) => ({ id: a.id, label: a.name, sub: a.include_in_cash ? undefined : "Not counted as spendable", value: positions.accounts.get(a.id)?.balanceBase ?? 0, href: "/my-money?tab=accounts" }))
+        .map((a) => ({ id: a.id, label: a.name, sub: a.include_in_cash ? undefined : "Not counted as spendable", value: positions.accounts.get(a.id)?.balanceBase ?? 0, href: `/my-money/account?id=${a.id}` }))
         .filter(nz),
     },
     {
@@ -117,8 +117,8 @@ export function AllMoney() {
       lines: [
         ...[...positions.investments.values()]
           .filter((p) => !p.investment.archived)
-          .map((p) => ({ id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? undefined, value: p.valueBase, href: "/savings?tab=all" })),
-        ...[...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit · paid in so far", value: c.asset, href: "/savings?tab=chits" })),
+          .map((p) => ({ id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? undefined, value: p.valueBase, href: `/my-money/holding?id=${p.investment.id}` })),
+        ...[...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit · paid in so far", value: c.asset, href: "/my-money?tab=chits" })),
       ].filter(nz),
     },
   ];
@@ -165,7 +165,7 @@ export function AllMoney() {
   );
 }
 
-/** Savings → All: every saving in one list, biggest first. */
+/** My Money → All savings: every saving in one list, biggest first. */
 export function AllSavings() {
   const { positions, ctx } = useFinance();
   const lines = useMemo(() => {

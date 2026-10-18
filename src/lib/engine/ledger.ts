@@ -412,6 +412,22 @@ export function computePositions(ds: Dataset, asOf: ISODate): Positions {
       creditLimit += c.credit_limit;
     }
   }
+  // Cards sharing one limit: what they owe together is set against that one limit (counted once in the total).
+  const groups = new Map<string, CreditCard[]>();
+  for (const c of ds.credit_cards) {
+    const k = c.shared_limit_group?.trim().toLowerCase();
+    if (k && !c.archived) groups.set(k, [...(groups.get(k) ?? []), c]);
+  }
+  for (const members of groups.values()) {
+    if (members.length < 2) continue;
+    const limit = Math.max(...members.map((m) => m.credit_limit));
+    const owed = members.reduce((s, m) => s + Math.max(0, cards.get(m.id)!.outstanding), 0);
+    for (const m of members) {
+      const cp = cards.get(m.id)!;
+      cards.set(m.id, { ...cp, available: round2(Math.max(0, limit - owed)), utilization: limit > 0 ? owed / limit : 0 });
+    }
+    creditLimit -= members.reduce((s, m) => s + m.credit_limit, 0) - limit;
+  }
 
   const loans = new Map<string, { loan: Loan; state: LoanState }>();
   let loanDebt = 0;

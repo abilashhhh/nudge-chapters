@@ -59,6 +59,8 @@ export interface CreditCard extends Owned {
   interest_rate_apr: number;
   reward_points: number;
   color?: string | null;
+  /** Cards from one bank that share one limit carry the same group name (e.g. "Axis"). */
+  shared_limit_group?: string | null;
   archived: boolean;
   notes?: string | null;
 }

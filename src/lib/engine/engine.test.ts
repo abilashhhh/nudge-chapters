@@ -75,6 +75,21 @@ describe("business rules (PRD §31)", () => {
     expect(p.totals.netWorth).toBe(96_000);
   });
 
+  it("cards that share one limit share what's available, and the limit counts once", () => {
+    const ds = emptyDs();
+    const [x, y, z] = [card({ shared_limit_group: "Axis" }), card({ shared_limit_group: " axis " }), card({ shared_limit_group: "Axis" })];
+    const solo = card({ credit_limit: 40_000 });
+    ds.credit_cards = [x, y, z, solo];
+    ds.transactions = [tx({ type: "card_spend", amount: 20_000, card_id: x.id }), tx({ type: "card_spend", amount: 5_000, card_id: y.id })];
+    const p = computePositions(ds, TODAY);
+    for (const c of [x, y, z]) {
+      expect(p.cards.get(c.id)!.available).toBe(75_000);
+      expect(p.cards.get(c.id)!.utilization).toBeCloseTo(0.25);
+    }
+    expect(p.cards.get(solo.id)!.available).toBe(40_000);
+    expect(p.totals.creditLimit).toBe(140_000);
+  });
+
   it("lending moves cash into a receivable and back", () => {
     const ds = emptyDs();
     const a = acc();
