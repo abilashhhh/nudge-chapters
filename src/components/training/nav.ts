@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
-export const TRAINING_PATH = "/trading-training";
+export const TRAINING_PATH = "/trading/training";
 
 export const TRAINING_TABS = ["home", "learn", "practice", "scores", "review"] as const;
 export type TrainingTab = (typeof TRAINING_TABS)[number];

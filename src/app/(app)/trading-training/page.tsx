@@ -1,12 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
-import { TradingTrainingScreen } from "@/components/training/training-screen";
-
+// Trading Training moved into the Trading section (/trading/training); the shell forwards this address there.
 export default function Page() {
-  return (
-    <Suspense>
-      <TradingTrainingScreen />
-    </Suspense>
-  );
+  return null;
 }

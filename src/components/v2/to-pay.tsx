@@ -82,7 +82,7 @@ function Cards() {
           const g = data.groups.find((x) => x.ref?.id === c.id);
           const cell = g?.total.cells[month];
           const tone = !cell || cell.amount <= 0 ? null : cell.status === "paid" ? "paid" : cell.status === "late" ? "late" : cell.status === "due" ? "soon" : null;
-          const due = cell && cell.amount > 0 ? `${formatMoney(cell.amount, ctx)} ${cell.status === "paid" ? "paid" : cell.status === "late" ? "late" : "this month"}` : "Nothing due this month";
+          const due = cell && cell.amount > 0 ? `${formatMoney(cell.amount, ctx)} ${cell.status === "paid" ? "paid" : cell.status === "late" ? "late" : "due"}` : null;
           return (
             <div key={c.id} className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
               <CardVisual card={c} index={i} used={positions.cards.get(c.id)?.utilization} usedLabel={shared(c)} due={due} dueTone={tone} onClick={() => router.push(`/to-pay/card?id=${c.id}`)} />

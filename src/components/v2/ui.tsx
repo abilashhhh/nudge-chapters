@@ -21,12 +21,12 @@ const BAR_SECTIONS = ["/my-money", "/to-pay", "/trading", "/daily", "/menu"];
 export function V2PageHeader({ title, shortTitle, actions }: { title: string; shortTitle?: string; actions?: ReactNode }) {
   const path = (usePathname() ?? "/").replace(/\/+$/, "") || "/";
   const barSection = BAR_SECTIONS.includes(path);
-  const back = path.startsWith("/menu/") ? "/menu" : null;
+  const back = path.startsWith("/menu/") ? "/menu" : path.startsWith("/trading/") ? "/trading" : null;
   return (
     <div className={cn("mb-4 flex items-center justify-between gap-3 lg:mb-5", barSection && !actions && "hidden lg:flex")}>
       <div className={cn("flex min-w-0 items-center gap-2", barSection && "hidden lg:flex")}>
         {back && (
-          <Link href={back} aria-label="Back to Menu" className="no-print inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:text-ink">
+          <Link href={back} aria-label={back === "/menu" ? "Back to Menu" : "Back to Trading"} className="no-print inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:text-ink">
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </Link>
         )}

@@ -45,8 +45,8 @@ export function MyMoneyScreen() {
       <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <StatTile label="Money in bank" value={positions.totals.cash} onClick={() => setTab("accounts")} />
         <StatTile label="People owe me" value={positions.totals.receivables} onClick={() => setTab("owed")} />
-        <StatTile label="Savings value" value={sv.value} note={`${formatMoney(sv.putIn, ctx)} put in`} onClick={() => setTab("savings")} />
-        <StatTile label={sv.profit >= 0 ? "Savings profit" : "Savings loss"} value={sv.profit} tone="pl" note={sv.putIn > 0 ? formatPct((sv.profit / sv.putIn) * 100) : undefined} onClick={() => setTab("savings")} />
+        <StatTile label="Savings value" value={sv.value} note={`${formatMoney(sv.putIn, ctx)} put in`} onClick={() => setTab("all")} />
+        <StatTile label={sv.profit >= 0 ? "Savings profit" : "Savings loss"} value={sv.profit} tone="pl" note={sv.putIn > 0 ? formatPct((sv.profit / sv.putIn) * 100) : undefined} onClick={() => setTab("all")} />
       </div>
       <Tabs<Tab>
         className="mb-4"

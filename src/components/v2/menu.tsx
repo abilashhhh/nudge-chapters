@@ -1,13 +1,12 @@
 "use client";
 
-import { Bell, Briefcase, CalendarDays, ChartCandlestick, LockKeyhole, HelpCircle, Landmark, MessageSquareText, PiggyBank, Repeat, Users, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
+import { Bell, Briefcase, CalendarDays, LockKeyhole, HelpCircle, Landmark, MessageSquareText, PiggyBank, Repeat, Users, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useFinance } from "@/lib/finance";
 import { annualPremium } from "@/lib/insurance";
 import { formatMoney } from "@/lib/money";
 import { V2PageHeader } from "./ui";
-import { useTraining } from "../training/actions";
 import { monthlyNeed } from "./sinking";
 
 type Tile = { href?: string; onClick?: () => void; label: string; icon: typeof Bell; hint: ReactNode };
@@ -55,7 +54,6 @@ export function MenuScreen() {
     <>
       <V2PageHeader title="Menu" />
       <div className="flex flex-col gap-6">
-        <TrainingTile />
         {groups.map((g) => (
           <section key={g.title} aria-label={g.title}>
             <h2 className="mb-2 text-[12px] font-medium uppercase tracking-wide text-ink-3">{g.title}</h2>
@@ -88,20 +86,3 @@ export function MenuScreen() {
   );
 }
 
-/** Trading Training lives in the desktop sidebar; on phones (no room on the bottom bar) it leads the Menu. */
-function TrainingTile() {
-  const t = useTraining();
-  const started = t.data.attempts.length > 0 || t.data.lessons.length > 0;
-  return (
-    <Link href="/trading-training" className="lift group flex items-center gap-4 rounded-2xl bg-inverse p-4 text-on-inverse lg:hidden">
-      <ChartCandlestick className="h-8 w-8 shrink-0 text-warn" aria-hidden />
-      <span className="min-w-0 flex-1">
-        <span className="block text-[16px] font-semibold leading-tight">Trading Training</span>
-        <span className="mt-0.5 block text-[12.5px] opacity-75">
-          {started ? `Level ${t.level.level} · ${t.streak.current}-day streak · ${t.todayStats.xp} XP today` : "Learn to read candlestick charts, step by step"}
-        </span>
-      </span>
-      <span className="text-[13px] font-semibold text-warn">Open →</span>
-    </Link>
-  );
-}

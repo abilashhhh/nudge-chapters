@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, FileUp, Plus, Rocket, Search, TrendingUp, Wallet } from "lucide-react";
+import { ChartCandlestick, ChevronLeft, ChevronRight, FileUp, Plus, Rocket, Search, TrendingUp, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -19,6 +19,9 @@ import { useTab } from "@/lib/use-tab";
 import { Button } from "../ui/button";
 import { EmptyState, Segmented, Tabs } from "../ui/misc";
 import { HoldingTile } from "./detail-pages";
+import Link from "next/link";
+import { TRAINING_PATH } from "../training/nav";
+import { useTraining } from "../training/actions";
 import { EntityIcon } from "./entity-icon";
 import { ImportTradesSheet, IpoSheet, TradeSheet } from "./trading-sheets";
 import { StatTile, V2PageHeader } from "./ui";
@@ -83,6 +86,7 @@ export function TradingScreen() {
   const ist = ipoStats(ipos);
   const stocks = [...positions.investments.values()].filter((p) => !p.investment.archived && (p.investment.type === "stock" || p.investment.type === "etf"));
   const holdGain = stocks.reduce((s, p) => s + p.valueBase - toBase(p.invested, p.investment.currency, ctx), 0);
+  const router = useRouter();
   const openTrade = (trade: Trade) => setEditing({ trade });
   const addTrade = (segment: TradeSegment = "intraday") => setEditing({ preset: { segment } });
   return (
@@ -104,18 +108,20 @@ export function TradingScreen() {
         <StatTile label="Holdings profit" value={holdGain} tone="pl" note={`${stocks.length} stock${stocks.length === 1 ? "" : "s"}`} onClick={() => setTab("holdings")} />
         <StatTile label="IPO gains" value={ist.gains} tone="pl" note={`${ist.allotted} of ${ist.decided} allotted`} onClick={() => setTab("ipos")} />
       </div>
-      <Tabs<Tab>
+      <Tabs<Tab | "training">
         className="mb-4"
         value={tab}
-        onChange={setTab}
+        onChange={(t) => (t === "training" ? router.push(TRAINING_PATH) : setTab(t))}
         tabs={[
           { id: "overview", label: "Overview" },
           { id: "intraday", label: "Intraday", count: trades.filter((t) => t.segment === "intraday").length },
           { id: "trades", label: "Swing & F&O", count: trades.filter((t) => t.segment !== "intraday").length },
           { id: "holdings", label: "Holdings", count: stocks.length },
           { id: "ipos", label: "IPOs", count: ipos.length },
+          { id: "training", label: "Training" },
         ]}
       />
+      {tab === "overview" && <TrainingTile />}
       {tab === "overview" && <Overview trades={trades} onOpen={openTrade} onAdd={() => addTrade()} onImport={() => setImporting(true)} />}
       {tab === "intraday" && <Intraday trades={trades.filter((t) => t.segment === "intraday")} onOpen={openTrade} onAdd={() => addTrade("intraday")} />}
       {tab === "trades" && <Positional trades={trades.filter((t) => t.segment !== "intraday")} onOpen={openTrade} onAdd={() => addTrade("swing")} />}
@@ -647,5 +653,25 @@ function Ipos({ list, onOpen, onAdd }: { list: IpoApplication[]; onOpen: (i: Ipo
         })}
       </ul>
     </div>
+  );
+}
+
+/** Trading Training: lessons, quizzes and daily chart practice, with your level and streak. */
+function TrainingTile() {
+  const t = useTraining();
+  const started = t.data.attempts.length > 0 || t.data.lessons.length > 0;
+  return (
+    <Link href={TRAINING_PATH} className="lift group mb-4 flex items-center gap-4 rounded-2xl bg-inverse p-4 text-on-inverse">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
+        <ChartCandlestick className="h-7 w-7 text-warn" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] font-semibold leading-tight">Trading Training</span>
+        <span className="mt-0.5 block text-[12.5px] opacity-75">
+          {started ? `Level ${t.level.level} · ${t.streak.current}-day streak · ${t.todayStats.xp} XP today` : "Learn to read candlestick charts: lessons, quizzes and daily practice"}
+        </span>
+      </span>
+      <span className="text-[13px] font-semibold text-warn">Open →</span>
+    </Link>
   );
 }

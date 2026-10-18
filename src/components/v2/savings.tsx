@@ -17,7 +17,6 @@ import { EmptyState, Tabs } from "../ui/misc";
 import { Sheet } from "../ui/sheet";
 import { StatTile, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details, type Column } from "./data-table";
-import { AllSavings } from "./all-money";
 import { HoldingTile } from "./detail-pages";
 import { EntityIcon } from "./entity-icon";
 import { useRouter } from "next/navigation";
@@ -25,13 +24,13 @@ import { refreshPrices, usePrices } from "../price-refresher";
 import { priceItems } from "@/lib/prices";
 import { toast } from "sonner";
 
-export const SAVINGS_TABS = ["savings", "funds", "stocks", "epf", "chits", "commodities", "other"] as const;
+export const SAVINGS_TABS = ["funds", "stocks", "epf", "chits", "commodities", "other"] as const;
 export type SavingsTab = (typeof SAVINGS_TABS)[number];
 type Tab = SavingsTab;
 
 const isFund = (p: InvestmentPosition) => p.investment.type === "mutual_fund";
 /** Each saving goes to exactly one section. */
-function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits" | "savings"> {
+function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits"> {
   const t = p.investment.type;
   if (t === "mutual_fund") return "funds";
   if (t === "stock" || t === "etf") return "stocks";
@@ -54,8 +53,8 @@ export function useSavings() {
   const value = invs.reduce((s, p) => s + p.valueBase, 0) + chits.reduce((s, c) => s + c.asset, 0);
   const putIn = invs.reduce((s, p) => s + toBase(p.invested, p.investment.currency, ctx), 0) + chits.reduce((s, c) => s + c.asset, 0);
   const count = (t: Tab) => (t === "chits" ? chits.length : invs.filter((p) => sectionOf(p) === t).length);
-  const visible = SAVINGS_TABS.filter((t) => t === "savings" || t === "funds" || t === "chits" || count(t) > 0);
-  const tabs = visible.map((id) => ({ id, label: id === "savings" ? "All savings" : id === "funds" ? "Mutual funds" : id === "chits" ? "Chits" : SECTION[id].label, count: id === "savings" ? undefined : count(id) }));
+  const visible = SAVINGS_TABS.filter((t) => t === "funds" || t === "chits" || count(t) > 0);
+  const tabs = visible.map((id) => ({ id, label: id === "funds" ? "Mutual funds" : id === "chits" ? "Chits" : SECTION[id].label, count: count(id) }));
   return { invs, value, putIn, profit: value - putIn, tabs };
 }
 
@@ -64,7 +63,6 @@ export function SavingsTabBody({ tab }: { tab: Tab }) {
   const { invs } = useSavings();
   return (
     <>
-      {tab === "savings" && <AllSavings />}
       {tab === "funds" && <Funds list={invs.filter(isFund)} />}
       {tab === "chits" && <Chits />}
       {(tab === "stocks" || tab === "epf" || tab === "commodities" || tab === "other") && <Other list={invs.filter((p) => sectionOf(p) === tab)} section={tab} />}

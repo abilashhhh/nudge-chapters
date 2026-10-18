@@ -2,7 +2,7 @@
 
 import {
   Bell, Eye, EyeOff, Home, LogOut, Moon, Plus, Search, Sun, 
-  TrendingUp, Wallet, Menu as MenuIcon, Receipt, CalendarCheck, ChartCandlestick } from "lucide-react";
+  TrendingUp, Wallet, Menu as MenuIcon, Receipt, CalendarCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
@@ -38,7 +38,7 @@ import { useGridRange } from "../v2/month-grid";
 import { useMonth } from "../ui/month-picker";
 
 /** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
-const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/trading": TrendingUp, "/daily": CalendarCheck, "/trading-training": ChartCandlestick, "/menu": MenuIcon };
+const V2_ICONS: Record<string, typeof Home> = { "/": Home, "/my-money": Wallet, "/to-pay": Receipt, "/trading": TrendingUp, "/daily": CalendarCheck, "/menu": MenuIcon };
 
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -243,7 +243,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       {/* Global add button (not over Trading Training or Passwords, which have their own controls there) */}
-      {!isActiveV2(pathname, "/trading-training") && !isActiveV2(pathname, "/menu/vault") && <button
+      {!isActiveV2(pathname, "/trading/training") && !isActiveV2(pathname, "/menu/vault") && <button
         type="button"
         onClick={() => ui.openQuick()}
         aria-label="Quick add"

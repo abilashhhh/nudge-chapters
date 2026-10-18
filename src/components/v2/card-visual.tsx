@@ -1,24 +1,76 @@
 "use client";
 
-import { Wifi } from "lucide-react";
 import { useRef, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { skinFor, type Skin } from "@/lib/v2/card-skins";
+import { CardArt } from "./card-art";
 import type { Account, CreditCard } from "@/lib/types";
 
-function NetworkMark({ network }: { network?: string | null }) {
+/** The network's mark, drawn (not the networks' logo files). */
+function NetworkMark({ network, tier }: { network?: string | null; tier?: string }) {
   const n = (network ?? "").toLowerCase();
+  let mark: ReactNode = null;
   if (n.includes("master"))
-    return (
-      <span className="relative flex h-6 w-10 items-center" aria-label="Mastercard">
-        <span className="absolute left-0 h-6 w-6 rounded-full bg-[#eb001b]/90" />
-        <span className="absolute left-4 h-6 w-6 rounded-full bg-[#f79e1b]/90 mix-blend-screen" />
+    mark = (
+      <svg viewBox="0 0 44 28" className="h-7 w-11" aria-label="Mastercard">
+        <circle cx="15" cy="14" r="12" fill="#eb001b" />
+        <circle cx="29" cy="14" r="12" fill="#f79e1b" />
+        <path d="M22 4.3a12 12 0 0 1 0 19.4a12 12 0 0 1 0-19.4z" fill="#ff5f00" />
+      </svg>
+    );
+  else if (n.includes("amex") || n.includes("american"))
+    mark = (
+      <span className="flex h-7 w-10 flex-col items-center justify-center rounded-[3px] bg-[#2e77bc] text-[6.5px] font-black leading-[1.05] tracking-tight text-white" aria-label="American Express">
+        <span>AMERICAN</span>
+        <span>EXPRESS</span>
       </span>
     );
-  if (n.includes("amex") || n.includes("american"))
-    return <span className="rounded-[3px] bg-white/90 px-1.5 py-0.5 text-[10px] font-black tracking-tight text-[#0b4fa3]">AMEX</span>;
-  const label = n.includes("visa") ? "VISA" : n.includes("rupay") ? "RuPay" : n.includes("diners") ? "Diners Club" : network || "";
-  return <span className={cn("font-bold italic tracking-wide", label === "VISA" ? "text-[20px]" : "text-[13px]")}>{label}</span>;
+  else if (n.includes("visa")) mark = <span className="text-[22px] font-black italic leading-none tracking-tight" aria-label="Visa">VISA</span>;
+  else if (n.includes("rupay"))
+    mark = (
+      <span className="flex items-center text-[16px] font-black italic leading-none tracking-tight" aria-label="RuPay">
+        RuPay
+        <svg viewBox="0 0 10 12" className="ml-0.5 h-3 w-2.5" aria-hidden>
+          <path d="M0 0 L7 6 L0 12 Z" fill="#f47920" />
+          <path d="M3 0 L10 6 L3 12 Z" fill="#00a651" opacity="0.9" />
+        </svg>
+      </span>
+    );
+  else if (network) mark = <span className="text-[13px] font-bold italic">{network}</span>;
+  if (!mark) return null;
+  return (
+    <span className="flex shrink-0 flex-col items-end">
+      {mark}
+      {tier && <span className="mt-0.5 text-[8.5px] font-semibold uppercase tracking-[0.18em] opacity-80">{tier}</span>}
+    </span>
+  );
+}
+
+function Chip() {
+  return (
+    <svg viewBox="0 0 40 30" className="h-[30px] w-10 shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" aria-hidden>
+      <defs>
+        <linearGradient id="chipgold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#fbe7a1" />
+          <stop offset="0.5" stopColor="#d9b25a" />
+          <stop offset="1" stopColor="#a87c2a" />
+        </linearGradient>
+      </defs>
+      <rect x="0.5" y="0.5" width="39" height="29" rx="5" fill="url(#chipgold)" stroke="#8a6420" strokeOpacity="0.5" />
+      <path d="M0 10 H13 M0 20 H13 M27 10 H40 M27 20 H40 M13 0 V30 M27 0 V30 M13 15 H27" stroke="#7a5518" strokeOpacity="0.55" strokeWidth="1" fill="none" />
+      <rect x="13" y="7" width="14" height="16" rx="3" fill="none" stroke="#7a5518" strokeOpacity="0.55" />
+    </svg>
+  );
+}
+
+function Contactless({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 20" className={cn("h-5 w-4", className)} aria-hidden>
+      {[3, 7, 11].map((r, i) => (
+        <path key={r} d={`M${3 + i * 3.4} ${10 - r * 0.62} a ${r} ${r} 0 0 1 0 ${r * 1.24}`} stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+      ))}
+    </svg>
+  );
 }
 
 /** The card's own pattern, drawn in its colours. */
@@ -125,6 +177,38 @@ export function Plastic({ skin, issuer, title, kindLabel, last4, network, badge,
     ref.current?.style.setProperty("--ry", "0deg");
   };
   const markCls = skin.markStyle === "italic" ? "italic font-bold" : skin.markStyle === "lower" ? "font-bold lowercase tracking-tight" : skin.markStyle === "spaced" ? "font-semibold uppercase tracking-[0.22em]" : "font-black uppercase tracking-tight";
+  const badgeEl = badge && (
+    <span className={cn("max-w-full truncate rounded-full bg-black/35 px-2 py-0.5 text-[11.5px] font-medium text-white backdrop-blur-sm", badgeTone === "late" && "bg-[#e5484d]/90", badgeTone === "soon" && "bg-[#d97706]/90", badgeTone === "paid" && "bg-[#15803d]/85")}>{badge}</span>
+  );
+  const shell = cn(
+    "credit-card anim-rise group relative isolate block aspect-[1.586] w-full overflow-hidden rounded-[18px] text-left shadow-[0_18px_36px_-16px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.08)]",
+    skin.ink === "light" ? "text-white" : "text-[#1d1d1f]",
+    className,
+  );
+  if (skin.art) {
+    const split = skin.art === "kotak";
+    return (
+      <button ref={ref} type="button" onClick={onClick} onPointerMove={tilt} onPointerLeave={reset} aria-label={ariaLabel} className={shell} style={{ background: skin.bg, animationDelay: `${index * 70}ms` } as CSSProperties}>
+        <CardArt art={skin.art} />
+        <span className="credit-card-sheen pointer-events-none absolute inset-0" aria-hidden />
+        <span className="absolute left-[5%] top-[36%] flex max-w-[60%] items-center gap-2.5">
+          {chip && <Chip />}
+          <Contactless className={cn("shrink-0 opacity-85", split && "text-[#1d1d1f]")} />
+          {badgeEl}
+        </span>
+        <span className={cn("num absolute left-[5%] top-[57%] whitespace-nowrap font-mono text-[14px] tracking-[0.18em] [text-shadow:0_1px_1px_rgba(0,0,0,0.25)] sm:text-[15px]", split && "[text-shadow:none]")}>•••• {last4 || "••••"}</span>
+        <span className="absolute inset-x-[5%] bottom-[7%] flex items-end justify-between gap-3">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] opacity-90">{title}</span>
+            {footer}
+          </span>
+          <span className={cn(split && "text-white")}>
+            <NetworkMark network={network || skin.network} tier={skin.tier} />
+          </span>
+        </span>
+      </button>
+    );
+  }
   return (
     <button
       ref={ref}
@@ -133,7 +217,7 @@ export function Plastic({ skin, issuer, title, kindLabel, last4, network, badge,
       onPointerMove={tilt}
       onPointerLeave={reset}
       aria-label={ariaLabel}
-      className={cn("credit-card anim-rise group relative isolate block aspect-[1.586] w-full overflow-hidden rounded-[18px] p-4 text-left shadow-[0_14px_30px_-12px_rgba(0,0,0,0.55)] sm:p-5", skin.ink === "light" ? "text-white" : "text-[#111]", className)}
+      className={cn(shell, "p-4 sm:p-5")}
       style={{ background: skin.bg, animationDelay: `${index * 70}ms` } as CSSProperties}
     >
       <Motif skin={skin} />
@@ -151,35 +235,23 @@ export function Plastic({ skin, issuer, title, kindLabel, last4, network, badge,
               <span className="display mt-0.5 block truncate text-[17px] font-semibold leading-tight sm:text-[19px]">{title}</span>
             )}
           </span>
-          <span className="flex shrink-0 flex-col items-end gap-1">
-            <Wifi className="h-5 w-5 rotate-90 opacity-80" aria-hidden />
-            <span className="text-[9.5px] font-medium uppercase tracking-wider opacity-70">{kindLabel}</span>
-          </span>
+          <span className="shrink-0 text-[9.5px] font-medium uppercase tracking-wider opacity-70">{kindLabel}</span>
         </span>
 
-        <span className="flex items-center gap-3">
-          {chip && (
-            <span className="relative h-7 w-9 shrink-0 rounded-md bg-gradient-to-br from-[#f5d77a] to-[#b8902f] shadow-inner" aria-hidden>
-              <span className="absolute inset-x-1 top-1/2 h-px bg-black/25" />
-              <span className="absolute inset-y-1 left-1/2 w-px bg-black/25" />
-              <span className="absolute inset-[5px] rounded-[3px] border border-black/20" />
-            </span>
-          )}
-          {badge && (
-            <span className={cn("truncate rounded-full bg-black/30 px-2 py-0.5 text-[11.5px] font-medium backdrop-blur-sm", badgeTone === "late" && "bg-[#ff4d4f]/85", badgeTone === "soon" && "bg-[#f59e0b]/85", badgeTone === "paid" && "bg-[#16a34a]/75")}>{badge}</span>
-          )}
+        <span className="flex items-center gap-2.5">
+          {chip && <Chip />}
+          <Contactless className="shrink-0 opacity-85" />
+          {badgeEl}
         </span>
 
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="num block whitespace-nowrap font-mono text-[15px] tracking-[0.16em]">•••• •••• •••• {last4 || "••••"}</span>
-        </span>
+        <span className="num block whitespace-nowrap font-mono text-[15px] tracking-[0.16em]">•••• {last4 || "••••"}</span>
 
         <span className="flex items-end justify-between gap-3">
           <span className="min-w-0 flex-1">
             {skin.mark && <span className="block truncate text-[11px] font-medium opacity-80">{title}</span>}
             {footer}
           </span>
-          <NetworkMark network={network} />
+          <NetworkMark network={network || skin.network} tier={skin.tier} />
         </span>
       </span>
     </button>
@@ -190,7 +262,7 @@ function UsedBar({ pct, label }: { pct: number; label: string }) {
   return (
     <>
       <span className="block text-[10px] uppercase tracking-wider opacity-75">{label}</span>
-      <span className="mt-1 block h-1.5 w-full max-w-[160px] overflow-hidden rounded-full bg-white/25">
+      <span className="mt-1 block h-1.5 w-full max-w-[160px] overflow-hidden rounded-full bg-current/20">
         <span className={cn("block h-full rounded-full", pct > 0.7 ? "bg-[#ff7a7a]" : pct > 0.3 ? "bg-[#ffd166]" : "bg-[#7ee2b8]")} style={{ width: `${Math.max(2, Math.min(1, pct) * 100)}%` }} />
       </span>
     </>

@@ -3,6 +3,7 @@
 import { CalendarClock, HandCoins, Landmark, Rocket, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { holdingColors, skinFor } from "@/lib/v2/card-skins";
+import { CardArt } from "./card-art";
 
 export type EntityKind = "stock" | "fund" | "ipo" | "bank" | "wallet" | "card" | "person" | "loan" | "chit" | "saving";
 
@@ -32,42 +33,43 @@ const GLYPH: Partial<Record<EntityKind, LucideIcon>> = { loan: Landmark, chit: C
  */
 export function EntityIcon({ name, kind, issuer, color, size = "md", className }: { name: string; kind: EntityKind; issuer?: string | null; color?: string | null; size?: keyof typeof SIZE; className?: string }) {
   const box = cn("inline-flex shrink-0 select-none items-center justify-center font-bold tracking-tight", SIZE[size], className);
-  if (kind === "card") {
-    const skin = skinFor("credit", name, issuer, color);
+  if (kind === "card" || kind === "bank" || kind === "wallet") {
+    const skin = skinFor(kind === "card" ? "credit" : "debit", name, issuer, color);
     return (
-      <span className={cn("relative inline-block shrink-0 overflow-hidden rounded-[5px] shadow-[0_2px_6px_-2px_rgba(0,0,0,0.45)]", size === "xs" ? "h-4 w-6" : size === "sm" ? "h-5 w-8" : size === "lg" ? "h-8 w-12" : "h-6 w-9", className)} style={{ background: skin.bg }} aria-hidden>
-        <span className="absolute left-[18%] top-[30%] h-[28%] w-[22%] rounded-[2px] bg-gradient-to-br from-[#f3d27a] to-[#b8893a]" />
-        <span className="absolute bottom-[14%] right-[10%] h-[18%] w-[30%] rounded-full" style={{ background: skin.accent, opacity: 0.85 }} />
-      </span>
-    );
-  }
-  if (kind === "bank" || kind === "wallet") {
-    const skin = skinFor("debit", name, issuer, color);
-    return (
-      <span className={cn(box, "rounded-xl text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]")} style={{ background: skin.bg }} aria-hidden>
-        {initials(issuer || name)}
+      <span
+        className={cn("relative inline-block shrink-0 overflow-hidden rounded-[5px] shadow-[0_2px_5px_-1px_rgba(0,0,0,0.4),inset_0_0_0_0.5px_rgba(255,255,255,0.25)]", size === "xs" ? "h-4 w-[25px]" : size === "sm" ? "h-[22px] w-[35px]" : size === "lg" ? "h-[34px] w-[54px]" : "h-[26px] w-[41px]", className)}
+        style={{ background: skin.bg }}
+        aria-hidden
+      >
+        {skin.art ? <CardArt art={skin.art} /> : <span className="absolute bottom-[8%] right-[8%] text-[7px] font-bold leading-none text-white/90">{initials(issuer || name)}</span>}
+        <span className="absolute left-[12%] top-[38%] h-[24%] w-[18%] rounded-[1.5px] bg-gradient-to-br from-[#fbe7a1] to-[#a87c2a]" />
       </span>
     );
   }
   if (kind === "stock" || kind === "fund" || kind === "saving") {
     const [a, b] = holdingColors(name, kind === "fund" ? "mutual_fund" : kind === "stock" ? "stock" : "other");
     return (
-      <span className={cn(box, kind === "fund" ? "rounded-full" : "rounded-xl", "text-white")} style={{ background: `linear-gradient(135deg, ${a}, ${b})` }} aria-hidden>
-        {initials(name)}
+      <span
+        className={cn(box, "relative overflow-hidden text-white shadow-[0_2px_6px_-2px_rgba(0,0,0,0.45),inset_0_0_0_1px_rgba(255,255,255,0.14)] [text-shadow:0_1px_1px_rgba(0,0,0,0.35)]", kind === "fund" ? "rounded-full" : "rounded-[30%]")}
+        style={{ background: `linear-gradient(140deg, ${a} 0%, ${b} 100%)` }}
+        aria-hidden
+      >
+        <span className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" />
+        <span className="relative">{initials(name)}</span>
       </span>
     );
   }
   if (kind === "person") {
     const h = hue(name);
     return (
-      <span className={cn(box, "rounded-full")} style={{ background: `hsl(${h} 70% 92%)`, color: `hsl(${h} 55% 32%)` }} aria-hidden>
+      <span className={cn(box, "rounded-full ring-1 ring-inset")} style={{ background: `linear-gradient(140deg, hsl(${h} 80% 93%), hsl(${h} 60% 84%))`, color: `hsl(${h} 55% 28%)`, ["--tw-ring-color" as string]: `hsl(${h} 50% 70% / 0.5)` }} aria-hidden>
         {initials(name)}
       </span>
     );
   }
   const Icon = GLYPH[kind] ?? Landmark;
   return (
-    <span className={cn(box, "rounded-xl", kind === "ipo" ? "bg-future-soft text-future-ink" : kind === "chit" ? "bg-warn-soft text-warn" : "bg-surface-3 text-ink-2")} aria-hidden>
+    <span className={cn(box, "rounded-[30%] ring-1 ring-inset ring-black/5", kind === "ipo" ? "bg-future-soft text-future-ink" : kind === "chit" ? "bg-warn-soft text-warn" : "bg-brand-soft text-brand")} aria-hidden>
       <Icon className={size === "xs" ? "h-3 w-3" : size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
     </span>
   );
