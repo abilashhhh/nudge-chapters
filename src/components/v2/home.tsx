@@ -186,7 +186,7 @@ export function V2Home() {
           note={month.overdue.length ? `${month.overdue.length} late` : `${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"}`}
           href="/to-pay"
         />
-        <StatTile label={`Savings value${when}`} value={savings} projected={est} href="/my-money?tab=savings" />
+        <StatTile label={`Savings value${when}`} value={savings} projected={est} href="/my-money" />
       </div>
 
       {/* 3 · Free to spend + 4 · Total worth */}

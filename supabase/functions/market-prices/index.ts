@@ -2,13 +2,14 @@
 // Called by the app when it opens (see src/components/price-refresher.tsx); needs a signed-in user's JWT.
 // Deploy: supabase functions deploy market-prices
 //
-// POST { items: [{ id, kind: "stock" | "fund", code?: string | null, name: string }] }
-// →    { results: [{ id, ok, code?, matched?, price?, date?, error? }] }
+// POST { items: [{ id, kind: "stock" | "fund", code?: string | null, name: string }], history?: "1y" }
+// →    { results: [{ id, ok, code?, matched?, price?, date?, points?, error? }] }
+// With `history`, each result also carries `points`: [date, price] pairs for the last year (at most ~130).
 // When `code` is missing the item is matched by name (first NSE listing, or the closest fund scheme).
 
 type Kind = "stock" | "fund";
 interface Item { id: string; kind: Kind; code?: string | null; name: string }
-interface Result { id: string; ok: boolean; code?: string; matched?: string; price?: number; date?: string; error?: string }
+interface Result { id: string; ok: boolean; code?: string; matched?: string; price?: number; date?: string; points?: [string, number][]; error?: string }
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -39,6 +40,46 @@ async function findStock(name: string): Promise<{ code: string; matched: string 
   const quotes: any[] = (j?.quotes ?? []).filter((x: any) => typeof x.symbol === "string" && ["EQUITY", "ETF"].includes(x.quoteType));
   const pick = quotes.find((x) => x.symbol.endsWith(".NS")) ?? quotes.find((x) => x.symbol.endsWith(".BO"));
   return pick ? { code: pick.symbol.replace(/\.NS$/, ""), matched: pick.longname ?? pick.shortname ?? pick.symbol } : null;
+}
+
+/** Keeps every nth point (and the last) so a year of prices stays small. */
+function thin(points: [string, number][], max = 130): [string, number][] {
+  if (points.length <= max) return points;
+  const step = points.length / max;
+  const out: [string, number][] = [];
+  for (let i = 0; i < max; i++) out.push(points[Math.floor(i * step)]);
+  out[out.length - 1] = points[points.length - 1];
+  return out;
+}
+
+async function stockHistory(code: string): Promise<[string, number][]> {
+  const tries = /\.(NS|BO)$/i.test(code) ? [code.toUpperCase()] : [`${code.toUpperCase()}.NS`, `${code.toUpperCase()}.BO`];
+  for (const sym of tries) {
+    try {
+      const j = await getJson(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1y&interval=1d`);
+      const r = j?.chart?.result?.[0];
+      const ts: number[] = r?.timestamp ?? [];
+      const close: (number | null)[] = r?.indicators?.quote?.[0]?.close ?? [];
+      const pts = ts.map((t, i) => [istDate(t), Number(close[i])] as [string, number]).filter(([, v]) => Number.isFinite(v) && v > 0);
+      if (pts.length) return thin(pts);
+    } catch {
+      /* next exchange */
+    }
+  }
+  return [];
+}
+
+async function fundHistory(code: string): Promise<[string, number][]> {
+  const j = await getJson(`https://api.mfapi.in/mf/${encodeURIComponent(code)}`);
+  const since = new Date(Date.now() - 366 * 864e5).toISOString().slice(0, 10);
+  const pts = ((j?.data ?? []) as { date: string; nav: string }[])
+    .map((row) => {
+      const [d, m, y] = String(row.date).split("-");
+      return [`${y}-${m}-${d}`, Number(row.nav)] as [string, number];
+    })
+    .filter(([d, v]) => d >= since && Number.isFinite(v) && v > 0)
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  return thin(pts);
 }
 
 async function stockPrice(code: string): Promise<{ price: number; date: string; matched?: string }> {
@@ -94,7 +135,7 @@ async function fundPrice(code: string): Promise<{ price: number; date: string; m
 }
 
 // ------------------------------------------------------------------ handler
-async function one(it: Item): Promise<Result> {
+async function one(it: Item, history: boolean): Promise<Result> {
   try {
     let code = it.code?.trim() || "";
     let matched: string | undefined;
@@ -104,8 +145,11 @@ async function one(it: Item): Promise<Result> {
       code = f.code;
       matched = f.matched;
     }
-    const p = it.kind === "fund" ? await fundPrice(code) : await stockPrice(code);
-    return { id: it.id, ok: true, code, matched: p.matched ?? matched, price: p.price, date: p.date };
+    const [p, points] = await Promise.all([
+      it.kind === "fund" ? fundPrice(code) : stockPrice(code),
+      history ? (it.kind === "fund" ? fundHistory(code) : stockHistory(code)).catch(() => [] as [string, number][]) : Promise.resolve(undefined),
+    ]);
+    return { id: it.id, ok: true, code, matched: p.matched ?? matched, price: p.price, date: p.date, points };
   } catch (e) {
     return { id: it.id, ok: false, code: it.code ?? undefined, error: e instanceof Error ? e.message : String(e) };
   }
@@ -115,12 +159,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return new Response("POST only", { status: 405, headers: CORS });
   let items: Item[] = [];
+  let history = false;
   try {
-    items = ((await req.json())?.items ?? []) as Item[];
+    const body = await req.json();
+    items = (body?.items ?? []) as Item[];
+    history = body?.history === "1y";
   } catch {
     return new Response("bad json", { status: 400, headers: CORS });
   }
   items = items.filter((x) => x && typeof x.id === "string" && (x.kind === "stock" || x.kind === "fund") && typeof x.name === "string").slice(0, 60);
-  const results = await Promise.all(items.map(one));
+  const results = await Promise.all(items.map((it) => one(it, history)));
   return new Response(JSON.stringify({ results }), { headers: { ...CORS, "Content-Type": "application/json" } });
 });

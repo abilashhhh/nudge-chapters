@@ -5,8 +5,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useId, useMemo, useState, type ReactNode } from "react";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/cn";
 import { addDays, addMonths, formatDate, formatMonth, monthKey } from "@/lib/dates";
 import { cashDeltas } from "@/lib/engine/ledger";
@@ -18,7 +18,9 @@ import { useUI } from "@/lib/ui";
 import { holdingColors } from "@/lib/v2/card-skins";
 import { Money } from "../money";
 import { Button } from "../ui/button";
-import { EmptyState } from "../ui/misc";
+import { EmptyState, Segmented } from "../ui/misc";
+import { useHoldingHistory } from "../price-refresher";
+import { initials } from "./entity-icon";
 import { AccountVisual, CardVisual } from "./card-visual";
 
 const tick = { fill: "var(--ink-3)", fontSize: 11.5 };
@@ -419,51 +421,161 @@ export function AccountDetailScreen() {
 // Mutual fund / stock
 // ---------------------------------------------------------------------------
 
+/** Price points to chart for a holding: a year of market prices when available, else the values you recorded. */
+function useHoldingSeries(id: string): { pts: [string, number][]; kind: "price" | "value" } {
+  const { ds } = useFinance();
+  const hist = useHoldingHistory(id);
+  if (hist.length >= 2) return { pts: hist, kind: "price" };
+  const vals = ds.investment_valuations.filter((v) => v.investment_id === id).sort((x, y) => (x.date < y.date ? -1 : 1));
+  return { pts: vals.map((v) => [v.date, v.value] as [string, number]), kind: "value" };
+}
+
+/** "Bought at → now" on one track, for holdings with no price history yet. */
+function CostTrack({ cost, now, fmt }: { cost: number; now: number; fmt: (n: number) => string }) {
+  const lo = Math.min(cost, now);
+  const hi = Math.max(cost, now);
+  const pad = (hi - lo) * 0.25 || Math.max(1, hi * 0.05);
+  const pos = (v: number) => ((v - (lo - pad)) / (hi + pad - (lo - pad))) * 100;
+  const up = now >= cost;
+  return (
+    <span className="relative block pb-5 pt-1" aria-hidden>
+      <span className="relative block h-1.5 rounded-full bg-white/20">
+        <span className={cn("absolute inset-y-0 rounded-full", up ? "bg-[#86efac]" : "bg-[#fca5a5]")} style={{ left: `${pos(lo)}%`, width: `${pos(hi) - pos(lo)}%` }} />
+        <span className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/80 bg-transparent" style={{ left: `${pos(cost)}%` }} />
+        <span className={cn("absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow", up ? "bg-[#22c55e]" : "bg-[#ef4444]")} style={{ left: `${pos(now)}%` }} />
+      </span>
+      <span className="absolute top-4 whitespace-nowrap text-[10px] opacity-80" style={{ left: `${pos(cost)}%`, transform: `translateX(${up ? "-90%" : "-10%"})` }}>Bought {fmt(cost)}</span>
+      <span className="absolute top-4 whitespace-nowrap text-[10px] font-semibold" style={{ left: `${pos(now)}%`, transform: `translateX(${up ? "-10%" : "-90%"})` }}>Now {fmt(now)}</span>
+    </span>
+  );
+}
+
 export function HoldingTile({ id, onClick, index = 0 }: { id: string; onClick?: () => void; index?: number }) {
-  const { positions, ds, ctx } = useFinance();
+  const { positions, ctx } = useFinance();
+  const series = useHoldingSeries(id);
+  const gid = useId().replace(/:/g, "");
   const p = positions.investments.get(id);
   if (!p) return null;
   const i = p.investment;
+  const c = { ...ctx, currency: i.currency };
   const [a, b] = holdingColors(i.name, i.type);
-  const vals = ds.investment_valuations.filter((v) => v.investment_id === id).sort((x, y) => (x.date < y.date ? -1 : 1));
-  const pts = vals.length >= 2 ? vals.map((v) => v.value) : [p.invested || p.value * 0.95, p.value];
+  const up = p.gain >= 0;
+  const pts = series.pts.map(([, v]) => v);
   const lo = Math.min(...pts);
   const hi = Math.max(...pts);
-  const path = pts.map((v, k) => `${(k / (pts.length - 1)) * 100},${30 - ((v - lo) / (hi - lo || 1)) * 26 - 2}`).join(" ");
-  const up = p.gain >= 0;
+  const xy = pts.map((v, k) => [(k / Math.max(1, pts.length - 1)) * 100, 34 - ((v - lo) / (hi - lo || 1)) * 30] as const);
+  const line = xy.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+  const change = pts.length >= 2 && pts[0] > 0 ? ((pts.at(-1)! - pts[0]) / pts[0]) * 100 : null;
+  const chUp = (change ?? 0) >= 0;
+  const cost = i.avg_cost ?? (p.units ? p.invested / p.units : null);
   return (
     <button
       type="button"
       onClick={onClick}
-      className="credit-card anim-rise group relative isolate flex w-full flex-col justify-between gap-3 overflow-hidden rounded-[18px] p-4 text-left text-white shadow-[0_14px_30px_-12px_rgba(0,0,0,0.5)]"
-      style={{ background: `linear-gradient(135deg, ${a} 0%, ${b} 100%)`, animationDelay: `${index * 70}ms` }}
-      aria-label={`${i.name}: ${formatMoney(p.value, ctx)}`}
+      className="credit-card anim-rise group relative isolate flex w-full flex-col justify-between gap-3 overflow-hidden rounded-[18px] p-4 text-left text-white shadow-[0_18px_36px_-16px_rgba(0,0,0,0.55),inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+      style={{ background: `linear-gradient(140deg, ${a} 0%, ${b} 100%)`, animationDelay: `${index * 70}ms` }}
+      aria-label={`${i.name}: ${formatMoney(p.value, c)}`}
     >
       <span className="credit-card-sheen pointer-events-none absolute inset-0" aria-hidden />
-      <span className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/10" aria-hidden />
-      <span className="relative flex items-start justify-between gap-2">
-        <span className="min-w-0">
-          <span className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.16em] opacity-80">{i.type === "mutual_fund" ? "Mutual fund" : i.type === "etf" ? "ETF" : "Stock"}{i.institution ? ` · ${i.institution}` : ""}</span>
-          <span className="mt-0.5 line-clamp-2 block text-[15.5px] font-semibold leading-snug">{i.name}</span>
+      <span className="pointer-events-none absolute -right-14 -top-16 h-44 w-44 rounded-full bg-white/[0.07]" aria-hidden />
+      <span className="relative flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[30%] bg-white/15 text-[12px] font-bold ring-1 ring-inset ring-white/25 backdrop-blur-sm">{initials(i.name)}</span>
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 block text-[15px] font-semibold leading-snug">{i.name}</span>
+          <span className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] opacity-75">{i.type === "mutual_fund" ? "Mutual fund" : i.type === "etf" ? "ETF" : "Stock"}{i.institution ? ` · ${i.institution}` : ""}</span>
         </span>
-        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold", up ? "bg-[#16a34a]/80" : "bg-[#dc2626]/80")}>
+        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold shadow-sm", up ? "bg-[#16a34a]" : "bg-[#dc2626]")}>
           {up ? "▲" : "▼"} {formatPct(Math.abs(p.gainPct))}
         </span>
       </span>
-      <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="relative h-10 w-full" aria-hidden>
-        <polyline points={path} fill="none" stroke={up ? "#86efac" : "#fca5a5"} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
-      </svg>
+      <span className="relative block">
+        {pts.length >= 2 ? (
+          <>
+            <svg viewBox="0 0 100 36" preserveAspectRatio="none" className="block h-14 w-full" aria-hidden>
+              <defs>
+                <linearGradient id={`${gid}f`} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stopColor={chUp ? "#86efac" : "#fca5a5"} stopOpacity="0.45" />
+                  <stop offset="1" stopColor={chUp ? "#86efac" : "#fca5a5"} stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <polygon points={`0,36 ${line} 100,36`} fill={`url(#${gid}f)`} />
+              <polyline points={line} fill="none" stroke={chUp ? "#bbf7d0" : "#fecaca"} strokeWidth="1.8" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+              <circle cx={xy.at(-1)![0]} cy={xy.at(-1)![1]} r="1.6" fill="#fff" />
+            </svg>
+            {change != null && (
+              <span className="absolute right-0 top-0 rounded-full bg-black/25 px-1.5 py-0.5 text-[10.5px] font-semibold backdrop-blur-sm">
+                {series.kind === "price" ? "1Y" : "Since first"} {chUp ? "+" : ""}{formatPct(change)}
+              </span>
+            )}
+          </>
+        ) : cost != null && p.price != null ? (
+          <CostTrack cost={cost} now={p.price} fmt={(n) => formatMoney(n, c, { decimals: n < 100 })} />
+        ) : (
+          <span className="block h-14" />
+        )}
+      </span>
       <span className="relative flex items-end justify-between gap-2">
         <span>
           <span className="block text-[10px] uppercase tracking-wider opacity-75">Value</span>
-          <span className="num block text-[20px] font-semibold leading-tight">{formatMoney(p.value, { ...ctx, currency: i.currency })}</span>
+          <span className="num block text-[20px] font-semibold leading-tight">{formatMoney(p.value, c)}</span>
         </span>
         <span className="text-right text-[12px]">
           <span className="block opacity-75">{up ? "Profit" : "Loss"}</span>
-          <span className="num block font-semibold">{formatMoney(p.gain, { ...ctx, currency: i.currency }, { sign: true })}</span>
+          <span className="num block font-semibold">{formatMoney(p.gain, c, { sign: true })}</span>
         </span>
       </span>
     </button>
+  );
+}
+
+/** Price (or value) history with a range picker and your average buying price as a line. */
+function HoldingChart({ id, cost, fmt }: { id: string; cost: number | null; fmt: (n: number) => string }) {
+  const { today } = useFinance();
+  const series = useHoldingSeries(id);
+  const [range, setRange] = useState<"1m" | "3m" | "6m" | "1y">("6m");
+  const from = addDays(today, range === "1m" ? -31 : range === "3m" ? -92 : range === "6m" ? -183 : -366);
+  const data = series.pts.filter(([d]) => d >= from).map(([date, v]) => ({ date, v }));
+  if (series.pts.length < 2)
+    return (
+      <section className="mt-4 rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">
+        The price chart appears once prices load (signed-in accounts get a year of daily prices automatically).
+      </section>
+    );
+  const first = data[0]?.v ?? 0;
+  const last = data.at(-1)?.v ?? 0;
+  const ch = first > 0 ? ((last - first) / first) * 100 : 0;
+  const up = ch >= 0;
+  const color = up ? "var(--ok)" : "var(--danger)";
+  return (
+    <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-[15px] font-semibold">{series.kind === "price" ? "Price" : "Value"} over time</h2>
+          <p className={cn("num text-[13px] font-semibold", up ? "text-ok" : "text-danger")}>
+            {up ? "▲" : "▼"} {formatPct(Math.abs(ch))} in {range === "1m" ? "1 month" : range === "3m" ? "3 months" : range === "6m" ? "6 months" : "1 year"}
+          </p>
+        </div>
+        <Segmented size="sm" value={range} onChange={setRange} options={[{ id: "1m", label: "1M" }, { id: "3m", label: "3M" }, { id: "6m", label: "6M" }, { id: "1y", label: "1Y" }]} />
+      </div>
+      <div className="h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="hfill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+            <XAxis dataKey="date" tickFormatter={(d) => formatDate(d, "short")} tick={tick} tickLine={false} axisLine={{ stroke: "var(--line)" }} minTickGap={40} />
+            <YAxis tick={tick} tickLine={false} axisLine={false} width={52} domain={["auto", "auto"]} tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v >= 100 ? String(Math.round(v)) : Number(v).toFixed(1))} />
+            {cost != null && series.kind === "price" && <ReferenceLine y={cost} stroke="var(--ink-3)" strokeDasharray="4 4" label={{ value: `You bought at ${fmt(cost)}`, position: "insideTopLeft", fill: "var(--ink-3)", fontSize: 11 }} />}
+            <Tooltip content={({ active, payload }) => (active && payload?.[0] ? <Tip title={formatDate(String(payload[0].payload.date), "long")} rows={[[series.kind === "price" ? "Price" : "Value", fmt(Number(payload[0].value))]]} /> : null)} />
+            <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill="url(#hfill)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
   );
 }
 
@@ -478,7 +590,7 @@ export function HoldingDetailScreen() {
   if (!p)
     return (
       <>
-        <Back href="/my-money?tab=savings" label="Savings" />
+        <Back href="/my-money" label="My Money" />
         <EmptyState icon={Wallet} title="Not found" body="It may have been deleted." />
       </>
     );
@@ -486,7 +598,6 @@ export function HoldingDetailScreen() {
   const c = { ...ctx, currency: i.currency };
   const m = (n: number) => formatMoney(n, c, { decimals: true });
   const back = i.type === "mutual_fund" ? "/my-money?tab=funds" : "/my-money?tab=stocks";
-  const vals = ds.investment_valuations.filter((v) => v.investment_id === i.id).sort((a, b) => (a.date < b.date ? -1 : 1));
   return (
     <>
       <Back href={back} label={i.type === "mutual_fund" ? "Mutual funds" : "Stocks"} />
@@ -510,28 +621,7 @@ export function HoldingDetailScreen() {
           {i.sip_active && i.sip_amount > 0 && <Stat label="Monthly SIP" value={m(i.sip_amount)} note={`on the ${i.sip_day ?? "—"}`} />}
         </div>
       </div>
-      {vals.length >= 2 && (
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
-          <h2 className="mb-2 text-[15px] font-semibold">Value over time</h2>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={vals.map((v) => ({ date: v.date, value: v.value }))} margin={{ top: 6, right: 4, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="hfill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor={p.gain >= 0 ? "var(--ok)" : "var(--danger)"} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={p.gain >= 0 ? "var(--ok)" : "var(--danger)"} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                <XAxis dataKey="date" tickFormatter={(d) => formatDate(d, "short")} tick={tick} tickLine={false} axisLine={{ stroke: "var(--line)" }} minTickGap={40} />
-                <YAxis tick={tick} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)))} />
-                <Tooltip content={({ active, payload }) => (active && payload?.[0] ? <Tip title={formatDate(String(payload[0].payload.date), "long")} rows={[["Value", m(Number(payload[0].value))]]} /> : null)} />
-                <Area type="monotone" dataKey="value" stroke={p.gain >= 0 ? "var(--ok)" : "var(--danger)"} strokeWidth={2} fill="url(#hfill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
+      <HoldingChart id={i.id} cost={i.avg_cost ?? (p.units ? p.invested / p.units : null)} fmt={m} />
       <div className="mt-4">
         {txs.length ? (
           <TxList

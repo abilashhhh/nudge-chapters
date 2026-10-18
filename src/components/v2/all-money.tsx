@@ -10,7 +10,7 @@ import { round2, toBase } from "@/lib/money";
 import { Money } from "../money";
 import { EntityIcon } from "./entity-icon";
 
-type Line = { id: string; label: string; sub?: string; value: number; href?: string; icon?: ReactNode };
+type Line = { id: string; label: string; sub?: string; value: number; href?: string; icon?: ReactNode; /** Profit or loss so far (savings). */ gain?: number };
 type Block = { title: string; lines: Line[] };
 
 /** What's still owed on a card: the unpaid bill, spends not billed yet and every EMI still to come. */
@@ -58,7 +58,10 @@ function Section({ title, total, blocks, tone }: { title: string; total: number;
                     <span className="block truncate text-[14px]">{l.label}</span>
                     {l.sub && <span className="block truncate text-[12px] text-ink-3">{l.sub}</span>}
                   </span>
-                  <Money value={l.value} decimals className="shrink-0 text-[14px] font-medium" />
+                  <span className="shrink-0 text-right">
+                    <Money value={l.value} decimals className="block text-[14px] font-medium" />
+                    {l.gain != null && Math.abs(l.gain) >= 0.5 && <Money value={l.gain} decimals tone="pl" sign className="block text-[11.5px]" />}
+                  </span>
                   {l.href && <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />}
                 </>
               );
@@ -83,7 +86,7 @@ function Section({ title, total, blocks, tone }: { title: string; total: number;
 
 /** My Money → All: everything you have and everything you owe, in one place. */
 export function AllMoney() {
-  const { ds, positions } = useFinance();
+  const { ds, positions, ctx } = useFinance();
   const cards = useCardDues();
   const nz = (l: Line) => Math.abs(l.value) > 0.5;
 
@@ -119,8 +122,8 @@ export function AllMoney() {
       lines: [
         ...[...positions.investments.values()]
           .filter((p) => !p.investment.archived)
-          .map((p) => ({ id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? undefined, value: p.valueBase, href: `/my-money/holding?id=${p.investment.id}`, icon: <EntityIcon kind={p.investment.type === "mutual_fund" ? "fund" : p.investment.type === "stock" || p.investment.type === "etf" ? "stock" : "saving"} name={p.investment.name} size="sm" /> })),
-        ...[...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit · paid in so far", value: c.asset, href: "/my-money?tab=chits", icon: <EntityIcon kind="chit" name={c.chit.name} size="sm" /> })),
+          .map((p) => ({ id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? undefined, value: p.valueBase, gain: p.valueBase - toBase(p.invested, p.investment.currency, ctx), href: `/my-money/holding?id=${p.investment.id}`, icon: <EntityIcon kind={p.investment.type === "mutual_fund" ? "fund" : p.investment.type === "stock" || p.investment.type === "etf" ? "stock" : "saving"} name={p.investment.name} size="sm" /> })),
+        ...[...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit · paid in so far", value: c.asset, gain: c.summary.auctionSavings || undefined, href: "/my-money?tab=chits", icon: <EntityIcon kind="chit" name={c.chit.name} size="sm" /> })),
       ].filter(nz),
     },
   ];
@@ -164,50 +167,5 @@ export function AllMoney() {
       </div>
       <p className="text-[12.5px] text-ink-3">Card dues include every EMI still to come on the card, so this can be more than this month&apos;s bill.</p>
     </div>
-  );
-}
-
-/** My Money → All savings: every saving in one list, biggest first. */
-export function AllSavings() {
-  const { positions, ctx } = useFinance();
-  const lines = useMemo(() => {
-    const invs = [...positions.investments.values()]
-      .filter((p) => !p.investment.archived)
-      .map((p) => {
-        const put = toBase(p.invested, p.investment.currency, ctx);
-        return { id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? "Saving", value: p.valueBase, gain: p.valueBase - put, put, kind: (p.investment.type === "mutual_fund" ? "fund" : p.investment.type === "stock" || p.investment.type === "etf" ? "stock" : "saving") as "fund" | "stock" | "saving" | "chit" };
-      });
-    const chits = [...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit", value: c.asset, gain: c.summary.auctionSavings, put: c.asset, kind: "chit" as const }));
-    return [...invs, ...chits].sort((a, b) => b.value - a.value);
-  }, [positions, ctx]);
-  const total = lines.reduce((s, l) => s + l.value, 0);
-  if (!lines.length) return <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[14px] text-ink-2">No savings yet. Add a mutual fund, chit, EPF, stock or FD from its tab.</p>;
-  return (
-    <section aria-label="All savings" className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-4 border-b border-line px-4 py-2 text-[12px] text-ink-3 sm:px-5">
-        <span>Name</span>
-        <span className="text-right">Profit</span>
-        <span className="w-24 text-right sm:w-28">Value</span>
-      </div>
-      <ul className="divide-y divide-line/70">
-        {lines.map((l) => (
-          <li key={l.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 px-4 py-2.5 sm:px-5">
-            <span className="flex min-w-0 items-center gap-3">
-              <EntityIcon kind={l.kind} name={l.label} size="sm" />
-              <span className="min-w-0">
-                <span className="block truncate text-[14px]">{l.label}</span>
-                <span className="block truncate text-[12px] text-ink-3">{l.sub}</span>
-              </span>
-            </span>
-            <Money value={l.gain} decimals tone="pl" className="text-right text-[13px]" />
-            <Money value={l.value} decimals className="w-24 text-right text-[14px] font-semibold sm:w-28" />
-          </li>
-        ))}
-      </ul>
-      <div className="flex items-baseline justify-between border-t border-line px-4 py-3 sm:px-5">
-        <span className="text-[14px] font-semibold">Total</span>
-        <Money value={total} decimals className="text-[16px] font-semibold" />
-      </div>
-    </section>
   );
 }

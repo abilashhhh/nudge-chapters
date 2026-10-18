@@ -4,6 +4,11 @@
 
 export type Motif = "swoosh" | "smile" | "lines" | "band" | "metal" | "neon" | "wave" | "orbs" | "grid" | "plain";
 
+/** Full artwork drawn from the real card (see components/v2/card-art.tsx). */
+export type Art =
+  | "axis-neo" | "axis-privilege" | "amazon-pay" | "sbi-bpcl" | "hdfc-swiggy" | "axis-flipkart" | "yes-ace" | "onecard" | "idfc-millennia"
+  | "kotak" | "dhanlaxmi" | "canara" | "sbi-global";
+
 export interface Skin {
   /** CSS background. */
   bg: string;
@@ -15,12 +20,27 @@ export interface Skin {
   markStyle?: "bold" | "italic" | "lower" | "spaced";
   accent: string;
   motif: Motif;
+  /** Drawn artwork and logo (replaces the motif and the plain issuer line). */
+  art?: Art;
+  /** Network printed on the card, when the account itself doesn't say (debit cards). */
+  network?: string;
+  /** Tier printed under the network ("Platinum", "World", "Signature"). */
+  tier?: string;
 }
 
 const g = (a: string, b: string, angle = 135) => `linear-gradient(${angle}deg, ${a} 0%, ${b} 100%)`;
 
 /** Credit cards, matched on "issuer + name". First match wins. */
 const CREDIT: [RegExp, Skin][] = [
+  [/axis.*neo|neo.*axis/i, { bg: g("#1d1b22", "#0f0e12", 160), ink: "light", accent: "#ff4fb8", motif: "plain", art: "axis-neo" }],
+  [/axis.*(amex|privilege|american)|(amex|privilege).*axis/i, { bg: g("#2e2e31", "#19191b", 160), ink: "light", accent: "#c2357a", motif: "plain", art: "axis-privilege" }],
+  [/axis.*flipkart|flipkart/i, { bg: g("#151517", "#0b0b0c", 160), ink: "light", accent: "#ffe11b", motif: "plain", art: "axis-flipkart" }],
+  [/amazon/i, { bg: g("#303236", "#1f2124", 160), ink: "light", accent: "#ff9900", motif: "plain", art: "amazon-pay" }],
+  [/bpcl/i, { bg: g("#121213", "#060606", 160), ink: "light", accent: "#e7b84a", motif: "plain", art: "sbi-bpcl", tier: "Platinum" }],
+  [/swiggy/i, { bg: "linear-gradient(170deg, #ffa53a 0%, #ff6f3c 32%, #f2457f 64%, #6c47ff 100%)", ink: "light", accent: "#fff3e6", motif: "plain", art: "hdfc-swiggy", tier: "World" }],
+  [/\bace\b/i, { bg: "linear-gradient(135deg, #6cc6d4 0%, #3a9db6 45%, #227b94 100%)", ink: "light", accent: "#d7f3f8", motif: "plain", art: "yes-ace", tier: "Platinum" }],
+  [/onecard|one card|\bbob\b/i, { bg: g("#1b1b1c", "#0c0c0c", 160), ink: "light", accent: "#c9c9cf", motif: "plain", art: "onecard", tier: "Signature" }],
+  [/millennia/i, { bg: g("#c24f43", "#a63a31", 160), ink: "light", accent: "#ffd2c8", motif: "plain", art: "idfc-millennia" }],
   [/swiggy/i, { bg: g("#ff8a1f", "#e8580c"), ink: "light", mark: "SWIGGY", markStyle: "bold", accent: "#fff3e6", motif: "swoosh" }],
   [/amazon/i, { bg: g("#232f3e", "#0f1419"), ink: "light", mark: "amazon pay", markStyle: "lower", accent: "#ff9900", motif: "smile" }],
   [/millennia/i, { bg: g("#9c1d2c", "#4a0d16"), ink: "light", mark: "MILLENNIA", markStyle: "spaced", accent: "#f2b8c0", motif: "lines" }],
@@ -42,6 +62,10 @@ const CREDIT: [RegExp, Skin][] = [
 
 /** Bank accounts (drawn as their debit cards) and wallets. */
 const DEBIT: [RegExp, Skin][] = [
+  [/kotak/i, { bg: "#f1f1f1", ink: "dark", accent: "#d0213a", motif: "plain", art: "kotak", network: "Visa", tier: "Platinum" }],
+  [/dhan[a]?laxmi/i, { bg: "linear-gradient(160deg, #f8e6ee 0%, #efd6e8 100%)", ink: "dark", accent: "#7b3f8f", motif: "plain", art: "dhanlaxmi", network: "RuPay" }],
+  [/canara/i, { bg: "linear-gradient(150deg, #78c3f0 0%, #3d93d8 55%, #2a76c0 100%)", ink: "light", accent: "#ffcb05", motif: "plain", art: "canara", network: "Mastercard" }],
+  [/\bsbi\b|state bank/i, { bg: "radial-gradient(120% 120% at 55% 45%, #1c3a78 0%, #0d1d45 55%, #070f26 100%)", ink: "light", accent: "#7fb6ff", motif: "plain", art: "sbi-global", network: "RuPay" }],
   [/kotak/i, { bg: g("#e3262f", "#8f0c12"), ink: "light", accent: "#ffd0d2", motif: "wave" }],
   [/\bsbi\b|state bank/i, { bg: g("#1f6fc5", "#0d356e"), ink: "light", accent: "#bcd9ff", motif: "orbs" }],
   [/canara/i, { bg: g("#0a8fd1", "#05487f"), ink: "light", accent: "#ffcb05", motif: "band" }],

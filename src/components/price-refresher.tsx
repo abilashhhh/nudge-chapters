@@ -91,3 +91,64 @@ export function PriceRefresher() {
   }, [status, repoKind]);
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// A year of daily prices / NAVs per holding, for the charts on holding tiles and pages.
+// Fetched at most once a day per device and kept in this browser; nothing is saved to your data.
+
+const HISTORY_KEY = "nudge:prices:history:v1";
+type History = Record<string, [string, number][]>;
+
+export const usePriceHistory = create<{ day: string | null; points: History }>(() => readHistory());
+
+function readHistory(): { day: string | null; points: History } {
+  try {
+    const v = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "null");
+    if (v && typeof v.day === "string" && v.points && typeof v.points === "object") return v;
+  } catch {
+    /* none yet */
+  }
+  return { day: null, points: {} };
+}
+
+let historyLoad: Promise<void> | null = null;
+
+/** Loads the year of prices once a day (signed-in accounts only). */
+export function loadPriceHistory(): Promise<void> {
+  const { ds, repo } = useStore.getState();
+  const today = new Date().toISOString().slice(0, 10);
+  if (!ds || repo?.kind !== "supabase" || ds.profile.preferences.livePrices?.off) return Promise.resolve();
+  const items = priceItems(ds.investments, ds.profile.preferences.livePrices?.codes ?? {});
+  const have = usePriceHistory.getState();
+  if (!items.length || (have.day === today && items.every((i) => have.points[i.id]))) return Promise.resolve();
+  historyLoad ??= (async () => {
+    try {
+      const { data, error } = await getSupabase().functions.invoke<{ results: (PriceResult & { points?: [string, number][] })[] }>("market-prices", { body: { items, history: "1y" } });
+      if (error) return;
+      const points: History = { ...have.points };
+      for (const r of data?.results ?? []) if (r.ok && r.points?.length) points[r.id] = r.points;
+      const next = { day: today, points };
+      usePriceHistory.setState(next);
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      } catch {
+        /* storage full: keep it for this visit */
+      }
+    } catch {
+      /* offline: try again next time */
+    } finally {
+      historyLoad = null;
+    }
+  })();
+  return historyLoad;
+}
+
+/** Price history for one holding ([date, price] oldest first), or [] while loading / unavailable. */
+export function useHoldingHistory(id: string | null | undefined): [string, number][] {
+  const pts = usePriceHistory((s) => (id ? s.points[id] : undefined));
+  const ready = useStore((s) => s.status === "ready");
+  useEffect(() => {
+    if (ready) void loadPriceHistory();
+  }, [ready]);
+  return pts ?? [];
+}

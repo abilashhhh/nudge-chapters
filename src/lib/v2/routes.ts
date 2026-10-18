@@ -16,7 +16,6 @@ export const V2_NAV: V2NavItem[] = [
   { href: "/to-pay", label: "To Pay", meaning: "Bills, EMIs and installments you have to pay" },
   { href: "/trading", label: "Trading", meaning: "Your intraday and swing trades, stocks you hold, and IPOs" },
   { href: "/daily", label: "Daily", meaning: "Your daily rhythm, to-do, reminders, notes and wishlist" },
-  { href: "/trading-training", label: "Trading Training", meaning: "Learn to read candlestick charts: lessons, quizzes and daily practice", desktopOnly: true },
   { href: "/menu", label: "Menu", meaning: "Planning tools and settings" },
 ];
 
@@ -31,7 +30,7 @@ export const V2_DAILY: { tab: string; label: string }[] = [
 
 /** Tab names per screen, for breadcrumbs. */
 export const V2_TABS: Record<string, Record<string, string>> = {
-  "/my-money": { accounts: "Bank accounts", owed: "People owe me", savings: "All savings", funds: "Mutual funds", stocks: "Stocks", epf: "EPF & PF", chits: "Chits", commodities: "Commodities", other: "Other savings" },
+  "/my-money": { accounts: "Bank accounts", owed: "People owe me", funds: "Mutual funds", stocks: "Stocks", epf: "EPF & PF", chits: "Chits", commodities: "Commodities", other: "Other savings" },
   "/to-pay": { cards: "Credit cards", chits: "Monthly investments", loans: "Loans & borrowed" },
   "/trading": { intraday: "Intraday", trades: "Swing & F&O", holdings: "Holdings", ipos: "IPOs" },
   "/daily": Object.fromEntries(V2_DAILY.map((d) => [d.tab, d.label])),
@@ -63,6 +62,7 @@ export const V2_MENU_PAGES: Record<string, string> = {
   "/menu/future": "Future",
   "/menu/settings": "Settings",
   "/menu/help": "Help & support",
+  "/trading/training": "Trading Training",
 };
 
 function strip(p: string): string {
@@ -107,9 +107,14 @@ export function toV2Href(pathname: string, search: string | URLSearchParams = ""
       if (tab === "transactions") return "/my-money?tab=accounts";
       if (tab === "recurring" || tab === "reserves" || tab === "subscriptions") return "/menu/budgets";
       return "/";
+    // Trading Training lives inside Trading now.
+    case "/trading-training": {
+      const s = typeof search === "string" ? search.replace(/^\?/, "") : search.toString();
+      return s ? `/trading/training?${s}` : "/trading/training";
+    }
     // Savings became part of My Money.
     case "/savings":
-      return `/my-money?tab=${tab && tab !== "all" ? tab : "savings"}`;
+      return tab && tab !== "all" ? `/my-money?tab=${tab}` : "/my-money";
     case "/budgets":
       return "/menu/budgets";
     case "/insurance":
