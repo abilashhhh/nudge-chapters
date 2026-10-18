@@ -2,14 +2,15 @@
 
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { INVESTMENT_TYPE_LABEL } from "@/lib/engine/defaults";
 import { useFinance } from "@/lib/finance";
 import { round2, toBase } from "@/lib/money";
 import { Money } from "../money";
+import { EntityIcon } from "./entity-icon";
 
-type Line = { id: string; label: string; sub?: string; value: number; href?: string };
+type Line = { id: string; label: string; sub?: string; value: number; href?: string; icon?: ReactNode };
 type Block = { title: string; lines: Line[] };
 
 /** What's still owed on a card: the unpaid bill, spends not billed yet and every EMI still to come. */
@@ -52,6 +53,7 @@ function Section({ title, total, blocks, tone }: { title: string; total: number;
             {b.lines.map((l) => {
               const body = (
                 <>
+                  {l.icon}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px]">{l.label}</span>
                     {l.sub && <span className="block truncate text-[12px] text-ink-3">{l.sub}</span>}
@@ -90,7 +92,7 @@ export function AllMoney() {
       title: "Bank & cash",
       lines: ds.accounts
         .filter((a) => !a.archived)
-        .map((a) => ({ id: a.id, label: a.name, sub: a.include_in_cash ? undefined : "Not counted as spendable", value: positions.accounts.get(a.id)?.balanceBase ?? 0, href: `/my-money/account?id=${a.id}` }))
+        .map((a) => ({ id: a.id, label: a.name, sub: a.include_in_cash ? undefined : "Not counted as spendable", value: positions.accounts.get(a.id)?.balanceBase ?? 0, href: `/my-money/account?id=${a.id}`, icon: <EntityIcon kind={a.type === "wallet" || a.type === "cash" ? "wallet" : "bank"} name={a.name} issuer={a.institution} color={a.color} size="sm" /> }))
         .filter(nz),
     },
     {
@@ -103,7 +105,7 @@ export function AllMoney() {
             // "Surya — laptop EMI 1/7" and "Surya — laptop EMI 2/7" are both Surya.
             const name = l.person.split(/\s+[—–-]\s+/)[0].trim() || l.person.trim();
             const k = name.toLowerCase();
-            const cur = map.get(k) ?? { id: `p:${k}`, label: name, value: 0, href: "/my-money?tab=owed" };
+            const cur = map.get(k) ?? { id: `p:${k}`, label: name, value: 0, href: "/my-money?tab=owed", icon: <EntityIcon kind="person" name={name} size="sm" /> };
             cur.value += positions.lendings.get(l.id)?.outstanding ?? 0;
             return map.set(k, cur);
           }, new Map<string, Line>())
@@ -117,33 +119,33 @@ export function AllMoney() {
       lines: [
         ...[...positions.investments.values()]
           .filter((p) => !p.investment.archived)
-          .map((p) => ({ id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? undefined, value: p.valueBase, href: `/my-money/holding?id=${p.investment.id}` })),
-        ...[...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit · paid in so far", value: c.asset, href: "/my-money?tab=chits" })),
+          .map((p) => ({ id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? undefined, value: p.valueBase, href: `/my-money/holding?id=${p.investment.id}`, icon: <EntityIcon kind={p.investment.type === "mutual_fund" ? "fund" : p.investment.type === "stock" || p.investment.type === "etf" ? "stock" : "saving"} name={p.investment.name} size="sm" /> })),
+        ...[...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit · paid in so far", value: c.asset, href: "/my-money?tab=chits", icon: <EntityIcon kind="chit" name={c.chit.name} size="sm" /> })),
       ].filter(nz),
     },
   ];
   const owe: Block[] = [
     {
       title: "Credit cards",
-      lines: cards.map((c) => ({ id: c.card.id, label: c.card.name, sub: c.emi > 0.5 ? "Bill, new spends and EMIs to come" : "Bill and new spends", value: c.due, href: "/to-pay?tab=cards" })).filter(nz),
+      lines: cards.map((c) => ({ id: c.card.id, label: c.card.name, sub: c.emi > 0.5 ? "Bill, new spends and EMIs to come" : "Bill and new spends", value: c.due, href: `/to-pay/card?id=${c.card.id}`, icon: <EntityIcon kind="card" name={c.card.name} issuer={c.card.issuer} color={c.card.color} size="sm" /> })).filter(nz),
     },
     {
       title: "Loans",
       lines: [...positions.loans.values()]
         .filter((l) => !l.loan.card_id && l.loan.status === "active")
-        .map((l) => ({ id: l.loan.id, label: l.loan.name, sub: `${l.state.remainingInstallments} EMIs left`, value: l.state.outstanding, href: "/to-pay?tab=loans" }))
+        .map((l) => ({ id: l.loan.id, label: l.loan.name, sub: `${l.state.remainingInstallments} EMIs left`, value: l.state.outstanding, href: "/to-pay?tab=loans", icon: <EntityIcon kind="loan" name={l.loan.name} size="sm" /> }))
         .filter(nz),
     },
     {
       title: "Borrowed",
       lines: ds.lendings
         .filter((l) => l.direction === "borrowed")
-        .map((l) => ({ id: l.id, label: l.person, value: positions.lendings.get(l.id)?.outstanding ?? 0, href: "/to-pay?tab=loans" }))
+        .map((l) => ({ id: l.id, label: l.person, value: positions.lendings.get(l.id)?.outstanding ?? 0, href: "/to-pay?tab=loans", icon: <EntityIcon kind="person" name={l.person} size="sm" /> }))
         .filter(nz),
     },
     {
       title: "Chits still to pay",
-      lines: [...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: `${c.remainingCount} installments left`, value: c.liability, href: "/to-pay?tab=chits" })).filter(nz),
+      lines: [...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: `${c.remainingCount} installments left`, value: c.liability, href: "/to-pay?tab=chits", icon: <EntityIcon kind="chit" name={c.chit.name} size="sm" /> })).filter(nz),
     },
   ];
   const sum = (bs: Block[]) => bs.reduce((s, b) => s + b.lines.reduce((t, l) => t + l.value, 0), 0);
@@ -173,9 +175,9 @@ export function AllSavings() {
       .filter((p) => !p.investment.archived)
       .map((p) => {
         const put = toBase(p.invested, p.investment.currency, ctx);
-        return { id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? "Saving", value: p.valueBase, gain: p.valueBase - put, put };
+        return { id: p.investment.id, label: p.investment.name, sub: INVESTMENT_TYPE_LABEL[p.investment.type] ?? "Saving", value: p.valueBase, gain: p.valueBase - put, put, kind: (p.investment.type === "mutual_fund" ? "fund" : p.investment.type === "stock" || p.investment.type === "etf" ? "stock" : "saving") as "fund" | "stock" | "saving" | "chit" };
       });
-    const chits = [...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit", value: c.asset, gain: c.summary.auctionSavings, put: c.asset }));
+    const chits = [...positions.chits.values()].map((c) => ({ id: c.chit.id, label: c.chit.name, sub: "Chit", value: c.asset, gain: c.summary.auctionSavings, put: c.asset, kind: "chit" as const }));
     return [...invs, ...chits].sort((a, b) => b.value - a.value);
   }, [positions, ctx]);
   const total = lines.reduce((s, l) => s + l.value, 0);
@@ -190,9 +192,12 @@ export function AllSavings() {
       <ul className="divide-y divide-line/70">
         {lines.map((l) => (
           <li key={l.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 px-4 py-2.5 sm:px-5">
-            <span className="min-w-0">
-              <span className="block truncate text-[14px]">{l.label}</span>
-              <span className="block truncate text-[12px] text-ink-3">{l.sub}</span>
+            <span className="flex min-w-0 items-center gap-3">
+              <EntityIcon kind={l.kind} name={l.label} size="sm" />
+              <span className="min-w-0">
+                <span className="block truncate text-[14px]">{l.label}</span>
+                <span className="block truncate text-[12px] text-ink-3">{l.sub}</span>
+              </span>
             </span>
             <Money value={l.gain} decimals tone="pl" className="text-right text-[13px]" />
             <Money value={l.value} decimals className="w-24 text-right text-[14px] font-semibold sm:w-28" />

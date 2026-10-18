@@ -719,6 +719,8 @@ export interface Dataset {
   training_sessions: TrainingSession[];
   training_attempts: TrainingAttempt[];
   training_lessons: TrainingLesson[];
+  trades: Trade[];
+  ipo_applications: IpoApplication[];
 }
 
 export type TableName = Exclude<keyof Dataset, "profile">;
@@ -747,6 +749,52 @@ export const TABLES: TableName[] = [
   "training_sessions",
   "training_attempts",
   "training_lessons",
+  "trades",
+  "ipo_applications",
 ];
+
+export type TradeSegment = "intraday" | "swing" | "delivery" | "fno" | "other";
+
+/** One round trip in the trade journal. No exit yet = still open. */
+export interface Trade extends Owned {
+  symbol: string;
+  name?: string | null;
+  exchange?: string | null;
+  segment: TradeSegment;
+  side: "long" | "short";
+  quantity: number;
+  entry_date: ISODate;
+  entry_price: number;
+  exit_date?: ISODate | null;
+  exit_price?: number | null;
+  /** Brokerage, STT, exchange and other charges for the whole round trip. */
+  charges: number;
+  broker?: string | null;
+  strategy?: string | null;
+  notes?: string | null;
+  tags: string[];
+}
+
+export type IpoStatus = "applied" | "allotted" | "not_allotted" | "listed" | "sold" | "withdrawn";
+
+export interface IpoApplication extends Owned {
+  name: string;
+  symbol?: string | null;
+  category: "retail" | "shni" | "bhni" | "employee" | "shareholder" | "other";
+  apply_date: ISODate;
+  /** Issue price per share (the upper band you bid at). */
+  price: number;
+  lot_size: number;
+  lots: number;
+  status: IpoStatus;
+  allotted_shares: number;
+  listing_date?: ISODate | null;
+  listing_price?: number | null;
+  sold_date?: ISODate | null;
+  sold_price?: number | null;
+  account_id?: UUID | null;
+  broker?: string | null;
+  notes?: string | null;
+}
 
 export type RowOf<T extends TableName> = Dataset[T][number];

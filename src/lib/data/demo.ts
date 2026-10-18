@@ -12,6 +12,7 @@ import type {
   RecurringRule, Reserve, Transaction,
 } from "../types";
 import { isScheduled } from "../rhythm";
+import { demoTrading } from "./demo-trading";
 import { computePositions } from "../engine/ledger";
 
 function rng(seed: number) {
@@ -363,6 +364,7 @@ export function buildDemoDataset(today: string = todayISO("Asia/Kolkata")): Data
     training_sessions: [],
     training_attempts: [],
     training_lessons: [],
+    ...demoTrading(id, rand, today),
     insurance_policies: [
       { id: id(), name: "Star Health family floater", type: "health", insurer: "Star Health", policy_number: "P/141120/01/2026/004512", insured: "Me, parents", nominee: null, sum_assured: 10_00_000, premium: 14_500, frequency: "yearly", premium_due_date: insurance.start_date, start_date: "2023-03-10", end_date: null, account_id: sbi.id, card_id: null, notify: true, notify_time: "09:00", notify_days_before: 7, rule_id: insurance.id, reminder_id: null, status: "active", notes: null },
       { id: id(), name: "HDFC Click 2 Protect", type: "term", insurer: "HDFC Life", policy_number: "23987411", insured: "Me", nominee: "Mother", sum_assured: 1_00_00_000, premium: 1_150, frequency: "monthly", premium_due_date: term.start_date, start_date: "2024-11-05", end_date: "2056-11-05", account_id: hdfc.id, card_id: null, notify: true, notify_time: "10:00", notify_days_before: 1, rule_id: term.id, reminder_id: null, status: "active", notes: null },

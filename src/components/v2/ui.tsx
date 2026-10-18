@@ -12,7 +12,7 @@ import type { CellStatus } from "@/lib/v2/grids";
 import { Money } from "../money";
 
 /** Sections reached from the bottom bar: on phones the bar already says where you are. */
-const BAR_SECTIONS = ["/my-money", "/to-pay", "/daily", "/menu"];
+const BAR_SECTIONS = ["/my-money", "/to-pay", "/trading", "/daily", "/menu"];
 
 /**
  * Page title (Version 2). Menu pages get a back button to Menu. On phones, the bottom-bar sections show no

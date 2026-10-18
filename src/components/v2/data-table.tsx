@@ -248,11 +248,18 @@ export function Details({ items, actions, children }: { items?: [ReactNode, Reac
 }
 
 /** Main text plus a muted second line, for the first column. */
-export function Cell2({ main, sub }: { main: ReactNode; sub?: ReactNode }) {
-  return (
+export function Cell2({ main, sub, icon }: { main: ReactNode; sub?: ReactNode; icon?: ReactNode }) {
+  const body = (
     <span className="block min-w-0">
       <span className="block font-medium text-ink">{main}</span>
       {sub && <span className="block text-[12px] font-normal text-ink-3">{sub}</span>}
+    </span>
+  );
+  if (!icon) return body;
+  return (
+    <span className="flex min-w-0 items-center gap-3">
+      {icon}
+      {body}
     </span>
   );
 }

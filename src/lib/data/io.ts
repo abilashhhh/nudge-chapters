@@ -57,6 +57,8 @@ const COLUMNS: Record<TableName, string[]> = {
   training_sessions: ["id", "mode", "lesson_id", "day", "started_at", "finished_at", "bonus_xp"],
   training_attempts: ["id", "session_id", "question_id", "mode", "topic", "difficulty", "answer", "correct", "score", "reasoning_score", "attempt_no", "time_ms", "xp", "day"],
   training_lessons: ["id", "lesson_id", "status", "completed_on", "last_opened_at", "time_spent_s"],
+  trades: ["id", "symbol", "name", "exchange", "segment", "side", "quantity", "entry_date", "entry_price", "exit_date", "exit_price", "charges", "broker", "strategy", "notes", "tags"],
+  ipo_applications: ["id", "name", "symbol", "category", "apply_date", "price", "lot_size", "lots", "status", "allotted_shares", "listing_date", "listing_price", "sold_date", "sold_price", "account_id", "broker", "notes"],
 };
 
 /** Fields that must be present for a row to be saved. */
@@ -80,6 +82,8 @@ const REQUIRED: Partial<Record<TableName, string[]>> = {
   habit_logs: ["habit_id", "date", "status"],
   insurance_policies: ["name"],
   contacts: ["name"],
+  trades: ["symbol", "quantity", "entry_date", "entry_price"],
+  ipo_applications: ["name", "apply_date", "price", "lot_size"],
 };
 
 /** Other names some files use for the same field (older exports, spreadsheets, hand-edited files). */

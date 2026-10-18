@@ -2,6 +2,7 @@
 
 import { Check, ChevronRight, CreditCard, Landmark, PiggyBank } from "lucide-react";
 import { CardVisual } from "./card-visual";
+import { EntityIcon } from "./entity-icon";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
@@ -42,7 +43,7 @@ export function ToPayScreen() {
         tabs={[
           { id: "all", label: "All" },
           { id: "cards", label: "Credit cards", count: ds.credit_cards.filter((c) => !c.archived).length },
-          { id: "chits", label: "Chits & SIPs" },
+          { id: "chits", label: "Monthly investments" },
           { id: "loans", label: "Loans & borrowed" },
         ]}
       />
@@ -119,7 +120,7 @@ function AllToPay({ goTab }: { goTab: (t: Tab) => void }) {
   const parts = useMemo(
     () => [
       { tab: "cards" as const, title: "Credit cards", data: cardGrid(ds, positions, events, months, today) },
-      { tab: "chits" as const, title: "Chits & SIPs", data: chitSipGrid(ds, positions, events, months, today) },
+      { tab: "chits" as const, title: "Monthly investments", data: chitSipGrid(ds, positions, events, months, today) },
       { tab: "loans" as const, title: "Loans & borrowed", data: loanGrid(ds, positions, events, months, today) },
     ],
     [ds, positions, events, months, today],
@@ -346,7 +347,7 @@ function Loans() {
             {
               key: "n",
               header: "Name",
-              cell: (r) => (r.kind === "loan" ? <Cell2 main={r.l.loan.name} sub={r.l.loan.lender ?? TYPE[r.l.loan.type]} /> : <Cell2 main={r.b.l.person} sub="Borrowed" />),
+              cell: (r) => (r.kind === "loan" ? <Cell2 icon={<EntityIcon kind="loan" name={r.l.loan.name} />} main={r.l.loan.name} sub={r.l.loan.lender ?? TYPE[r.l.loan.type]} /> : <Cell2 icon={<EntityIcon kind="person" name={r.b.l.person} />} main={r.b.l.person} sub="Borrowed" />),
             },
             { key: "m", header: "Monthly", align: "right", wide: false, cell: (r) => (r.kind === "loan" ? m(r.l.state.emi) : "–") },
             {

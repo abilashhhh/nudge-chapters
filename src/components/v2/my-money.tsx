@@ -23,6 +23,7 @@ import { StatTile, StatusText, useRangeEvents, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 import { AllMoney } from "./all-money";
 import { AccountVisual } from "./card-visual";
+import { EntityIcon } from "./entity-icon";
 import { useRouter } from "next/navigation";
 import { SAVINGS_TABS, SavingsTabBody, useSavings } from "./savings";
 
@@ -116,6 +117,7 @@ function Accounts() {
               const bal = positions.accounts.get(a.id)?.balance ?? 0;
               return (
                 <Cell2
+                  icon={<EntityIcon kind={a.type === "wallet" || a.type === "cash" ? "wallet" : "bank"} name={a.name} issuer={a.institution} color={a.color} />}
                   main={a.name}
                   sub={
                     a.archived ? "Closed" : a.min_balance > 0 && bal < a.min_balance ? (
@@ -280,6 +282,7 @@ function Owed() {
               header: "Person",
               cell: (g) => (
                 <Cell2
+                  icon={<EntityIcon kind="person" name={g.person} />}
                   main={g.person}
                   sub={
                     g.cardRisk ? (
