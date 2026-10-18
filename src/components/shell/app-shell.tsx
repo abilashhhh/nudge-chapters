@@ -35,6 +35,7 @@ import { V2_NAV, isActiveV2, toV2Href, v2Title } from "@/lib/v2/routes";
 import { V2QuickAddSheet } from "../v2/quick-add";
 import { SmsSync } from "../v2/sms";
 import { useGridRange } from "../v2/month-grid";
+import { closeAllSheets } from "../ui/sheet";
 import { useMonth } from "../ui/month-picker";
 
 /** Version 2: the same five entries on the phone bottom bar and the desktop sidebar. */
@@ -71,6 +72,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     const target = toV2Href(pathname, typeof window !== "undefined" ? window.location.search : "");
     if (target) router.replace(target);
   }, [pathname, router]);
+  // Full-width pages (sheets) stop above the phone's bottom bar, so you can still switch sections.
+  useEffect(() => {
+    document.documentElement.dataset.bottomBar = "";
+    return () => {
+      delete document.documentElement.dataset.bottomBar;
+    };
+  }, []);
   const sideNav = V2_NAV.map((n) => ({ href: n.href, label: n.label, icon: V2_ICONS[n.href] }));
   const sideNavGroups = [{ title: null as string | null, items: sideNav }];
   const mobileNav = sideNav.filter((n) => !V2_NAV.find((v) => v.href === n.href)?.desktopOnly);
@@ -134,7 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh overflow-x-clip">
       {/* Desktop sidebar */}
       <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface py-5 lg:flex">
-        <Link href="/" className="mb-5 shrink-0 px-6" aria-label={`${APP_NAME} home`}>
+        <Link href="/" onClick={closeAllSheets} className="mb-5 shrink-0 px-6" aria-label={`${APP_NAME} home`}>
           <Brand size="md" />
         </Link>
         {/* The list scrolls on short screens; the bottom links stay put. */}
@@ -149,6 +157,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={n.href}
                 href={n.href}
+                onClick={closeAllSheets}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex shrink-0 items-center gap-3 rounded-xl px-3 transition-colors",
@@ -179,7 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Top bar */}
         <header className="no-print sticky top-0 z-20 border-b border-line/70 bg-paper/85 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-[1240px] items-center gap-1 px-4 sm:gap-2 sm:px-6">
-            <Link href="/" className="min-w-0 lg:hidden" aria-label={`${APP_NAME} home`}>
+            <Link href="/" onClick={closeAllSheets} className="min-w-0 lg:hidden" aria-label={`${APP_NAME} home`}>
               <Brand size="sm" />
             </Link>
             {!v2 && <span className="hidden text-[15px] font-semibold text-ink lg:inline">{title}</span>}
@@ -263,6 +272,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={n.href}
                 href={n.href}
+                onClick={closeAllSheets}
                 aria-current={active ? "page" : undefined}
                 className={cn("flex h-16 flex-col items-center justify-center gap-1 text-[11.5px] font-medium", active ? "text-ink" : "text-ink-3")}
               >

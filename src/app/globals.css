@@ -457,3 +457,10 @@ button:active:not(:disabled) { transform: scale(0.98); }
   z-index: 1;
   background: var(--surface);
 }
+
+/* Full-width pages (forms, details) end above the phone's bottom bar, so the bar stays tappable. */
+@media (max-width: 1023.98px) {
+  html[data-bottom-bar] .sheet-page {
+    bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}
