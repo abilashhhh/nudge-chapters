@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ChevronRight, CreditCard, Landmark, PiggyBank } from "lucide-react";
+import { AddCardTile, CardVisual } from "./card-visual";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
@@ -56,12 +57,33 @@ export function ToPayScreen() {
 // ---------------------------------------------------------------------------
 
 function Cards() {
-  const { ds, positions, today } = useFinance();
+  const { ds, positions, today, ctx } = useFinance();
   const months = useGridMonths();
   const events = useRangeEvents(months);
   const data = useMemo(() => cardGrid(ds, positions, events, months, today), [ds, positions, events, months, today]);
   const ui = useUI.getState();
+  const cards = ds.credit_cards.filter((c) => !c.archived);
+  const month = today.slice(0, 7);
   return (
+    <>
+    {cards.length > 0 && (
+      <section aria-label="Your cards" className="no-scrollbar -mx-4 mb-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
+        {cards.map((c, i) => {
+          const g = data.groups.find((x) => x.ref?.id === c.id);
+          const cell = g?.total.cells[month];
+          const tone = !cell || cell.amount <= 0 ? null : cell.status === "paid" ? "paid" : cell.status === "late" ? "late" : cell.status === "due" ? "soon" : null;
+          const due = cell && cell.amount > 0 ? `${formatMoney(cell.amount, ctx)} ${cell.status === "paid" ? "paid" : cell.status === "late" ? "late" : "this month"}` : "Nothing due this month";
+          return (
+            <div key={c.id} className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
+              <CardVisual card={c} index={i} used={positions.cards.get(c.id)?.utilization} due={due} dueTone={tone} onClick={() => ui.openEditor("card", c.id)} />
+            </div>
+          );
+        })}
+        <div className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
+          <AddCardTile onClick={() => ui.openEditor("card")} />
+        </div>
+      </section>
+    )}
     <MonthGrid
       data={data}
       nameHeader="Credit card"
@@ -79,6 +101,7 @@ function Cards() {
       empty={<EmptyState icon={CreditCard} title="No credit cards yet" body="Add each card with its bill date and due date. Its EMIs and spends then show here month by month." />}
       footnote="Card total = EMIs + spends on that bill. EMIs on a card are paid through the card bill, so they are never added to the total twice."
     />
+    </>
   );
 }
 
