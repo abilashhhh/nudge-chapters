@@ -281,7 +281,7 @@ export function IpoSheet({ open, ipo, onClose }: { open: boolean; ipo?: IpoAppli
               <Input value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Swiggy" maxLength={200} autoFocus={!ipo} />
             </Field>
             <Field label="Symbol" optional>
-              <Input value={f.symbol ?? ""} onChange={(e) => set("symbol", e.target.value.toUpperCase())} placeholder="SWIGGY" maxLength={40} />
+              <Input value={f.symbol ?? ""} onChange={(e) => set("symbol", e.target.value.toUpperCase())} placeholder="e.g. JIO" maxLength={40} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">

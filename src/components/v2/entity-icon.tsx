@@ -4,6 +4,8 @@ import { CalendarClock, HandCoins, Landmark, Repeat, Rocket, Users, type LucideI
 import { cn } from "@/lib/cn";
 import { holdingColors, skinFor } from "@/lib/v2/card-skins";
 import { CardArt } from "./card-art";
+import { useFinance } from "@/lib/finance";
+import type { FinEvent } from "@/lib/engine/events";
 
 export type EntityKind = "stock" | "fund" | "ipo" | "bank" | "wallet" | "card" | "person" | "loan" | "chit" | "saving" | "people" | "sip";
 
@@ -73,4 +75,34 @@ export function EntityIcon({ name, kind, issuer, color, size = "md", className }
       <Icon className={size === "xs" ? "h-3 w-3" : size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
     </span>
   );
+}
+
+/** The badge for a bill / EMI / SIP in a list: the card, loan, chit, fund or person it belongs to. */
+export function EventIcon({ e, size = "md" }: { e: FinEvent; size?: keyof typeof SIZE }) {
+  const { ds } = useFinance();
+  const card = e.cardId ? ds.credit_cards.find((c) => c.id === e.cardId) : null;
+  if (card) return <EntityIcon kind="card" name={card.name} issuer={card.issuer} color={card.color} size={size} />;
+  if (e.investmentId) {
+    const i = ds.investments.find((x) => x.id === e.investmentId);
+    if (i) return <EntityIcon kind={i.type === "mutual_fund" ? "fund" : i.type === "stock" || i.type === "etf" ? "stock" : "saving"} name={i.name} size={size} />;
+  }
+  if (e.lendingId) {
+    const l = ds.lendings.find((x) => x.id === e.lendingId);
+    if (l) return <EntityIcon kind="person" name={l.person} size={size} />;
+  }
+  if (e.chitId) return <EntityIcon kind="chit" name={e.title} size={size} />;
+  if (e.loanId) return <EntityIcon kind="loan" name={e.title} size={size} />;
+  const acct = e.accountId ? ds.accounts.find((a) => a.id === e.accountId) : null;
+  if (acct) return <EntityIcon kind={acct.type === "wallet" || acct.type === "cash" ? "wallet" : "bank"} name={acct.name} issuer={acct.institution} color={acct.color} size={size} />;
+  return <EntityIcon kind="sip" name={e.title} size={size} />;
+}
+
+/** The badge for a recorded entry: the card it went on, or the bank account / wallet it came from. */
+export function TxIcon({ cardId, accountId, size = "md" }: { cardId?: string | null; accountId?: string | null; size?: keyof typeof SIZE }) {
+  const { ds } = useFinance();
+  const card = cardId ? ds.credit_cards.find((c) => c.id === cardId) : null;
+  if (card) return <EntityIcon kind="card" name={card.name} issuer={card.issuer} color={card.color} size={size} />;
+  const a = accountId ? ds.accounts.find((x) => x.id === accountId) : null;
+  if (a) return <EntityIcon kind={a.type === "wallet" || a.type === "cash" ? "wallet" : "bank"} name={a.name} issuer={a.institution} color={a.color} size={size} />;
+  return <EntityIcon kind="sip" name="Entry" size={size} />;
 }

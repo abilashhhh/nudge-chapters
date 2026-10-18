@@ -1,9 +1,10 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ArrowLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
+import { v2Crumbs } from "@/lib/v2/routes";
 import { Button } from "./button";
 
 // Page scroll is locked while any sheet is open. A shared counter (instead of each sheet saving
@@ -26,8 +27,9 @@ function unlockScroll() {
 }
 
 /**
- * A responsive dialog: a bottom sheet on phones, a centred panel on larger screens.
- * Escape and the backdrop close it; focus moves in on open and returns on close.
+ * Forms and details open as a full-width page over the current screen (beside the sidebar on desktop), with a back
+ * button and the breadcrumb of where you are; the phone's / browser's Back closes it too. Small confirmations
+ * (size "sm") stay a dialog. Escape closes either; focus moves in on open and returns on close.
  */
 export function Sheet({
   open,
@@ -47,6 +49,8 @@ export function Sheet({
   size?: "sm" | "md" | "lg" | "xl";
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -89,8 +93,30 @@ export function Sheet({
       }
     };
     document.addEventListener("keydown", onKey);
+    // A page gets its own history entry, so Back closes it instead of leaving the screen. The router's own state is
+    // kept on the entry so Next.js treats going back to it as staying on the same page.
+    const asPage = sizeRef.current !== "sm";
+    const mark = Math.random().toString(36).slice(2);
+    let pushed = false;
+    const onPop = () => {
+      if (pushed && (window.history.state as { nudgeSheet?: string } | null)?.nudgeSheet !== mark) {
+        pushed = false;
+        onCloseRef.current();
+      }
+    };
+    if (asPage) {
+      try {
+        window.history.pushState({ ...(window.history.state ?? {}), nudgeSheet: mark }, "");
+        pushed = true;
+        window.addEventListener("popstate", onPop);
+      } catch {
+        /* history unavailable: Back just leaves the page */
+      }
+    }
     return () => {
       clearTimeout(t);
+      window.removeEventListener("popstate", onPop);
+      if (pushed && (window.history.state as { nudgeSheet?: string } | null)?.nudgeSheet === mark) window.history.back();
       document.removeEventListener("keydown", onKey);
       unlockScroll();
       openStack.splice(openStack.indexOf(token), 1);
@@ -99,6 +125,60 @@ export function Sheet({
   }, [open]);
 
   if (!mounted || !open) return null;
+  if (size !== "sm") {
+    const found = v2Crumbs(window.location.pathname, window.location.search);
+    const crumbs = found.length ? found : [{ label: "Home", href: "/" }];
+    const inner = size === "xl" ? "max-w-5xl" : "max-w-3xl";
+    return createPortal(
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === "string" ? title : undefined}
+        className="animate-fade fixed inset-0 z-50 flex flex-col bg-paper lg:left-60"
+      >
+        <header className="border-b border-line bg-surface/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+          <div className={cn("mx-auto flex w-full items-center gap-3 px-4 py-3 sm:px-6", inner)}>
+            <button
+              type="button"
+              data-close
+              onClick={onClose}
+              aria-label="Back"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:text-ink"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 overflow-hidden text-[12px] text-ink-3">
+                {crumbs.map((c) => (
+                  <span key={c.href + c.label} className="flex shrink-0 items-center gap-1">
+                    <button type="button" onClick={onClose} className="hover:text-ink">
+                      {c.label}
+                    </button>
+                    <ChevronRight className="h-3 w-3" aria-hidden />
+                  </span>
+                ))}
+                <span className="truncate text-ink-2">{title}</span>
+              </nav>
+              <h2 className="display truncate text-[19px] font-semibold leading-tight text-ink sm:text-[22px]">{title}</h2>
+            </div>
+          </div>
+        </header>
+        <div className="flex-1 overflow-y-auto">
+          <div className={cn("mx-auto w-full px-4 py-5 sm:px-6", inner)}>
+            {description && <p className="mb-4 text-[14px] text-ink-2">{description}</p>}
+            {children}
+          </div>
+        </div>
+        {footer && (
+          <div className="border-t border-line bg-surface-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:pb-4">
+            <div className={cn("mx-auto w-full px-4 sm:px-6", inner)}>{footer}</div>
+          </div>
+        )}
+      </div>,
+      document.body,
+    );
+  }
   const width = { sm: "sm:max-w-md", md: "sm:max-w-lg", lg: "sm:max-w-2xl", xl: "sm:max-w-4xl" }[size];
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="presentation">

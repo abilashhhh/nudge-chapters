@@ -12,7 +12,7 @@ function NetworkMark({ network, tier }: { network?: string | null; tier?: string
   let mark: ReactNode = null;
   if (n.includes("master"))
     mark = (
-      <svg viewBox="0 0 44 28" className="h-[calc(28*var(--u))] w-[calc(44*var(--u))]" aria-label="Mastercard">
+      <svg viewBox="0 0 44 28" className="h-[calc(28*0.2941cqw)] w-[calc(44*0.2941cqw)]" aria-label="Mastercard">
         <circle cx="15" cy="14" r="12" fill="#eb001b" />
         <circle cx="29" cy="14" r="12" fill="#f79e1b" />
         <path d="M22 4.3a12 12 0 0 1 0 19.4a12 12 0 0 1 0-19.4z" fill="#ff5f00" />
@@ -20,35 +20,35 @@ function NetworkMark({ network, tier }: { network?: string | null; tier?: string
     );
   else if (n.includes("amex") || n.includes("american"))
     mark = (
-      <span className="flex h-[calc(28*var(--u))] w-[calc(40*var(--u))] flex-col items-center justify-center rounded-[3px] bg-[#2e77bc] text-[length:calc(6.5*var(--u))] font-black leading-[1.05] tracking-tight text-white" aria-label="American Express">
+      <span className="flex h-[calc(28*0.2941cqw)] w-[calc(40*0.2941cqw)] flex-col items-center justify-center rounded-[3px] bg-[#2e77bc] text-[length:calc(6.5*0.2941cqw)] font-black leading-[1.05] tracking-tight text-white" aria-label="American Express">
         <span>AMERICAN</span>
         <span>EXPRESS</span>
       </span>
     );
-  else if (n.includes("visa")) mark = <span className="text-[length:calc(22*var(--u))] font-black italic leading-none tracking-tight" aria-label="Visa">VISA</span>;
+  else if (n.includes("visa")) mark = <span className="text-[length:calc(22*0.2941cqw)] font-black italic leading-none tracking-tight" aria-label="Visa">VISA</span>;
   else if (n.includes("rupay"))
     mark = (
-      <span className="flex items-center text-[length:calc(16*var(--u))] font-black italic leading-none tracking-tight" aria-label="RuPay">
+      <span className="flex items-center text-[length:calc(16*0.2941cqw)] font-black italic leading-none tracking-tight" aria-label="RuPay">
         RuPay
-        <svg viewBox="0 0 10 12" className="ml-0.5 h-[calc(12*var(--u))] w-[calc(10*var(--u))]" aria-hidden>
+        <svg viewBox="0 0 10 12" className="ml-0.5 h-[calc(12*0.2941cqw)] w-[calc(10*0.2941cqw)]" aria-hidden>
           <path d="M0 0 L7 6 L0 12 Z" fill="#f47920" />
           <path d="M3 0 L10 6 L3 12 Z" fill="#00a651" opacity="0.9" />
         </svg>
       </span>
     );
-  else if (network) mark = <span className="text-[length:calc(13*var(--u))] font-bold italic">{network}</span>;
+  else if (network) mark = <span className="text-[length:calc(13*0.2941cqw)] font-bold italic">{network}</span>;
   if (!mark) return null;
   return (
     <span className="flex shrink-0 flex-col items-end">
       {mark}
-      {tier && <span className="mt-0.5 text-[length:calc(8.5*var(--u))] font-semibold uppercase tracking-[0.18em] opacity-80">{tier}</span>}
+      {tier && <span className="mt-0.5 text-[length:calc(8.5*0.2941cqw)] font-semibold uppercase tracking-[0.18em] opacity-80">{tier}</span>}
     </span>
   );
 }
 
 function Chip() {
   return (
-    <svg viewBox="0 0 40 30" className="h-[calc(30*var(--u))] w-[calc(40*var(--u))] shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" aria-hidden>
+    <svg viewBox="0 0 40 30" className="h-[calc(30*0.2941cqw)] w-[calc(40*0.2941cqw)] shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)]" aria-hidden>
       <defs>
         <linearGradient id="chipgold" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#fbe7a1" />
@@ -65,7 +65,7 @@ function Chip() {
 
 function Contactless({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 16 20" className={cn("h-[calc(20*var(--u))] w-[calc(16*var(--u))]", className)} aria-hidden>
+    <svg viewBox="0 0 16 20" className={cn("h-[calc(20*0.2941cqw)] w-[calc(16*0.2941cqw)]", className)} aria-hidden>
       {[3, 7, 11].map((r, i) => (
         <path key={r} d={`M${3 + i * 3.4} ${10 - r * 0.62} a ${r} ${r} 0 0 1 0 ${r * 1.24}`} stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" />
       ))}
@@ -178,10 +178,10 @@ export function Plastic({ skin, issuer, title, kindLabel, last4, network, badge,
   };
   const markCls = skin.markStyle === "italic" ? "italic font-bold" : skin.markStyle === "lower" ? "font-bold lowercase tracking-tight" : skin.markStyle === "spaced" ? "font-semibold uppercase tracking-[0.22em]" : "font-black uppercase tracking-tight";
   const badgeEl = badge && (
-    <span className={cn("max-w-full truncate rounded-full bg-black/35 px-[calc(8*var(--u))] py-[calc(2*var(--u))] text-[length:calc(11.5*var(--u))] font-medium text-white backdrop-blur-sm", badgeTone === "late" && "bg-[#e5484d]/90", badgeTone === "soon" && "bg-[#d97706]/90", badgeTone === "paid" && "bg-[#15803d]/85")}>{badge}</span>
+    <span className={cn("max-w-full truncate rounded-full bg-black/35 px-[calc(8*0.2941cqw)] py-[calc(2*0.2941cqw)] text-[length:calc(11.5*0.2941cqw)] font-medium text-white backdrop-blur-sm", badgeTone === "late" && "bg-[#e5484d]/90", badgeTone === "soon" && "bg-[#d97706]/90", badgeTone === "paid" && "bg-[#15803d]/85")}>{badge}</span>
   );
   const shell = cn(
-    "credit-card anim-rise group relative isolate block aspect-[1.586] w-full overflow-hidden rounded-[18px] text-left [container-type:inline-size] [--u:0.2941cqw] shadow-[0_18px_36px_-16px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.08)]",
+    "credit-card anim-rise group relative isolate block aspect-[1.586] w-full overflow-hidden rounded-[18px] text-left [container-type:inline-size] shadow-[0_18px_36px_-16px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.08)]",
     skin.ink === "light" ? "text-white" : "text-[#1d1d1f]",
     className,
   );
@@ -191,15 +191,15 @@ export function Plastic({ skin, issuer, title, kindLabel, last4, network, badge,
       <button ref={ref} type="button" onClick={onClick} onPointerMove={tilt} onPointerLeave={reset} aria-label={ariaLabel} className={shell} style={{ background: skin.bg, animationDelay: `${index * 70}ms` } as CSSProperties}>
         <CardArt art={skin.art} />
         <span className="credit-card-sheen pointer-events-none absolute inset-0" aria-hidden />
-        <span className="absolute left-[5%] top-[31%] flex max-w-[62%] items-center gap-[calc(10*var(--u))]">
+        <span className="absolute left-[5%] top-[31%] flex max-w-[62%] items-center gap-[calc(10*0.2941cqw)]">
           {chip && <Chip />}
           <Contactless className={cn("shrink-0 opacity-85", split && "text-[#1d1d1f]")} />
           {badgeEl}
         </span>
-        {last4 && <span className={cn("num absolute left-[5%] top-[52%] whitespace-nowrap font-mono text-[length:calc(14*var(--u))] tracking-[0.18em] [text-shadow:0_1px_1px_rgba(0,0,0,0.25)] ", split && "[text-shadow:none]")}>•••• {last4}</span>}
-        <span className="absolute inset-x-[5%] bottom-[7%] flex items-end justify-between gap-[calc(12*var(--u))]">
+        {last4 && <span className={cn("num absolute left-[5%] top-[52%] whitespace-nowrap font-mono text-[length:calc(14*0.2941cqw)] tracking-[0.18em] [text-shadow:0_1px_1px_rgba(0,0,0,0.25)] ", split && "[text-shadow:none]")}>•••• {last4}</span>}
+        <span className="absolute inset-x-[5%] bottom-[7%] flex items-end justify-between gap-[calc(12*0.2941cqw)]">
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[length:calc(10.5*var(--u))] font-semibold uppercase tracking-[0.14em] opacity-90">{title}</span>
+            <span className="block truncate text-[length:calc(10.5*0.2941cqw)] font-semibold uppercase tracking-[0.14em] opacity-90">{title}</span>
             {footer}
           </span>
           <span className={cn(split && "text-white")}>
@@ -209,50 +209,35 @@ export function Plastic({ skin, issuer, title, kindLabel, last4, network, badge,
       </button>
     );
   }
+  // Same placement as the drawn cards: everything sits at fixed spots, sized to the card's width.
+  const showIssuer = issuer && issuer.toLowerCase() !== (skin.mark ?? title).toLowerCase();
   return (
-    <button
-      ref={ref}
-      type="button"
-      onClick={onClick}
-      onPointerMove={tilt}
-      onPointerLeave={reset}
-      aria-label={ariaLabel}
-      className={cn(shell, "p-[calc(18*var(--u))]")}
-      style={{ background: skin.bg, animationDelay: `${index * 70}ms` } as CSSProperties}
-    >
+    <button ref={ref} type="button" onClick={onClick} onPointerMove={tilt} onPointerLeave={reset} aria-label={ariaLabel} className={shell} style={{ background: skin.bg, animationDelay: `${index * 70}ms` } as CSSProperties}>
       <Motif skin={skin} />
       <span className="credit-card-sheen pointer-events-none absolute inset-0" aria-hidden />
-
-      <span className="relative flex h-full flex-col justify-between">
-        <span className="flex items-start justify-between gap-2">
-          <span className="min-w-0">
-            <span className="block truncate text-[length:calc(10.5*var(--u))] font-semibold uppercase tracking-[0.16em] opacity-80">{issuer}</span>
-            {skin.mark ? (
-              <span className={cn("mt-0.5 block truncate text-[length:calc(19*var(--u))] leading-tight ", markCls)}>
-                {skin.mark}
-              </span>
-            ) : (
-              <span className="display mt-0.5 block truncate text-[length:calc(17*var(--u))] font-semibold leading-tight ">{title}</span>
-            )}
-          </span>
-          <span className="shrink-0 text-[length:calc(9.5*var(--u))] font-medium uppercase tracking-wider opacity-70">{kindLabel}</span>
+      <span className="absolute inset-x-[5.5%] top-[8%] flex items-start justify-between gap-[calc(8*0.2941cqw)]">
+        <span className="min-w-0">
+          {showIssuer && <span className="block truncate text-[length:calc(10.5*0.2941cqw)] font-semibold uppercase tracking-[0.16em] opacity-80">{issuer}</span>}
+          {skin.mark ? (
+            <span className={cn("block truncate text-[length:calc(20*0.2941cqw)] leading-tight", markCls)}>{skin.mark}</span>
+          ) : (
+            <span className="display block truncate text-[length:calc(18*0.2941cqw)] font-semibold leading-tight">{title}</span>
+          )}
         </span>
-
-        <span className="flex items-center gap-2.5">
-          {chip && <Chip />}
-          <Contactless className="shrink-0 opacity-85" />
-          {badgeEl}
+        <span className="shrink-0 text-[length:calc(9.5*0.2941cqw)] font-medium uppercase tracking-wider opacity-70">{kindLabel}</span>
+      </span>
+      <span className="absolute left-[5.5%] top-[36%] flex max-w-[62%] items-center gap-[calc(10*0.2941cqw)]">
+        {chip && <Chip />}
+        <Contactless className="shrink-0 opacity-85" />
+        {badgeEl}
+      </span>
+      {last4 && <span className="num absolute left-[5.5%] top-[55%] whitespace-nowrap font-mono text-[length:calc(14*0.2941cqw)] tracking-[0.18em]">•••• {last4}</span>}
+      <span className="absolute inset-x-[5.5%] bottom-[7%] flex items-end justify-between gap-[calc(12*0.2941cqw)]">
+        <span className="min-w-0 flex-1">
+          {skin.mark && <span className="block truncate text-[length:calc(10.5*0.2941cqw)] font-semibold uppercase tracking-[0.14em] opacity-90">{title}</span>}
+          {footer}
         </span>
-
-        {last4 ? <span className="num block whitespace-nowrap font-mono text-[length:calc(15*var(--u))] tracking-[0.16em]">•••• {last4}</span> : <span aria-hidden />}
-
-        <span className="flex items-end justify-between gap-3">
-          <span className="min-w-0 flex-1">
-            {skin.mark && <span className="block truncate text-[length:calc(11*var(--u))] font-medium opacity-80">{title}</span>}
-            {footer}
-          </span>
-          <NetworkMark network={network || skin.network} tier={skin.tier} />
-        </span>
+        <NetworkMark network={network || skin.network} tier={skin.tier} />
       </span>
     </button>
   );
@@ -261,8 +246,8 @@ export function Plastic({ skin, issuer, title, kindLabel, last4, network, badge,
 function UsedBar({ pct, label }: { pct: number; label: string }) {
   return (
     <>
-      <span className="block text-[length:calc(10*var(--u))] uppercase tracking-wider opacity-75">{label}</span>
-      <span className="mt-[calc(4*var(--u))] block h-[calc(6*var(--u))] w-full max-w-[calc(160*var(--u))] overflow-hidden rounded-full bg-current/20">
+      <span className="block text-[length:calc(10*0.2941cqw)] uppercase tracking-wider opacity-75">{label}</span>
+      <span className="mt-[calc(4*0.2941cqw)] block h-[calc(6*0.2941cqw)] w-full max-w-[calc(160*0.2941cqw)] overflow-hidden rounded-full bg-current/20">
         <span className={cn("block h-full rounded-full", pct > 0.7 ? "bg-[#ff7a7a]" : pct > 0.3 ? "bg-[#ffd166]" : "bg-[#7ee2b8]")} style={{ width: `${Math.max(2, Math.min(1, pct) * 100)}%` }} />
       </span>
     </>
@@ -316,11 +301,11 @@ export function AccountVisual({ account, balance, onClick, className, index }: {
       title={account.name}
       kindLabel={kind}
       last4={account.card_last4 || account.last4}
-      chip={account.type !== "cash"}
+      chip={account.type !== "cash" && account.type !== "wallet"}
       footer={
         <>
-          <span className="block text-[length:calc(10*var(--u))] uppercase tracking-wider opacity-75">Balance</span>
-          <span className="num block text-[length:calc(18*var(--u))] font-semibold leading-tight">{balance}</span>
+          <span className="block text-[length:calc(10*0.2941cqw)] uppercase tracking-wider opacity-75">Balance</span>
+          <span className="num block text-[length:calc(18*0.2941cqw)] font-semibold leading-tight">{balance}</span>
         </>
       }
       onClick={onClick}
