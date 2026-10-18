@@ -28,6 +28,11 @@ export interface SmsProposal {
   duplicateOf?: Transaction;
   /** When the SMS states a balance: what the bank says vs what the app will show after adding this. */
   balance?: { accountId: string; bank: number };
+  /**
+   * An entry already recorded from an earlier message that this one completes: e.g. "paid ₹5,000" from the CRED
+   * wallet (saved as spending) followed by "₹5,000 received from you" in Slice → that entry becomes the transfer.
+   */
+  replaces?: Transaction;
   /** More entries to add with this one (e.g. loading a wallet with a card: the wallet's side and the card's fee). */
   also?: (Partial<Transaction> & { type: TxType; amount: number; date: ISODate })[];
   parsed: ParsedSms;
@@ -38,8 +43,18 @@ export function selfNames(ds: Dataset): string[] {
   const set = ds.profile.preferences?.sms?.selfNames ?? [];
   return [...set, ds.profile.name ?? ""].map((n) => n.trim()).filter((n) => n.length >= 4);
 }
-const mentions = (body: string, names: string[]) =>
-  names.some((n) => new RegExp(`(^|[^A-Za-z])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}([^A-Za-z]|$)`, "i").test(body));
+const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * Whether a message names you. Banks shorten names differently, so an initial matches the full word and the full
+ * word matches its initial: "Abilash N" matches "ABILASH NARAYANAN", and "Abilash Narayanan" matches "ABILASH N".
+ */
+export const mentions = (body: string, names: string[]) =>
+  names.some((n) => {
+    const parts = n.trim().split(/[\s.]+/).filter(Boolean);
+    if (!parts.length) return false;
+    const words = parts.map((w, i) => (i === 0 ? esc(w) : w.length === 1 ? `${esc(w)}[A-Za-z]*` : `(?:${esc(w)}|${esc(w[0])})`));
+    return new RegExp(`(^|[^A-Za-z])${words.join("[\\s.]+")}([^A-Za-z]|$)`, "i").test(body);
+  });
 
 const FIRST: Record<string, RegExp> = {
   "HDFC Bank": /hdfc/i,
@@ -104,7 +119,12 @@ function plannedMatch(events: FinEvent[], amount: number, date: ISODate, flow: "
 /** Recorded already: same amount, same account or card, within two days. */
 function findDuplicate(ds: Dataset, amount: number, date: ISODate, where: { accountId?: string; cardId?: string }, ref: string | null): Transaction | undefined {
   return ds.transactions.find((t) => {
+    // A balance correction isn't a payment, so it's never "the same payment".
+    if (t.type === "adjustment") return false;
     if (ref && t.notes?.includes(ref)) return true;
+    // Both carry a bank reference and they differ: two separate payments, even for the same amount.
+    const otherRef = t.notes?.match(/Ref (\S+)/)?.[1];
+    if (ref && otherRef && otherRef !== ref) return false;
     if (Math.abs(t.amount - amount) > 0.5) return false;
     if (Math.abs(diffDays(t.date, date)) > 2) return false;
     if (where.cardId) return t.card_id === where.cardId;
@@ -167,6 +187,14 @@ export function proposeFromSms(row: SmsRow, p: ParsedSms, ds: Dataset, positions
     const known = !!from && !!to;
     const dupT = ds.transactions.find((t) => t.type === "transfer" && Math.abs(t.amount - amount) <= 0.5 && Math.abs(diffDays(t.date, date)) <= 2 && (t.account_id === account.id || t.to_account_id === account.id));
     if (dupT || dup) return { state: "duplicate", tx, account, duplicateOf: dupT ?? dup, balance, parsed: p };
+    // Money in from yourself, source unknown: the other half may already be recorded as an outgoing payment
+    // with no payee (wallets and some banks don't say where it went).
+    if (p.direction === "credit" && !from) {
+      const half = ds.transactions.find(
+        (t) => t.type === "expense" && t.account_id && t.account_id !== account.id && Math.abs(t.amount - amount) <= 0.5 && Math.abs(diffDays(t.date, date)) <= 1 && t.tags?.some((g) => g.startsWith("sms:")) && t.description === "Payment",
+      );
+      if (half) return { state: "ready", tx: { ...tx, account_id: half.account_id }, account, balance, replaces: half, parsed: p };
+    }
     return {
       state: known && sure ? "ready" : "check",
       reason: known ? (sure ? undefined : "Check the account") : p.direction === "debit" ? "Sent to yourself — which of your accounts got it?" : "From your own account — which one?",

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildEvents } from "../engine/events";
 import { computePositions } from "../engine/ledger";
 import type { Dataset } from "../types";
-import { pairSms, proposeFromSms, type SmsRow } from "./match";
+import { mentions, pairSms, proposeFromSms, type SmsRow } from "./match";
 import { parseSms } from "./parse";
 
 const TODAY = "2026-10-17";
@@ -80,5 +80,46 @@ describe("self transfers from bank SMS", () => {
     ]);
     expect(t[0].p.tx).toMatchObject({ type: "transfer", account_id: "cred", to_account_id: "dhan", amount: 5000 });
     expect(t[1].p.state).toBe("duplicate");
+  });
+
+  // The real messages from 18 Oct: CRED wallet pays ₹5,000 to Slice, and Slice says "from Abilash Narayanan".
+  const CRED_PAID = "Update from CRED wallet:\n\nYou have successfully paid Rs.5000.0 and your updated wallet balance is Rs.0.0. \n\nFor any queries or support, call 080-62752800";
+  const SLICE_IN = "Rs. 5,000 received in slice A/c xx6080 on 18-Oct-26 from Abilash Narayanan via UPI (Ref ID: 629118065844). Avl. Bal. Rs. 29,916.96 - slice";
+
+  it("knows you by first name + initial or full name, either way round", () => {
+    expect(mentions("from Abilash Narayanan via UPI", ["Abilash N"])).toBe(true);
+    expect(mentions("to ABILASH N (UPI Ref", ["Abilash Narayanan"])).toBe(true);
+    expect(mentions("from ABILASH via UPI", ["Abilash N"])).toBe(false);
+    expect(mentions("from Abhijith S via UPI", ["Abilash N"])).toBe(false);
+    expect(mentions("from Abilashkumar N", ["Abilash N"])).toBe(false);
+  });
+
+  it("wallet 'paid' + Slice 'received from Abilash Narayanan' arriving together = one transfer CRED → Slice", () => {
+    const r = items(ds(), [
+      ["CREDWL-S", CRED_PAID, "2026-10-18T08:38:28Z"],
+      ["SLCBNK-T", SLICE_IN, "2026-10-18T08:38:30Z"],
+    ]);
+    expect(r[0].p.state).toBe("ready");
+    expect(r[0].p.tx).toMatchObject({ type: "transfer", account_id: "cred", to_account_id: "slice", amount: 5000 });
+    expect(r[1].p.state).toBe("duplicate");
+  });
+
+  it("if the wallet's message was already saved as a payment, the Slice message turns it into the transfer", () => {
+    const d = ds();
+    d.transactions.push({ id: "w1", date: "2026-10-18", type: "expense", amount: 5000, account_id: "cred", description: "Payment", tags: ["sms:x"], is_partial: false, reconciled: false } as never);
+    const [r] = items(d, [["SLCBNK-T", SLICE_IN, "2026-10-18T08:38:30Z"]]);
+    expect(r.p.state).toBe("ready");
+    expect(r.p.replaces?.id).toBe("w1");
+    expect(r.p.tx).toMatchObject({ type: "transfer", account_id: "cred", to_account_id: "slice", amount: 5000 });
+    expect(r.p.balance).toEqual({ accountId: "slice", bank: 29916.96 });
+  });
+
+  it("a balance correction or a payment with another reference is never mistaken for this one", () => {
+    const d = ds();
+    d.transactions.push({ id: "adj", date: "2026-10-16", type: "adjustment", amount: 5000, account_id: "slice", description: "Balance matched with bank", tags: ["reconcile"] } as never);
+    d.transactions.push({ id: "other", date: "2026-10-18", type: "income", amount: 5000, account_id: "slice", description: "X", notes: "Ref 111111111111 · From bank SMS", tags: [] } as never);
+    const [r] = items(d, [["SLCBNK-T", SLICE_IN.replace("Abilash Narayanan", "RAHUL K"), "2026-10-18T08:38:30Z"]]);
+    expect(r.p.state).toBe("ready");
+    expect(r.p.tx).toMatchObject({ type: "income", account_id: "slice", amount: 5000 });
   });
 });
