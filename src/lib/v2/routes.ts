@@ -12,9 +12,8 @@ export interface V2NavItem {
 
 export const V2_NAV: V2NavItem[] = [
   { href: "/", label: "Home", meaning: "Your money at a glance" },
-  { href: "/my-money", label: "My Money", meaning: "Money in your bank and money others owe you" },
+  { href: "/my-money", label: "My Money", meaning: "Your bank accounts, money others owe you, and your savings and investments" },
   { href: "/to-pay", label: "To Pay", meaning: "Bills, EMIs and installments you have to pay" },
-  { href: "/savings", label: "Savings", meaning: "What your savings and investments are worth" },
   { href: "/daily", label: "Daily", meaning: "Your daily rhythm, to-do, reminders, notes and wishlist" },
   { href: "/trading-training", label: "Trading Training", meaning: "Learn to read candlestick charts: lessons, quizzes and daily practice", desktopOnly: true },
   { href: "/menu", label: "Menu", meaning: "Planning tools and settings" },
@@ -31,9 +30,8 @@ export const V2_DAILY: { tab: string; label: string }[] = [
 
 /** Tab names per screen, for breadcrumbs. */
 export const V2_TABS: Record<string, Record<string, string>> = {
-  "/my-money": { accounts: "Bank accounts", owed: "People owe me" },
+  "/my-money": { accounts: "Bank accounts", owed: "People owe me", savings: "All savings", funds: "Mutual funds", stocks: "Stocks", epf: "EPF & PF", chits: "Chits", commodities: "Commodities", other: "Other savings" },
   "/to-pay": { cards: "Credit cards", chits: "Chits & SIPs", loans: "Loans & borrowed" },
-  "/savings": { funds: "Mutual funds", stocks: "Stocks", epf: "EPF & PF", chits: "Chits", commodities: "Commodities", other: "Other savings" },
   "/daily": Object.fromEntries(V2_DAILY.map((d) => [d.tab, d.label])),
   "/menu/settings": {
     profile: "Profile",
@@ -46,7 +44,7 @@ export const V2_TABS: Record<string, Record<string, string>> = {
 };
 
 /** The first tab each screen opens on (so its breadcrumb reads complete). */
-export const V2_DEFAULT_TAB: Record<string, string> = { "/my-money": "accounts", "/to-pay": "cards", "/savings": "funds", "/daily": "rhythm", "/menu/settings": "profile" };
+export const V2_DEFAULT_TAB: Record<string, string> = { "/my-money": "accounts", "/to-pay": "cards", "/daily": "rhythm", "/menu/settings": "profile" };
 
 /** Menu sub-pages (Version 2). */
 export const V2_MENU_PAGES: Record<string, string> = {
@@ -94,9 +92,9 @@ export function toV2Href(pathname: string, search: string | URLSearchParams = ""
       return "/my-money?tab=owed";
     case "/assets":
       if (tab === "lending") return "/my-money?tab=owed";
-      if (tab === "investments") return "/savings?tab=funds";
-      if (tab === "retirement") return "/savings?tab=epf";
-      if (tab === "property") return "/savings?tab=other";
+      if (tab === "investments") return "/my-money?tab=funds";
+      if (tab === "retirement") return "/my-money?tab=epf";
+      if (tab === "property") return "/my-money?tab=other";
       return "/my-money?tab=accounts";
     case "/liabilities":
       if (tab === "chits") return "/to-pay?tab=chits";
@@ -107,6 +105,9 @@ export function toV2Href(pathname: string, search: string | URLSearchParams = ""
       if (tab === "transactions") return "/my-money?tab=accounts";
       if (tab === "recurring" || tab === "reserves" || tab === "subscriptions") return "/menu/budgets";
       return "/";
+    // Savings became part of My Money.
+    case "/savings":
+      return `/my-money?tab=${tab && tab !== "all" ? tab : "savings"}`;
     case "/budgets":
       return "/menu/budgets";
     case "/insurance":

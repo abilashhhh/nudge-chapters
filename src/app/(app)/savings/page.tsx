@@ -1,12 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
-import { SavingsScreen } from "@/components/v2/savings";
-
+// Savings is now part of My Money; the shell sends /savings?tab=… to its tab there (see toV2Href).
 export default function Page() {
-  return (
-    <Suspense>
-      <SavingsScreen />
-    </Suspense>
-  );
+  return null;
 }

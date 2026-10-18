@@ -230,9 +230,9 @@ describe("Version 2 redirects", () => {
     expect(toV2Href("/cash-flow", "?tab=bills")).toBe("/to-pay");
     expect(toV2Href("/cash-flow", "?tab=transactions")).toBe("/my-money?tab=accounts");
     expect(toV2Href("/cash-flow", "?tab=recurring")).toBe("/menu/budgets");
-    expect(toV2Href("/assets", "?tab=investments")).toBe("/savings?tab=funds");
-    expect(toV2Href("/assets", "?tab=retirement")).toBe("/savings?tab=epf");
-    expect(toV2Href("/assets", "?tab=property")).toBe("/savings?tab=other");
+    expect(toV2Href("/assets", "?tab=investments")).toBe("/my-money?tab=funds");
+    expect(toV2Href("/assets", "?tab=retirement")).toBe("/my-money?tab=epf");
+    expect(toV2Href("/assets", "?tab=property")).toBe("/my-money?tab=other");
     expect(toV2Href("/budgets", "")).toBe("/menu/budgets");
     expect(toV2Href("/plan", "")).toBe("/daily?tab=todo");
     expect(toV2Href("/plan", "?tab=notes")).toBe("/daily?tab=notes");

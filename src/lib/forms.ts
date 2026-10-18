@@ -53,6 +53,7 @@ export const cardFields: FieldDef<CreditCard>[] = [
   { name: "annual_fee", label: "Annual fee", type: "money", optional: true, half: true, section: "More details" },
   { name: "interest_rate_apr", label: "Interest rate (APR)", type: "percent", half: true },
   { name: "network", label: "Network", type: "select", options: opts({ Visa: "Visa", Mastercard: "Mastercard", RuPay: "RuPay", Amex: "American Express", Diners: "Diners Club" }), noneLabel: "—", half: true },
+  { name: "shared_limit_group", label: "Shares its limit with", type: "text", optional: true, half: true, placeholder: "e.g. Axis", help: "Cards with the same name here share one limit (enter that limit on each)." },
   {
     name: "color",
     label: "Card colour",

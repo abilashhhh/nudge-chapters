@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { formatDate, relativeDays } from "@/lib/dates";
 import { reimbursements, type ReimbursementGroup } from "@/lib/engine/reimburse";
 import { useFinance } from "@/lib/finance";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatPct } from "@/lib/money";
 import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
@@ -22,33 +22,38 @@ import { MonthGrid, useGridMonths } from "./month-grid";
 import { StatTile, StatusText, useRangeEvents, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 import { AllMoney } from "./all-money";
+import { AccountVisual } from "./card-visual";
+import { useRouter } from "next/navigation";
+import { SAVINGS_TABS, SavingsTabBody, useSavings } from "./savings";
 
-const TABS = ["all", "accounts", "owed"] as const;
+const TABS = ["all", "accounts", "owed", ...SAVINGS_TABS] as const;
 type Tab = (typeof TABS)[number];
 
 const TYPE_LABEL: Record<Account["type"], string> = { savings: "Savings", current: "Current", cash: "Cash", wallet: "Wallet (UPI)", other: "Other" };
 
+/** My Money: bank accounts, money people owe you, and every saving and investment, in one section. */
 export function MyMoneyScreen() {
-  const [tab, setTab] = useTab(TABS, "all");
-  const { positions } = useFinance();
+  const [tab0, setTab] = useTab(TABS, "all");
+  const { positions, ctx } = useFinance();
+  const sv = useSavings();
+  const visible: Tab[] = ["all", "accounts", "owed", ...sv.tabs.map((t) => t.id)];
+  const tab: Tab = visible.includes(tab0) ? tab0 : "all";
   return (
     <>
       <V2PageHeader title="My Money" />
-      <div className="mb-5 hidden max-w-xl grid-cols-2 gap-3 lg:grid">
+      <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <StatTile label="Money in bank" value={positions.totals.cash} onClick={() => setTab("accounts")} />
         <StatTile label="People owe me" value={positions.totals.receivables} onClick={() => setTab("owed")} />
+        <StatTile label="Savings value" value={sv.value} note={`${formatMoney(sv.putIn, ctx)} put in`} onClick={() => setTab("savings")} />
+        <StatTile label={sv.profit >= 0 ? "Savings profit" : "Savings loss"} value={sv.profit} tone="pl" note={sv.putIn > 0 ? formatPct((sv.profit / sv.putIn) * 100) : undefined} onClick={() => setTab("savings")} />
       </div>
       <Tabs<Tab>
         className="mb-4"
         value={tab}
         onChange={setTab}
-        tabs={[
-          { id: "all", label: "All" },
-          { id: "accounts", label: "Bank accounts" },
-          { id: "owed", label: "People owe me" },
-        ]}
+        tabs={[{ id: "all", label: "All" }, { id: "accounts", label: "Bank accounts" }, { id: "owed", label: "People owe me" }, ...sv.tabs]}
       />
-      {tab === "all" ? <AllMoney /> : tab === "accounts" ? <Accounts /> : <Owed />}
+      {tab === "all" ? <AllMoney /> : tab === "accounts" ? <Accounts /> : tab === "owed" ? <Owed /> : <SavingsTabBody tab={tab} />}
     </>
   );
 }
@@ -61,6 +66,7 @@ function Accounts() {
   const [fix, setFix] = useState<Account | null>(null);
   const [history, setHistory] = useState<Account | null>(null);
   const ui = useUI.getState();
+  const router = useRouter();
   const list = ds.accounts.filter((a) => showClosed || !a.archived);
   const total = list.filter((a) => !a.archived && a.include_in_cash).reduce((s, a) => s + (positions.accounts.get(a.id)?.balanceBase ?? 0), 0);
   if (!ds.accounts.length) {
@@ -90,6 +96,13 @@ function Accounts() {
           </label>
         )}
       </div>
+      <section aria-label="Your accounts" className="no-scrollbar -mx-4 mb-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
+        {list.filter((a) => !a.archived).map((a, i) => (
+          <div key={a.id} className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
+            <AccountVisual account={a} index={i} balance={<Money value={positions.accounts.get(a.id)?.balance ?? 0} decimals currency={a.currency} className="text-inherit" />} onClick={() => router.push(`/my-money/account?id=${a.id}`)} />
+          </div>
+        ))}
+      </section>
       <DataTable
         label="Bank accounts"
         rows={list}
