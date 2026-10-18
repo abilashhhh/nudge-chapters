@@ -42,7 +42,7 @@ export function MenuScreen() {
       title: "App",
       tiles: [
         { href: "/menu/contacts", label: "Contacts", icon: Users, hint: ds.contacts?.length ? `${ds.contacts.length} people` : "Import from your phone (.vcf)" },
-        { href: "/menu/sms", label: "Bank SMS", icon: MessageSquareText, hint: "Add payments from bank messages (iPhone)" },
+        { href: "/menu/sms", label: "Bank SMS", icon: MessageSquareText, hint: "Add payments from bank messages (iPhone & Android)" },
         { href: "/menu/settings", label: "Settings", icon: Settings, hint: "Profile, import & export, security, look" },
         { href: "/menu/help", label: "Help & support", icon: HelpCircle, hint: "Questions and answers" },
       ],

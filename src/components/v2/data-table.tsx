@@ -69,6 +69,7 @@ export function DataTable<T>({
   rowClassName,
   initiallyOpen,
   noLookToggle,
+  rowAction,
 }: {
   rows: T[];
   rowKey: (row: T) => string;
@@ -82,10 +83,12 @@ export function DataTable<T>({
   initiallyOpen?: string | null;
   /** Lists where tiles make no sense (e.g. one-line totals). */
   noLookToggle?: boolean;
+  /** A small always-visible button per row (e.g. Edit), outside the tap-to-open area. */
+  rowAction?: (row: T) => ReactNode;
 }) {
   const [open, setOpen] = useState<string | null>(initiallyOpen ?? null);
   const [look, setLook] = useLook(label);
-  const span = columns.length + (details ? 1 : 0);
+  const span = columns.length + (details ? 1 : 0) + (rowAction ? 1 : 0);
   const hide = (c: Column<T>) => (c.wide ? "hidden sm:table-cell" : "");
   const toggle = !noLookToggle && rows.length > 0 && (
     <div className="mb-2 flex justify-end">
@@ -105,8 +108,9 @@ export function DataTable<T>({
             const k = rowKey(r);
             const isOpen = open === k;
             return (
-              <li key={k} className={cn("rounded-2xl border border-line bg-surface", isOpen && "sm:col-span-2 lg:col-span-3", rowClassName?.(r))}>
-                <button type="button" className="block w-full p-4 text-left" aria-expanded={details ? isOpen : undefined} onClick={details ? () => setOpen(isOpen ? null : k) : undefined}>
+              <li key={k} className={cn("relative rounded-2xl border border-line bg-surface", isOpen && "sm:col-span-2 lg:col-span-3", rowClassName?.(r))}>
+                {rowAction && <div className="absolute right-9 top-2.5">{rowAction(r)}</div>}
+                <button type="button" className={cn("block w-full p-4 text-left", rowAction && "pr-20")} aria-expanded={details ? isOpen : undefined} onClick={details ? () => setOpen(isOpen ? null : k) : undefined}>
                   <span className="flex items-start justify-between gap-2">
                     <span className="min-w-0 text-[14px]">{title.cell(r)}</span>
                     {details && <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-ink-3 transition-transform", isOpen && "rotate-180")} aria-hidden />}
@@ -149,6 +153,11 @@ export function DataTable<T>({
                 {c.header}
               </th>
             ))}
+            {rowAction && (
+              <th scope="col" className="w-10 px-1">
+                <span className="sr-only">Actions</span>
+              </th>
+            )}
             {details && (
               <th scope="col" className="w-8 px-1">
                 <span className="sr-only">Details</span>
@@ -177,6 +186,11 @@ export function DataTable<T>({
                       )}
                     </td>
                   ))}
+                  {rowAction && (
+                    <td className="w-10 px-1" onClick={(e) => e.stopPropagation()}>
+                      {rowAction(r)}
+                    </td>
+                  )}
                   {details && (
                     <td className="w-8 px-1 text-ink-3">
                       <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} aria-hidden />
@@ -202,6 +216,7 @@ export function DataTable<T>({
                   {footer[i]}
                 </td>
               ))}
+              {rowAction && <td />}
               {details && <td />}
             </tr>
           </tfoot>

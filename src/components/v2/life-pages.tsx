@@ -1,7 +1,10 @@
 "use client";
 
-import { Bell, Check, ExternalLink, History, ListChecks, Plus, Search, StickyNote } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { Bell, Check, ExternalLink, History, ListChecks, PenLine, Pencil, Pin, Plus, Search, StickyNote } from "lucide-react";
+import { toast } from "sonner";
+import { useStore } from "@/lib/store";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addDays, formatDate } from "@/lib/dates";
 import { buyOrWait } from "@/lib/engine/life";
@@ -9,7 +12,8 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import type { LifeItem, LifeKind } from "@/lib/types";
 import { useUI } from "@/lib/ui";
-import { ChecklistCard, NoteCard, TaskRow, useLifeActions } from "../life";
+import { ChecklistCard, EditButton, TaskRow, useLifeActions } from "../life";
+import { NoteEditor } from "./note-editor";
 import { Button } from "../ui/button";
 import { Input } from "../ui/form";
 import { EmptyState } from "../ui/misc";
@@ -33,11 +37,11 @@ function useItems(kinds: LifeKind[], showDone: boolean, q: string) {
 
 /** One row: add, (an extra add), search, and a show-done switch. Labels shorten on phones. */
 function Toolbar({
-  q, setQ, showDone, setShowDone, doneLabel, kind, addLabel, extra,
-}: { q: string; setQ: (s: string) => void; showDone: boolean; setShowDone: (b: boolean) => void; doneLabel: string; kind: LifeKind; addLabel: string; extra?: ReactNode }) {
+  q, setQ, showDone, setShowDone, doneLabel, kind, addLabel, extra, onAdd,
+}: { q: string; setQ: (s: string) => void; showDone: boolean; setShowDone: (b: boolean) => void; doneLabel: string; kind: LifeKind; addLabel: string; extra?: ReactNode; onAdd?: () => void }) {
   return (
     <div className="mb-4 flex items-center gap-2">
-      <Button variant="primary" aria-label={addLabel} icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openLife(kind)} className="shrink-0 px-3 sm:px-4">
+      <Button variant="primary" aria-label={addLabel} icon={<Plus className="h-4 w-4" />} onClick={onAdd ?? (() => useUI.getState().openLife(kind))} className="shrink-0 px-3 sm:px-4">
         <span className="hidden sm:inline">{addLabel}</span>
         <span className="sm:hidden">New</span>
       </Button>
@@ -67,23 +71,90 @@ function Toolbar({
 // ---------------------------------------------------------------------------
 
 export function NotesScreen({ embedded }: { embedded?: boolean } = {}) {
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname() ?? "/daily";
+  const open = params.get("note");
   const [q, setQ] = useState("");
   const [showDone, setShowDone] = useState(false);
   const items = useItems(["note"], showDone, q);
+  const go = useCallback(
+    (note: string | null, replace = false) => {
+      const p = new URLSearchParams(params.toString());
+      if (note) p.set("note", note);
+      else p.delete("note");
+      const url = `${pathname}?${p.toString()}`;
+      if (replace) router.replace(url, { scroll: false });
+      else router.push(url, { scroll: false });
+    },
+    [params, pathname, router],
+  );
+  const onCreated = useCallback((id: string) => go(id, true), [go]);
+
+  if (open) return <NoteEditor key={open === "new" ? "new" : open} id={open === "new" ? null : open} onClose={() => go(null)} onCreated={onCreated} />;
+
+  const sorted = [...items].sort((a, b) => (b.updated_at ?? b.created_at ?? "").localeCompare(a.updated_at ?? a.created_at ?? ""));
+  const pinned = sorted.filter((i) => i.pinned && i.status === "open");
+  const rest = sorted.filter((i) => !(i.pinned && i.status === "open"));
   return (
     <>
       {!embedded && <V2PageHeader title="Notes" />}
-      <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show archived" kind="note" addLabel="New note" />
+      <Toolbar q={q} setQ={setQ} showDone={showDone} setShowDone={setShowDone} doneLabel="Show archived" kind="note" addLabel="New note" onAdd={() => go("new")} />
       {items.length === 0 ? (
         <EmptyState icon={StickyNote} title={q ? "Nothing matches" : "No notes yet"} body="Ideas, research, account details you need to remember — anything." />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[...items].sort((a, b) => Number(b.pinned) - Number(a.pinned)).map((i) => (
-            <NoteCard key={i.id} item={i} />
-          ))}
+        <div className="flex flex-col gap-5">
+          {pinned.length > 0 && (
+            <section aria-label="Pinned notes">
+              <h2 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-ink-3"><Pin className="h-3.5 w-3.5" aria-hidden />Pinned</h2>
+              <NoteGrid items={pinned} onOpen={go} />
+            </section>
+          )}
+          {rest.length > 0 && (
+            <section aria-label="Notes">
+              {pinned.length > 0 && <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-ink-3">Others</h2>}
+              <NoteGrid items={rest} onOpen={go} />
+            </section>
+          )}
         </div>
       )}
     </>
+  );
+}
+
+/** Notes as cards in columns (tall notes don't leave gaps). */
+function NoteGrid({ items, onOpen }: { items: LifeItem[]; onOpen: (id: string) => void }) {
+  const { ds } = useFinance();
+  return (
+    <div className="columns-1 gap-3 sm:columns-2 lg:columns-3 xl:columns-4">
+      {items.map((i) => {
+        const goal = i.goal_id ? ds.goals.find((g) => g.id === i.goal_id) : null;
+        const edited = (i.updated_at ?? i.created_at ?? "").slice(0, 10);
+        return (
+          <button
+            key={i.id}
+            type="button"
+            onClick={() => onOpen(i.id)}
+            className={cn("lift group mb-3 flex w-full break-inside-avoid flex-col rounded-2xl border bg-surface p-4 text-left transition-colors hover:border-line-strong hover:shadow-panel", i.status === "archived" ? "border-dashed border-line opacity-70" : "border-line")}
+          >
+            <span className="flex items-start justify-between gap-2">
+              <span className="text-[15.5px] font-semibold leading-snug">{i.title}</span>
+              <PenLine className="h-4 w-4 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+            </span>
+            {i.body && <span className="mt-1.5 line-clamp-[8] whitespace-pre-line text-[13.5px] leading-relaxed text-ink-2">{i.body}</span>}
+            <span className="mt-3 flex flex-wrap items-center gap-1.5 text-[11.5px]">
+              {goal && <span className="rounded-full bg-brand-soft px-2 py-0.5 font-medium text-brand-strong">{goal.name}</span>}
+              {i.tags.map((t) => (
+                <span key={t} className="rounded-full bg-surface-3 px-2 py-0.5 text-ink-2">#{t}</span>
+              ))}
+              {i.data?.url && <ExternalLink className="h-3 w-3 text-ink-3" aria-label="Has a link" />}
+              {i.status === "archived" && <span className="text-ink-3">Archived</span>}
+              {edited && <span className="ml-auto text-ink-3">{formatDate(edited, "short")}</span>}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -108,6 +179,7 @@ export function RemindersScreen({ embedded }: { embedded?: boolean } = {}) {
           rows={sorted}
           rowKey={(i) => i.id}
           rowClassName={(i) => (i.status !== "open" ? "text-ink-3" : undefined)}
+          rowAction={(i) => <EditButton item={i} />}
           columns={[
             {
               key: "w",
@@ -146,7 +218,7 @@ export function RemindersScreen({ embedded }: { embedded?: boolean } = {}) {
                   <Button size="sm" variant="primary" onClick={() => (i.status !== "open" ? act.reopen(i) : act.complete(i))}>
                     {i.status !== "open" ? "Not done" : "Done"}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => useUI.getState().openLife("reminder", i.id)}>
+                  <Button size="sm" variant="ghost" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => useUI.getState().openLife("reminder", i.id)}>
                     Edit
                   </Button>
                 </>
@@ -237,6 +309,12 @@ export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
   const [showDone, setShowDone] = useState(false);
   const items = useItems(["wishlist"], showDone, q);
   const m = (n: number) => formatMoney(n, ctx);
+  const patch = useStore((s) => s.patch);
+  const markBought = async (i: LifeItem) => {
+    const bought = i.status === "open";
+    await patch("life_items", i.id, bought ? { status: "done", completed_at: new Date().toISOString() } : { status: "open", completed_at: null });
+    toast.success(bought ? `Marked “${i.title}” as bought — see it under Show bought` : `“${i.title}” is back on your wishlist`);
+  };
   return (
     <>
       {!embedded && <V2PageHeader title="Wishlist" />}
@@ -249,6 +327,7 @@ export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
           rows={items}
           rowKey={(i) => i.id}
           rowClassName={(i) => (i.status !== "open" ? "text-ink-3" : undefined)}
+          rowAction={(i) => <EditButton item={i} />}
           columns={[
             {
               key: "i",
@@ -275,7 +354,10 @@ export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
                         Open link <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => useUI.getState().openLife("wishlist", i.id)}>
+                    <Button size="sm" variant="primary" icon={<Check className="h-3.5 w-3.5" />} onClick={() => void markBought(i)}>
+                      {i.status === "open" ? "Bought it" : "Back on the wishlist"}
+                    </Button>
+                    <Button size="sm" variant="ghost" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => useUI.getState().openLife("wishlist", i.id)}>
                       Edit
                     </Button>
                   </>
