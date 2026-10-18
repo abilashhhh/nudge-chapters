@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Copy, KeyRound, MessageSquareText, RefreshCw, Smartphone, Trash2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ClipboardPaste, Copy, KeyRound, MessageSquareText, RefreshCw, Smartphone, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,12 +13,13 @@ import { getSupabase } from "@/lib/data/supabase";
 import { INGEST_API_KEY, INGEST_URL, smsAvailable, useSms } from "@/lib/sms/inbox";
 import { appBalance, pairSms, proposeFromSms, type SmsProposal, type SmsRow } from "@/lib/sms/match";
 import { parseSms } from "@/lib/sms/parse";
+import { looksLikeMoney, splitMessages } from "@/lib/sms/paste";
 import { useStore } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
 import { useUI } from "@/lib/ui";
 import { Money } from "../money";
 import { Button } from "../ui/button";
-import { Switch } from "../ui/form";
+import { DateInput, Field, Input, Switch, Textarea } from "../ui/form";
 import { Sheet } from "../ui/sheet";
 import { V2PageHeader } from "./ui";
 
@@ -427,6 +428,7 @@ export function SmsScreen() {
   const { rows, key, loaded, refresh } = useSms();
   const [newKey, setNewKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pasting, setPasting] = useState(false);
   const [platform, setPlatform] = useState<"ios" | "android">(() => (typeof navigator !== "undefined" && /android/i.test(navigator.userAgent) ? "android" : "ios"));
   const updatePrefs = useStore((s) => s.updatePrefs);
   const prefs = ds.profile.preferences?.sms ?? {};
@@ -517,11 +519,15 @@ export function SmsScreen() {
                   Review {toReview}
                 </Button>
               )}
+              <Button size="sm" icon={<ClipboardPaste className="h-3.5 w-3.5" />} onClick={() => setPasting(true)}>
+                Paste
+              </Button>
               <Button size="sm" variant="ghost" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void refresh()}>
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
             </div>
           </div>
+          <PasteSheet open={pasting} onClose={() => setPasting(false)} />
           {loaded && rows.length > 0 && (
             <div className="no-scrollbar flex gap-1 overflow-x-auto px-4 pb-3 sm:px-5" role="radiogroup" aria-label="Show">
               {([[null, "All"], ["new", "Waiting"], ["added", "Added"], ["ignored", "Ignored"]] as [SmsRow["status"] | null, string][]).map(([id, label]) => (
@@ -716,5 +722,109 @@ export function SmsScreen() {
         </details>
       </div>
     </>
+  );
+}
+
+/**
+ * Paste messages the phone didn't send (copied from the Messages app). Each one goes into the inbox with the same
+ * rules as the phone's — OTPs and non-money texts are skipped, and a message already there isn't added twice — and is
+ * then matched and added like any other.
+ */
+function PasteSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { today, ctx } = useFinance();
+  const [text, setText] = useState("");
+  const [sender, setSender] = useState("");
+  const [date, setDate] = useState(today);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setText("");
+      setDate(today);
+    }
+  }, [open, today]);
+  const msgs = useMemo(() => splitMessages(text).map((body) => ({ body, ok: looksLikeMoney(body), p: parseSms(body, sender || null, today) })), [text, sender, today]);
+  const good = msgs.filter((m) => m.ok);
+
+  async function add() {
+    if (!good.length) return;
+    setBusy(true);
+    const tally: Record<string, number> = {};
+    try {
+      const sb = getSupabase();
+      for (const m of good) {
+        // The message's own date when it has one, else the date picked here (midday, India time).
+        const on = m.p.date ?? date;
+        const { data, error } = await sb.rpc("add_sms", { body: m.body, sender: sender.trim() || null, received_at: `${on}T12:00:00+05:30` });
+        const k = error ? "error" : String(data);
+        tally[k] = (tally[k] ?? 0) + 1;
+      }
+      await useSms.getState().refresh();
+      const added = tally.ok ?? 0;
+      const parts = [added ? `${added} added to the inbox` : null, tally.duplicate ? `${tally.duplicate} already there` : null, tally.skipped ? `${tally.skipped} not about money` : null, tally.error || tally.limit ? `${(tally.error ?? 0) + (tally.limit ?? 0)} couldn't be saved` : null].filter(Boolean);
+      (added ? toast.success : toast.message)(parts.join(" · ") || "Nothing added.");
+      if (added) onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Paste bank messages"
+      description="For messages your phone didn't send. Copy them from the Messages app and paste them here — several at once is fine (leave a blank line between them)."
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" loading={busy} disabled={!good.length} onClick={add}>
+            {good.length ? `Add ${good.length} message${good.length === 1 ? "" : "s"}` : "Add"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Messages">
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={8}
+            autoFocus
+            placeholder={"Rs.649.00 spent on HDFC Bank Card x3996 at NETFLIX on 18-10-26\n\nRs.5000 credited to A/c XX6080 on 18-10-26. Avl Bal Rs.12,340"}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="From" optional help="The sender, e.g. HDFCBK.">
+            <Input value={sender} onChange={(e) => setSender(e.target.value)} maxLength={60} placeholder="e.g. HDFCBK" />
+          </Field>
+          <Field label="Received on" help="Used when the message has no date of its own.">
+            <DateInput value={date} max={today} onChange={(e) => setDate(e.target.value || today)} />
+          </Field>
+        </div>
+        {msgs.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {msgs.map((m, i) => (
+              <li key={i} className={cn("rounded-xl border p-3 text-[13px]", m.ok ? "border-line bg-surface-2/60" : "border-dashed border-line-strong text-ink-3")}>
+                <p className="mb-1 flex flex-wrap items-center gap-1.5">
+                  {m.ok ? (
+                    <>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[11.5px] font-semibold", m.p.direction === "credit" ? "bg-ok/15 text-ok" : "bg-surface-3 text-ink-2")}>
+                        {m.p.direction === "credit" ? "Money in" : m.p.direction === "debit" ? "Money out" : "Payment"}
+                      </span>
+                      {m.p.amount != null && <span className="num font-semibold text-ink">{formatMoney(m.p.amount, ctx, { decimals: true })}</span>}
+                      {m.p.last4 && <span className="text-ink-3">· {m.p.instrument === "card" ? "card" : "a/c"} ••{m.p.last4}</span>}
+                      {m.p.date && <span className="text-ink-3">· {formatDate(m.p.date, "short")}</span>}
+                    </>
+                  ) : (
+                    <span className="text-[11.5px] font-semibold">Will be skipped — not about money (or an OTP)</span>
+                  )}
+                </p>
+                <p className="line-clamp-3 text-ink-2">{m.body}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Sheet>
   );
 }
