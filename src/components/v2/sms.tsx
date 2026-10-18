@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/dates";
 import { cashDeltas } from "@/lib/engine/ledger";
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
+import { getSupabase } from "@/lib/data/supabase";
 import { INGEST_API_KEY, INGEST_URL, smsAvailable, useSms } from "@/lib/sms/inbox";
 import { appBalance, pairSms, proposeFromSms, type SmsProposal, type SmsRow } from "@/lib/sms/match";
 import { parseSms } from "@/lib/sms/parse";
@@ -85,20 +86,35 @@ export function SmsSync() {
   const prefs = f.ds.profile.preferences?.sms;
   const busy = useRef(false);
   const tried = useRef(new Set<string>());
+  // Bumped when a batch finishes, so messages that arrived during it are picked up straight away.
+  const [pass, setPass] = useState(0);
 
   useEffect(() => {
     if (!smsAvailable()) return;
     void refresh();
-    const onVis = () => {
+    const now = () => {
       if (document.visibilityState === "visible") void refresh();
     };
-    document.addEventListener("visibilitychange", onVis);
-    const t = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, 60_000);
+    document.addEventListener("visibilitychange", now);
+    window.addEventListener("focus", now);
+    window.addEventListener("online", now);
+    window.addEventListener("pageshow", now);
+    // New messages arrive live (Supabase Realtime) within a second or two of the phone sending them.
+    // The timer is only a safety net for when the live connection drops (sleep, network change).
+    const live = getSupabase()
+      .channel("sms-inbox")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "sms_inbox" }, () => void refresh())
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void refresh();
+      });
+    const t = window.setInterval(now, 20_000);
     return () => {
-      document.removeEventListener("visibilitychange", onVis);
+      document.removeEventListener("visibilitychange", now);
+      window.removeEventListener("focus", now);
+      window.removeEventListener("online", now);
+      window.removeEventListener("pageshow", now);
       window.clearInterval(t);
+      void getSupabase().removeChannel(live);
     };
   }, [refresh]);
 
@@ -134,10 +150,11 @@ export function SmsSync() {
         /* the store shows the error; the message stays in the inbox */
       } finally {
         busy.current = false;
+        setPass((n) => n + 1);
       }
       if (added) toast.success(`${added} payment${added === 1 ? "" : "s"} added from bank SMS`);
     })();
-  }, [items, prefs?.autoAdd, prefs?.matchBalance]);
+  }, [items, prefs?.autoAdd, prefs?.matchBalance, pass]);
 
   return <SmsInboxSheet />;
 }
