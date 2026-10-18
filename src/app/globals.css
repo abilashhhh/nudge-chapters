@@ -281,6 +281,23 @@ body {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }
 
+/* Credit cards drawn as cards: tilt towards the pointer, a slow sheen passes over them. */
+.credit-card {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 220ms ease, box-shadow 220ms ease;
+  will-change: transform;
+}
+.credit-card:hover { box-shadow: 0 22px 40px -14px rgba(0, 0, 0, 0.6); }
+.credit-card-sheen {
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.22) 45%, rgba(255, 255, 255, 0.05) 55%, transparent 70%);
+  background-size: 250% 100%;
+  animation: card-sheen 5.5s ease-in-out infinite;
+}
+@keyframes card-sheen {
+  0%, 55% { background-position: 130% 0; }
+  100% { background-position: -130% 0; }
+}
+
 /* Bars pinned to the bottom follow the visible screen edge when iOS Safari leaves a stale gap (see ViewportFix). */
 .vv-pin {
   translate: 0 var(--vv-gap, 0px);

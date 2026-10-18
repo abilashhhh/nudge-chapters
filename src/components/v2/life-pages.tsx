@@ -14,6 +14,7 @@ import type { LifeItem, LifeKind } from "@/lib/types";
 import { useUI } from "@/lib/ui";
 import { ChecklistCard, EditButton, TaskRow, useLifeActions } from "../life";
 import { NoteEditor } from "./note-editor";
+import { PhotoStrip, Thumb } from "../attachments";
 import { Button } from "../ui/button";
 import { Input } from "../ui/form";
 import { EmptyState } from "../ui/misc";
@@ -122,34 +123,49 @@ export function NotesScreen({ embedded }: { embedded?: boolean } = {}) {
   );
 }
 
-/** Notes as cards in columns (tall notes don't leave gaps). */
+/** Notes as equal-size cards: long text is cut off with a fade, a photo shows as a strip at the top. */
 function NoteGrid({ items, onOpen }: { items: LifeItem[]; onOpen: (id: string) => void }) {
   const { ds } = useFinance();
   return (
-    <div className="columns-1 gap-3 sm:columns-2 lg:columns-3 xl:columns-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {items.map((i) => {
         const goal = i.goal_id ? ds.goals.find((g) => g.id === i.goal_id) : null;
         const edited = (i.updated_at ?? i.created_at ?? "").slice(0, 10);
+        const photos = i.data?.images ?? [];
         return (
           <button
             key={i.id}
             type="button"
             onClick={() => onOpen(i.id)}
-            className={cn("lift group mb-3 flex w-full break-inside-avoid flex-col rounded-2xl border bg-surface p-4 text-left transition-colors hover:border-line-strong hover:shadow-panel", i.status === "archived" ? "border-dashed border-line opacity-70" : "border-line")}
+            className={cn("lift group flex h-60 w-full flex-col overflow-hidden rounded-2xl border bg-surface text-left transition-colors hover:border-line-strong hover:shadow-panel", i.status === "archived" ? "border-dashed border-line opacity-70" : "border-line")}
           >
-            <span className="flex items-start justify-between gap-2">
-              <span className="text-[15.5px] font-semibold leading-snug">{i.title}</span>
-              <PenLine className="h-4 w-4 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
-            </span>
-            {i.body && <span className="mt-1.5 line-clamp-[8] whitespace-pre-line text-[13.5px] leading-relaxed text-ink-2">{i.body}</span>}
-            <span className="mt-3 flex flex-wrap items-center gap-1.5 text-[11.5px]">
-              {goal && <span className="rounded-full bg-brand-soft px-2 py-0.5 font-medium text-brand-strong">{goal.name}</span>}
-              {i.tags.map((t) => (
-                <span key={t} className="rounded-full bg-surface-3 px-2 py-0.5 text-ink-2">#{t}</span>
-              ))}
-              {i.data?.url && <ExternalLink className="h-3 w-3 text-ink-3" aria-label="Has a link" />}
-              {i.status === "archived" && <span className="text-ink-3">Archived</span>}
-              {edited && <span className="ml-auto text-ink-3">{formatDate(edited, "short")}</span>}
+            {photos.length > 0 && (
+              <span className="relative block h-20 w-full shrink-0">
+                <Thumb refId={photos[0]} className="h-full w-full" />
+                {photos.length > 1 && <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">+{photos.length - 1}</span>}
+              </span>
+            )}
+            <span className="flex min-h-0 flex-1 flex-col p-4">
+              <span className="flex items-start justify-between gap-2">
+                <span className="line-clamp-2 text-[15.5px] font-semibold leading-snug">{i.title}</span>
+                <PenLine className="h-4 w-4 shrink-0 text-ink-3 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+              </span>
+              {i.body && (
+                <span className="relative mt-1.5 min-h-0 flex-1 overflow-hidden">
+                  <span className="block whitespace-pre-line text-[13.5px] leading-relaxed text-ink-2">{i.body}</span>
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface to-transparent" aria-hidden />
+                </span>
+              )}
+              <span className="mt-auto flex shrink-0 flex-wrap items-center gap-1.5 pt-2 text-[11.5px]">
+                {goal && <span className="max-w-[45%] truncate rounded-full bg-brand-soft px-2 py-0.5 font-medium text-brand-strong">{goal.name}</span>}
+                {i.tags.slice(0, 2).map((t) => (
+                  <span key={t} className="max-w-[35%] truncate rounded-full bg-surface-3 px-2 py-0.5 text-ink-2">#{t}</span>
+                ))}
+                {i.tags.length > 2 && <span className="text-ink-3">+{i.tags.length - 2}</span>}
+                {i.data?.url && <ExternalLink className="h-3 w-3 text-ink-3" aria-label="Has a link" />}
+                {i.status === "archived" && <span className="text-ink-3">Archived</span>}
+                {edited && <span className="ml-auto text-ink-3">{formatDate(edited, "short")}</span>}
+              </span>
             </span>
           </button>
         );
@@ -213,6 +229,7 @@ export function RemindersScreen({ embedded }: { embedded?: boolean } = {}) {
                 ["Repeats", REPEAT[i.repeat]],
                 ...(i.body ? ([["Note", i.body]] as [string, string][]) : []),
               ]}
+              children={i.data?.images?.length ? <PhotoStrip images={i.data.images} className="mt-2" size="h-20 w-20" /> : undefined}
               actions={
                 <>
                   <Button size="sm" variant="primary" onClick={() => (i.status !== "open" ? act.reopen(i) : act.complete(i))}>
@@ -368,6 +385,7 @@ export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
                     <li key={r}>• {r}</li>
                   ))}
                 </ul>
+                <PhotoStrip images={i.data?.images} className="mt-2" size="h-20 w-20" />
               </Details>
             );
           }}

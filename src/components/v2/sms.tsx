@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, KeyRound, MessageSquareText, RefreshCw, Smartphone, Trash2, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, KeyRound, MessageSquareText, RefreshCw, Smartphone, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -380,6 +380,47 @@ function SelfNames({ names, onSave }: { names: string[]; onSave: (n: string[]) =
   );
 }
 
+const SMS_PAGE = 20;
+
+/** The Received list, a page at a time from the server (the app itself keeps only the latest 200 in memory). */
+function useSmsPage(latest: SmsRow[]) {
+  const [page, setPage] = useState(0);
+  const [filter, setFilterState] = useState<SmsRow["status"] | null>(null);
+  const [list, setList] = useState<SmsRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const setFilter = (f: SmsRow["status"] | null) => {
+    setFilterState(f);
+    setPage(0);
+  };
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    useSms
+      .getState()
+      .page(page * SMS_PAGE, SMS_PAGE, filter)
+      .then((r) => {
+        if (!live) return;
+        setList(r.rows);
+        setTotal(r.total);
+        // Stepped past the end (messages cleared or filtered away): go back to the last page.
+        if (!r.rows.length && page > 0) setPage(Math.max(0, Math.ceil(r.total / SMS_PAGE) - 1));
+      })
+      .catch(() => {
+        if (live) setList(latest.filter((x) => !filter || x.status === filter).slice(page * SMS_PAGE, (page + 1) * SMS_PAGE));
+      })
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+    // `latest` changes when a message arrives or is marked: reload the page so it stays current.
+  }, [page, filter, latest]);
+  // Status changes made in this session show straight away.
+  const byId = new Map(latest.map((r) => [r.id, r]));
+  const merged = list.map((r) => byId.get(r.id) ?? r);
+  return { list: merged, total, page, setPage, filter, setFilter, pages: Math.max(1, Math.ceil(total / SMS_PAGE)), loading };
+}
+
 export function SmsScreen() {
   const { ds, ctx } = useFinance();
   const items = useSmsItems();
@@ -454,7 +495,7 @@ export function SmsScreen() {
     { t: "Let it run in the background", d: <>Android Settings → Apps → SMS to URL Forwarder → Battery → <b>Unrestricted</b>, so it still forwards when the phone is idle.</> },
   ];
 
-  const recent = rows.slice(0, 50);
+  const { list: recent, total, page, setPage, filter, setFilter, pages, loading: pageLoading } = useSmsPage(rows);
   const waiting = new Map(items.map((i) => [i.row.id, i]));
   const toReview = items.filter((i) => i.p.state === "ready" || i.p.state === "check").length;
   const setupOpen = !key || !rows.length;
@@ -481,10 +522,19 @@ export function SmsScreen() {
               </Button>
             </div>
           </div>
-          {!loaded ? (
+          {loaded && rows.length > 0 && (
+            <div className="no-scrollbar flex gap-1 overflow-x-auto px-4 pb-3 sm:px-5" role="radiogroup" aria-label="Show">
+              {([[null, "All"], ["new", "Waiting"], ["added", "Added"], ["ignored", "Ignored"]] as [SmsRow["status"] | null, string][]).map(([id, label]) => (
+                <button key={label} type="button" role="radio" aria-checked={filter === id} onClick={() => setFilter(id)} className={cn("h-8 shrink-0 rounded-full px-3 text-[12.5px] font-medium", filter === id ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {!loaded || (pageLoading && !recent.length) ? (
             <p className="px-4 pb-4 text-[13.5px] text-ink-3 sm:px-5">Loading…</p>
           ) : recent.length === 0 ? (
-            <p className="px-4 pb-4 text-[13.5px] text-ink-2 sm:px-5">Nothing yet. Set up your phone below (iPhone or Android).</p>
+            <p className="px-4 pb-4 text-[13.5px] text-ink-2 sm:px-5">{filter ? "No messages here." : "Nothing yet. Set up your phone below (iPhone or Android)."}</p>
           ) : (
             <ul className="divide-y divide-line border-t border-line">
               {recent.map((r) => {
@@ -524,6 +574,19 @@ export function SmsScreen() {
                 );
               })}
             </ul>
+          )}
+          {pages > 1 && (
+            <nav aria-label="Pages" className="flex items-center justify-between gap-2 border-t border-line px-4 py-2.5 sm:px-5">
+              <Button size="sm" variant="ghost" icon={<ChevronLeft className="h-4 w-4" />} disabled={page === 0 || pageLoading} onClick={() => setPage(page - 1)}>
+                Newer
+              </Button>
+              <span className="num text-[12.5px] text-ink-3">
+                {page * SMS_PAGE + 1}–{Math.min(total, (page + 1) * SMS_PAGE)} of {total} · page {page + 1} of {pages}
+              </span>
+              <Button size="sm" variant="ghost" disabled={page >= pages - 1 || pageLoading} onClick={() => setPage(page + 1)}>
+                Older <ChevronRight className="h-4 w-4" />
+              </Button>
+            </nav>
           )}
         </section>
 

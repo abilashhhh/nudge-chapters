@@ -1,6 +1,8 @@
 "use client";
 
-import { Archive, ArchiveRestore, ArrowLeft, Check, ExternalLink, Link2, Loader2, Pin, PinOff, Tag, Target, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Check, ExternalLink, ImagePlus, Link2, Loader2, Pin, PinOff, Tag, Target, Trash2, X } from "lucide-react";
+import { deleteImages, MAX_IMAGES } from "@/lib/attachments";
+import { ImageAttachments, uploadMany } from "../attachments";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
@@ -10,10 +12,10 @@ import { useStore } from "@/lib/store";
 import type { LifeItem } from "@/lib/types";
 import { ConfirmSheet } from "../ui/sheet";
 
-type Draft = Pick<LifeItem, "title" | "body" | "tags" | "pinned" | "goal_id"> & { url: string };
+type Draft = Pick<LifeItem, "title" | "body" | "tags" | "pinned" | "goal_id"> & { url: string; images: string[] };
 
-const EMPTY: Draft = { title: "", body: "", tags: [], pinned: false, goal_id: null, url: "" };
-const fromItem = (i: LifeItem): Draft => ({ title: i.title === "Untitled note" ? "" : i.title, body: i.body ?? "", tags: i.tags, pinned: i.pinned, goal_id: i.goal_id ?? null, url: i.data?.url ?? "" });
+const EMPTY: Draft = { title: "", body: "", tags: [], pinned: false, goal_id: null, url: "", images: [] };
+const fromItem = (i: LifeItem): Draft => ({ title: i.title === "Untitled note" ? "" : i.title, body: i.body ?? "", tags: i.tags, pinned: i.pinned, goal_id: i.goal_id ?? null, url: i.data?.url ?? "", images: i.data?.images ?? [] });
 
 /**
  * A note, full width, like a page: a big title, the text below it, and everything else in one quiet row.
@@ -29,6 +31,18 @@ export function NoteEditor({ id, onClose, onCreated }: { id: string | null; onCl
   const [state, setState] = useState<"saved" | "dirty" | "saving" | "error">("saved");
   const [tagText, setTagText] = useState("");
   const [showLink, setShowLink] = useState(!!draft.url);
+  const picker = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const addPhotos = async (files: File[]) => {
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const refs = await uploadMany(files, MAX_IMAGES - latest.current.images.length);
+      if (refs.length) change({ images: [...latest.current.images, ...refs] });
+    } finally {
+      setUploading(false);
+    }
+  };
   const [confirmDelete, setConfirmDelete] = useState(false);
   const savedId = useRef<string | null>(existing?.id ?? null);
   const latest = useRef(draft);
@@ -37,7 +51,7 @@ export function NoteEditor({ id, onClose, onCreated }: { id: string | null; onCl
   const saving = useRef<Promise<void> | null>(null);
   const body = useRef<HTMLTextAreaElement>(null);
 
-  const isEmpty = (d: Draft) => !d.title.trim() && !d.body?.trim();
+  const isEmpty = (d: Draft) => !d.title.trim() && !d.body?.trim() && !d.images.length;
 
   const save = useCallback(async () => {
     if (timer.current) window.clearTimeout(timer.current);
@@ -61,9 +75,9 @@ export function NoteEditor({ id, onClose, onCreated }: { id: string | null; onCl
     const run = (async () => {
       if (savedId.current) {
         const cur = useStore.getState().ds?.life_items.find((i) => i.id === savedId.current);
-        await patch("life_items", savedId.current, { ...fields, data: { ...cur?.data, url: d.url || null } });
+        await patch("life_items", savedId.current, { ...fields, data: { ...cur?.data, url: d.url || null, images: d.images } });
       } else {
-        const row = await add("life_items", { kind: "note", status: "open", repeat: "none", priority: 2, source: "user", data: { url: d.url || null }, ...fields });
+        const row = await add("life_items", { kind: "note", status: "open", repeat: "none", priority: 2, source: "user", data: { url: d.url || null, images: d.images }, ...fields });
         savedId.current = row.id;
         onCreated(row.id);
       }
@@ -240,6 +254,23 @@ export function NoteEditor({ id, onClose, onCreated }: { id: string | null; onCl
               className="w-20 bg-transparent text-ink outline-none placeholder:text-ink-3"
             />
           </label>
+          {draft.images.length === 0 && (
+            <button type="button" onClick={() => picker.current?.click()} disabled={uploading} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-line-strong px-2.5 text-ink-3 hover:text-ink disabled:opacity-60">
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <ImagePlus className="h-3.5 w-3.5" aria-hidden />} {uploading ? "Adding…" : "Add photo"}
+            </button>
+          )}
+          <input
+            ref={picker}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])];
+              e.target.value = "";
+              void addPhotos(files);
+            }}
+          />
           {showLink ? (
             <label className="inline-flex h-8 min-w-0 flex-1 basis-56 items-center gap-1.5 rounded-full border border-line bg-surface-2 px-2.5 text-ink-2 focus-within:border-future">
               <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -257,21 +288,40 @@ export function NoteEditor({ id, onClose, onCreated }: { id: string | null; onCl
           )}
         </div>
 
+        {draft.images.length > 0 && (
+          <ImageAttachments
+            className="mt-4"
+            label=""
+            images={draft.images}
+            onChange={(next) => {
+              const removed = draft.images.filter((r) => !next.includes(r));
+              change({ images: next });
+              if (removed.length) void save().then(() => deleteImages(removed));
+            }}
+          />
+        )}
+
         <textarea
+          onPaste={(e) => {
+            const files = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+            if (!files.length) return;
+            e.preventDefault();
+            void addPhotos(files);
+          }}
           ref={body}
           value={draft.body ?? ""}
           onChange={(e) => change({ body: e.target.value })}
           autoFocus={!!existing}
           placeholder="Start writing…"
           aria-label="Note"
-          className="no-focus-ring mt-5 w-full flex-1 resize-none bg-transparent text-[16px] leading-[1.75] text-ink outline-none placeholder:text-ink-3/60"
+          className="no-focus-ring mt-5 min-h-[320px] w-full shrink-0 resize-none overflow-hidden bg-transparent text-[16px] leading-[1.75] text-ink outline-none placeholder:text-ink-3/60"
         />
 
         <p className="mt-4 border-t border-line pt-3 text-[12px] text-ink-3">
           {words} word{words === 1 ? "" : "s"}
           {current?.created_at ? ` · Added ${formatDate(current.created_at.slice(0, 10))}` : ""}
           {current?.updated_at && current.updated_at !== current.created_at ? ` · Edited ${formatDate(current.updated_at.slice(0, 10))}` : ""}
-          <span className="hidden sm:inline"> · Saves as you type · Ctrl/⌘ S saves now · Esc goes back</span>
+          <span className="hidden sm:inline"> · Saves as you type · Paste a picture to attach it · Ctrl/⌘ S saves now · Esc goes back</span>
         </p>
       </div>
 
@@ -286,6 +336,7 @@ export function NoteEditor({ id, onClose, onCreated }: { id: string | null; onCl
           if (timer.current) window.clearTimeout(timer.current);
           timer.current = null;
           if (savedId.current) await remove("life_items", savedId.current);
+          void deleteImages(latest.current.images);
           toast.success("Note deleted");
           onClose();
         }}

@@ -3,7 +3,7 @@
 import { Bell, CheckSquare, ExternalLink, Pencil, Pin, Plus, Repeat as RepeatIcon, Square, StickyNote, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { formatDate, relativeDays } from "@/lib/dates";
@@ -15,6 +15,8 @@ import type { ChecklistEntry, LifeItem, LifeKind, Repeat } from "@/lib/types";
 import { enableAlarmPush } from "@/lib/push";
 import { useUI } from "@/lib/ui";
 import { celebrate } from "@/lib/celebrate";
+import { deleteImages } from "@/lib/attachments";
+import { ImageAttachments, PhotoStrip, Thumb } from "./attachments";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Input, Select, Switch, Textarea } from "./ui/form";
 import { Badge, Progress } from "./ui/misc";
@@ -112,6 +114,7 @@ export function TaskRow({ item }: { item: LifeItem }) {
           <ChapterChip goalId={item.goal_id} />
         </span>
       </button>
+      {(item.data?.images?.length ?? 0) > 0 && <Thumb refId={item.data!.images![0]} className="h-10 w-10 shrink-0 rounded-lg" alt="" />}
       <EditButton item={item} />
     </div>
   );
@@ -164,6 +167,7 @@ export function ChecklistCard({ item }: { item: LifeItem }) {
         </span>
       </div>
       <Progress className="mt-2" value={p.total ? p.done / p.total : 0} label={`${item.title} progress`} />
+      <PhotoStrip images={item.data?.images} className="mt-2" />
       <ul className="mt-2">
         {(item.data?.items ?? []).map((e) => (
           <li key={e.id}>
@@ -291,8 +295,15 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
   const add = useStore((s) => s.add);
   const patch = useStore((s) => s.patch);
   const remove = useStore((s) => s.remove);
-  const close = () => useUI.getState().closeLife();
   const existing = id ? ds.life_items.find((i) => i.id === id) : undefined;
+  const savedImages = existing?.data?.images ?? [];
+  const saved = useRef(false);
+  const latestImages = useRef<string[]>(savedImages);
+  // Leaving without saving: photos uploaded in this editor that the item never got are removed again.
+  const close = () => {
+    if (!saved.current) void deleteImages(latestImages.current.filter((r) => !savedImages.includes(r)));
+    useUI.getState().closeLife();
+  };
   const base: LifeItem = existing ?? {
     id: "",
     kind,
@@ -316,6 +327,7 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
   const set = (p: Partial<LifeItem>) => setV((x) => ({ ...x, ...p }));
   const setData = (p: Partial<LifeItem["data"]>) => setV((x) => ({ ...x, data: { ...x.data, ...p } }));
   const entries = v.data?.items ?? [];
+  latestImages.current = v.data?.images ?? [];
   const setEntries = (items: ChecklistEntry[]) => setData({ items });
   const addEntry = () => {
     const t = newEntry.trim();
@@ -350,6 +362,9 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
       if (body.due_time && existing && (existing.due_time !== body.due_time || existing.due_date !== body.due_date)) body.data = { ...body.data, alarm_ack: null };
       if (existing) await patch("life_items", existing.id, body);
       else await add("life_items", body);
+      saved.current = true;
+      // Photos taken off the item are deleted from storage once the change is saved.
+      void deleteImages(savedImages.filter((r) => !(body.data?.images ?? []).includes(r)));
       toast.success(existing ? "Saved" : `${KIND_LABEL[kind]} added`);
       close();
     } catch {
@@ -430,6 +445,8 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
               <Input id="li-url" inputMode="url" value={v.data?.url ?? ""} onChange={(e) => setData({ url: e.target.value || null })} placeholder="https://…" />
             </Field>
           )}
+
+          {kind !== "note" && <ImageAttachments images={v.data?.images ?? []} onChange={(images) => setData({ images })} />}
 
           {(kind === "checklist" || kind === "task") && (
             <div>
@@ -535,6 +552,8 @@ function LifeEditor({ kind, id, preset }: { kind: LifeKind; id?: string; preset?
         onConfirm={async () => {
           if (!existing) return;
           await remove("life_items", existing.id);
+          saved.current = true;
+          void deleteImages([...savedImages, ...latestImages.current]);
           toast.success("Deleted");
           close();
         }}

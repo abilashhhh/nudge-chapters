@@ -28,6 +28,8 @@ interface SmsState {
   createKey(): Promise<string>;
   removeKey(): Promise<void>;
   openSheet(open: boolean): void;
+  /** One page of the inbox, newest first, with the total count (for pagination). */
+  page(from: number, size: number, status?: SmsRow["status"] | null): Promise<{ rows: SmsRow[]; total: number }>;
 }
 
 export const useSms = create<SmsState>((set, get) => ({
@@ -70,5 +72,12 @@ export const useSms = create<SmsState>((set, get) => ({
   },
   openSheet(open) {
     set({ sheet: open });
+  },
+  async page(from, size, status) {
+    let q = getSupabase().from("sms_inbox").select("id,sender,body,received_at,status,transaction_id", { count: "exact" }).order("received_at", { ascending: false });
+    if (status) q = q.eq("status", status);
+    const { data, count, error } = await q.range(from, from + size - 1);
+    if (error) throw new Error(error.message);
+    return { rows: (data as SmsRow[] | null) ?? [], total: count ?? 0 };
   },
 }));

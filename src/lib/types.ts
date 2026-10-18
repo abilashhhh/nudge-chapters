@@ -491,6 +491,8 @@ export interface LifeItemData {
   estimated_cost?: number | null;
   /** "YYYY-MM-DD HH:MM" of the alarm you last turned off, so it doesn't ring again. */
   alarm_ack?: string | null;
+  /** Photos you attached: "sb:<path>" in your private storage, or a data URL when using the app without an account. */
+  images?: string[];
 }
 
 export interface LifeItem extends Owned {
