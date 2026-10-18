@@ -85,6 +85,17 @@ export function useTrainingActions() {
       s.saved = true;
       return;
     }
+    // One daily challenge a day (the database allows just one). Trying again continues today's if you left it
+    // unfinished; once it's finished, a retry is saved as ordinary practice — playable, but the daily bonus counts once.
+    if (s.mode === "daily") {
+      const today_ = store().ds?.training_sessions.find((x) => x.mode === "daily" && x.day === today);
+      if (today_ && !today_.finished_at) {
+        s.id = today_.id;
+        s.saved = true;
+        return;
+      }
+      if (today_) s.mode = "quiz";
+    }
     await guarded(() => store().add("training_sessions", { id: s.id, mode: s.mode, lesson_id: s.lessonId ?? null, day: today, started_at: s.startedAt, bonus_xp: 0 } as Partial<TrainingSession>));
     s.saved = true;
   }
