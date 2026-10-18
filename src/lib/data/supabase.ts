@@ -28,3 +28,20 @@ export function getSupabase(): SupabaseClient {
   }
   return client;
 }
+
+let adminClient: SupabaseClient | null = null;
+
+/**
+ * The admin site's own connection (/admin). It keeps its sign-in under a separate key, so signing in as the admin
+ * never signs you out of (or into) the app on the same browser.
+ */
+export function getAdminSupabase(): SupabaseClient {
+  if (!supabaseConfigured) throw new Error("Supabase is not configured.");
+  if (!adminClient) {
+    adminClient = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "nudge-admin-auth" },
+      global: { fetch: fetchWithTimeout },
+    });
+  }
+  return adminClient;
+}

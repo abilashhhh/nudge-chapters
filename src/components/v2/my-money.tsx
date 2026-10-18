@@ -68,7 +68,9 @@ function Accounts() {
   const [history, setHistory] = useState<Account | null>(null);
   const ui = useUI.getState();
   const router = useRouter();
-  const list = ds.accounts.filter((a) => showClosed || !a.archived);
+  // Biggest balance first; closed accounts at the end.
+  const bal = (id: string) => positions.accounts.get(id)?.balanceBase ?? 0;
+  const list = ds.accounts.filter((a) => showClosed || !a.archived).sort((a, b) => Number(a.archived) - Number(b.archived) || bal(b.id) - bal(a.id));
   const total = list.filter((a) => !a.archived && a.include_in_cash).reduce((s, a) => s + (positions.accounts.get(a.id)?.balanceBase ?? 0), 0);
   if (!ds.accounts.length) {
     return (

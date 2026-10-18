@@ -1,24 +1,22 @@
 "use client";
 
-import { Activity, ArrowLeft, Lightbulb, ShieldAlert, Users, Wallet } from "lucide-react";
+import { Activity, ArrowLeft, KeyRound, Lightbulb, LogOut, ShieldCheck, Users, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { formatDate, formatMonth } from "@/lib/dates";
-import { STATUS_LABEL, adminUserDetail, adminUsers, updateFeedback, useFeedback, useIsAdmin, type AdminUser, type AdminUserDetail, type Feedback, type FeedbackStatus } from "@/lib/feedback";
-import { useFinance } from "@/lib/finance";
+import { STATUS_LABEL, adminChangePassword, adminFeedback, adminSession, adminSignIn, adminSignOut, adminUpdateFeedback, adminUserDetail, adminUsers, type AdminUser, type AdminUserDetail, type Feedback, type FeedbackStatus } from "@/lib/feedback";
 import { formatMoney } from "@/lib/money";
-import { useStore } from "@/lib/store";
 import { Button } from "../ui/button";
-import { Field, Select, Textarea } from "../ui/form";
+import { Field, Input, Select, Textarea } from "../ui/form";
 import { EmptyState, Tabs } from "../ui/misc";
 import { Sheet } from "../ui/sheet";
 import { EntityIcon } from "./entity-icon";
 import { FEEDBACK_STATUSES, FeedbackCard } from "./feedback";
-import { StatTile, V2PageHeader } from "./ui";
 
 const tick = { fill: "var(--ink-3)", fontSize: 11.5 };
+const ctx = { currency: "INR", locale: "en-IN" };
 const kfmt = (v: number) => (Math.abs(v) >= 1e5 ? `${(v / 1e5).toFixed(1)}L` : Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)));
 const ago = (iso: string | null) => {
   if (!iso) return "—";
@@ -26,33 +24,179 @@ const ago = (iso: string | null) => {
   return d <= 0 ? "Today" : d === 1 ? "Yesterday" : `${d} days ago`;
 };
 
-/** Admin dashboard: everyone who uses the app, their net worth and what they use, and every request and piece of feedback. */
-export function AdminScreen() {
-  const admin = useIsAdmin();
-  const cloud = useStore((s) => s.repo?.kind === "supabase");
+/**
+ * The admin site (/admin): its own sign-in (username and password of the admin account, not your app login) and a
+ * dashboard of everyone who uses the app, their net worth and what they use, and every request and piece of feedback.
+ * The database refuses all of it to anyone but the admin account.
+ */
+export function AdminApp() {
+  const [state, setState] = useState<"checking" | "out" | "in">("checking");
+  useEffect(() => {
+    void adminSession().then((ok) => setState(ok ? "in" : "out"), () => setState("out"));
+  }, []);
+  return (
+    <div className="min-h-dvh bg-paper text-ink">
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-on-brand">
+            <ShieldCheck className="h-5 w-5" aria-hidden />
+          </span>
+          <span className="mr-auto">
+            <span className="block text-[15px] font-semibold leading-tight">Nudge Chapters</span>
+            <span className="block text-[12px] text-ink-3">Admin</span>
+          </span>
+          {state === "in" && <AccountMenu onSignedOut={() => setState("out")} />}
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {state === "checking" && <p className="text-ink-3">Loading…</p>}
+        {state === "out" && <Login onIn={() => setState("in")} />}
+        {state === "in" && <Dashboard />}
+      </main>
+    </div>
+  );
+}
+
+function Login({ onIn }: { onIn: () => void }) {
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="mx-auto mt-10 max-w-sm rounded-2xl border border-line bg-surface p-6 shadow-panel"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError(null);
+        try {
+          await adminSignIn(username, password);
+          setPassword("");
+          onIn();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Couldn't sign in.");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <h1 className="display mb-1 text-[22px] font-semibold">Admin sign-in</h1>
+      <p className="mb-5 text-[13.5px] text-ink-3">For the app's administrator only.</p>
+      <div className="space-y-4">
+        <Field label="Username" htmlFor="adm-user">
+          <Input id="adm-user" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" required />
+        </Field>
+        <Field label="Password" htmlFor="adm-pass" error={error}>
+          <Input id="adm-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required autoFocus />
+        </Field>
+        <Button type="submit" variant="primary" loading={busy} className="w-full">
+          Sign in
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function AccountMenu({ onSignedOut }: { onSignedOut: () => void }) {
+  const [pw, setPw] = useState(false);
+  return (
+    <>
+      <Button size="sm" variant="ghost" icon={<KeyRound className="h-4 w-4" />} onClick={() => setPw(true)}>
+        <span className="hidden sm:inline">Change password</span>
+      </Button>
+      <Button
+        size="sm"
+        icon={<LogOut className="h-4 w-4" />}
+        onClick={async () => {
+          await adminSignOut();
+          onSignedOut();
+        }}
+      >
+        Sign out
+      </Button>
+      <PasswordSheet open={pw} onClose={() => setPw(false)} />
+    </>
+  );
+}
+
+function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [a, setA] = useState("");
+  const [b, setB] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (open) {
+      setA("");
+      setB("");
+      setError(null);
+    }
+  }, [open]);
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title="Change admin password"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            loading={busy}
+            onClick={async () => {
+              if (a.length < 12) return setError("Use at least 12 characters.");
+              if (a !== b) return setError("The two passwords don't match.");
+              setBusy(true);
+              try {
+                await adminChangePassword(a);
+                toast.success("Password changed.");
+                onClose();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Couldn't change it.");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Change
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="New password">
+          <Input type="password" value={a} onChange={(e) => setA(e.target.value)} autoComplete="new-password" />
+        </Field>
+        <Field label="Type it again" error={error}>
+          <Input type="password" value={b} onChange={(e) => setB(e.target.value)} autoComplete="new-password" />
+        </Field>
+      </div>
+    </Sheet>
+  );
+}
+
+function Dashboard() {
   const [tab, setTab] = useState<"users" | "feedback">("users");
-  const [users, setUsers] = useState<AdminUser[] | null>(null);
+  const [all, setAll] = useState<AdminUser[] | null>(null);
+  const [fbList, setFbList] = useState<Feedback[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<AdminUser | null>(null);
-  const fb = useFeedback(true);
   const load = useCallback(async () => {
     try {
-      setUsers(await adminUsers());
+      const [u, f] = await Promise.all([adminUsers(), adminFeedback()]);
+      setAll(u);
+      setFbList(f);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load users.");
+      setError(e instanceof Error ? e.message : "Couldn't load.");
     }
   }, []);
   useEffect(() => {
-    if (admin) void load();
-  }, [admin, load]);
+    void load();
+  }, [load]);
+  const fb = { list: fbList, reload: load };
+  // The admin account itself isn't one of the app's users.
+  const users = all ? all.filter((u) => !u.is_admin) : null;
 
-  if (!cloud || !admin)
-    return (
-      <>
-        <V2PageHeader title="Admin" />
-        <EmptyState icon={ShieldAlert} title="Admins only" body={cloud ? "Your account doesn't have admin access." : "Sign in with an admin account to see this."} />
-      </>
-    );
   if (open) return <UserDetail user={open} feedback={(fb.list ?? []).filter((f) => f.user_id === open.id)} onBack={() => setOpen(null)} reloadFeedback={fb.reload} />;
 
   const week = Date.now() - 7 * 864e5;
@@ -61,11 +205,11 @@ export function AdminScreen() {
   const tracked = (users ?? []).reduce((s, u) => s + (u.net_worth ?? 0), 0);
   return (
     <>
-      <V2PageHeader title="Admin" />
+      <h1 className="display mb-4 text-[26px] font-semibold">Dashboard</h1>
       <div className="mb-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <Mini icon={Users} label="People" value={String(users?.length ?? 0)} note={`${(users ?? []).filter((u) => u.onboarding_done).length} finished setup`} />
         <Mini icon={Activity} label="Active this week" value={String(active7)} />
-        <StatTile label="Net worth tracked" value={tracked} note="Sum of everyone's latest" />
+        <Mini icon={Wallet} label="Net worth tracked" value={formatMoney(tracked, ctx)} note="Sum of everyone's latest" />
         <button type="button" className="text-left" onClick={() => setTab("feedback")}>
           <Mini icon={Lightbulb} label="Open requests" value={String(openFb)} note={`${fb.list?.length ?? 0} in all`} />
         </button>
@@ -87,7 +231,6 @@ export function AdminScreen() {
 }
 
 function UserList({ users, onOpen }: { users: AdminUser[]; onOpen: (u: AdminUser) => void }) {
-  const { ctx } = useFinance();
   const [q, setQ] = useState("");
   const shown = users.filter((u) => !q.trim() || `${u.email} ${u.name ?? ""}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
@@ -125,7 +268,6 @@ function UserList({ users, onOpen }: { users: AdminUser[]; onOpen: (u: AdminUser
 }
 
 function UserDetail({ user, feedback, onBack, reloadFeedback }: { user: AdminUser; feedback: Feedback[]; onBack: () => void; reloadFeedback: () => void }) {
-  const { ctx } = useFinance();
   const [d, setD] = useState<AdminUserDetail | null>(null);
   const [reply, setReply] = useState<Feedback | null>(null);
   useEffect(() => {
@@ -283,6 +425,7 @@ function ReplySheet({ f, onClose, onSaved }: { f: Feedback | null; onClose: () =
     <Sheet
       open={!!f}
       onClose={onClose}
+      size="sm"
       title={f ? `Reply: ${f.title}` : "Reply"}
       footer={
         <div className="flex justify-end gap-2">
@@ -294,7 +437,7 @@ function ReplySheet({ f, onClose, onSaved }: { f: Feedback | null; onClose: () =
               if (!f) return;
               setBusy(true);
               try {
-                await updateFeedback(f.id, { status, admin_reply: text.trim() || null });
+                await adminUpdateFeedback(f.id, { status, admin_reply: text.trim() || null });
                 toast.success("Saved — they'll see it in Menu → Feedback.");
                 onSaved();
                 onClose();
