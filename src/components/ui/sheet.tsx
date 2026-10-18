@@ -3,6 +3,7 @@
 import { ArrowLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { v2Crumbs } from "@/lib/v2/routes";
 import { Button } from "./button";
@@ -20,6 +21,12 @@ function lockScroll() {
 }
 // Open sheets, newest last: Escape and focus trapping belong to the top one only.
 const openStack: symbol[] = [];
+
+const CLOSE_ALL = "nudge:close-sheets";
+/** Closes every open sheet / page (used when you pick another section in the sidebar or bottom bar). */
+export function closeAllSheets() {
+  window.dispatchEvent(new Event(CLOSE_ALL));
+}
 
 function unlockScroll() {
   scrollLocks = Math.max(0, scrollLocks - 1);
@@ -55,6 +62,29 @@ export function Sheet({
   useEffect(() => {
     setMounted(true);
   }, []);
+  // Going to another screen closes it (a sidebar or bottom-bar link, a link inside it, Back past it).
+  const pathname = usePathname();
+  const openedOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      openedOn.current = null;
+      return;
+    }
+    if (openedOn.current == null) openedOn.current = pathname;
+    else if (openedOn.current !== pathname) onCloseRef.current();
+  }, [open, pathname]);
+  // Closed because you picked another section: leave history alone, the link is navigating.
+  const closedByNav = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    closedByNav.current = false;
+    const close = () => {
+      closedByNav.current = true;
+      onCloseRef.current();
+    };
+    window.addEventListener(CLOSE_ALL, close);
+    return () => window.removeEventListener(CLOSE_ALL, close);
+  }, [open]);
   // Latest onClose without re-running the open/close effect (which would steal focus mid-typing).
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -116,7 +146,7 @@ export function Sheet({
     return () => {
       clearTimeout(t);
       window.removeEventListener("popstate", onPop);
-      if (pushed && (window.history.state as { nudgeSheet?: string } | null)?.nudgeSheet === mark) window.history.back();
+      if (pushed && !closedByNav.current && (window.history.state as { nudgeSheet?: string } | null)?.nudgeSheet === mark) window.history.back();
       document.removeEventListener("keydown", onKey);
       unlockScroll();
       openStack.splice(openStack.indexOf(token), 1);
@@ -135,7 +165,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
-        className="animate-fade fixed inset-0 z-50 flex flex-col bg-paper lg:left-60"
+        className="sheet-page animate-fade fixed inset-0 z-50 flex flex-col bg-paper lg:left-60"
       >
         <header className="border-b border-line bg-surface/95 pt-[env(safe-area-inset-top)] backdrop-blur">
           <div className={cn("mx-auto flex w-full items-center gap-3 px-4 py-3 sm:px-6", inner)}>
