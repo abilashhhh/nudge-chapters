@@ -58,18 +58,36 @@ async function addItem({ row, p }: Item, matchBalance: boolean, latestForAccount
   const { add } = useStore.getState();
   if (!p.tx) return;
   const before = p.balance && snapshot ? appBalance(snapshot.positions, p.balance.accountId) : null;
-  const tx = await add("transactions", { ...p.tx, tags: [...(p.tx.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>);
+  const delta = (list: Transaction[]) => list.flatMap((t) => cashDeltas(t)).reduce((sum, [id, d]) => sum + (id === p.balance?.accountId ? d : 0), 0);
+  let change = 0;
+  let tx: Transaction;
+  if (p.replaces) {
+    // This message completes one already recorded (e.g. the wallet's "paid" + this account's "received"): that entry
+    // becomes the transfer between the two, instead of a second entry.
+    const old = p.replaces;
+    const next = { ...old, type: "transfer" as const, to_account_id: p.tx.to_account_id ?? null, description: "Self transfer", category: null, tags: [...(old.tags ?? []), `sms:${row.id}`] };
+    await useStore.getState().patch("transactions", old.id, { type: next.type, to_account_id: next.to_account_id, description: next.description, category: null, tags: next.tags });
+    tx = next as Transaction;
+    change = delta([next as Transaction]) - delta([old]);
+  } else {
+    tx = await add("transactions", { ...p.tx, tags: [...(p.tx.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>);
+  }
   await useSms.getState().mark(row.id, "added", tx.id);
   const more: Transaction[] = [];
   for (const extra of p.also ?? []) more.push(await add("transactions", { ...extra, tags: [...(extra.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>));
+  if (!p.replaces) change = delta([tx, ...more]);
+  else change += delta(more);
   if (matchBalance && latestForAccount && p.balance && before != null) {
-    const after = before + [tx, ...more].flatMap((t) => cashDeltas(t as Transaction)).reduce((s, [id, d]) => s + (id === p.balance!.accountId ? d : 0), 0);
+    const after = before + change;
     const diff = Math.round((p.balance.bank - after) * 100) / 100;
     if (Math.abs(diff) >= 1) {
       await add("transactions", { date: tx.date, type: "adjustment", amount: diff, account_id: p.balance.accountId, description: "Balance matched with bank SMS", is_partial: false, reconciled: true, tags: ["reconcile", "sms"] });
     }
   }
 }
+
+/** How long a new message waits for its partner message before it's added by itself. */
+const SETTLE_MS = 12_000;
 
 // The latest figures, for adding outside a render (kept up to date by SmsSync).
 let snapshot: ReturnType<typeof useFinance> | null = null;
@@ -88,6 +106,10 @@ export function SmsSync() {
   const tried = useRef(new Set<string>());
   // Bumped when a batch finishes, so messages that arrived during it are picked up straight away.
   const [pass, setPass] = useState(0);
+  const settle = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    return () => window.clearTimeout(settle.current);
+  }, []);
 
   useEffect(() => {
     if (!smsAvailable()) return;
@@ -129,7 +151,16 @@ export function SmsSync() {
 
   useEffect(() => {
     if (busy.current || !items.length) return;
-    const todo = items.filter((i) => !tried.current.has(i.row.id) && (i.p.state === "ignore" || i.p.state === "duplicate" || (prefs?.autoAdd && i.p.state === "ready")));
+    // One payment often sends two messages a few seconds apart (wallet "paid" + bank "received"). Give a new message
+    // a moment for its partner to arrive, so the pair is read together and becomes one transfer.
+    const young = (i: Item) => Date.now() - Date.parse(i.row.received_at) < SETTLE_MS;
+    const ready = items.filter((i) => !tried.current.has(i.row.id) && (i.p.state === "ignore" || i.p.state === "duplicate" || (prefs?.autoAdd && i.p.state === "ready")));
+    const todo = ready.filter((i) => !young(i));
+    if (todo.length < ready.length) {
+      const wait = Math.max(500, ...ready.filter(young).map((i) => SETTLE_MS - (Date.now() - Date.parse(i.row.received_at))));
+      window.clearTimeout(settle.current);
+      settle.current = window.setTimeout(() => setPass((n) => n + 1), Math.min(wait, SETTLE_MS) + 200);
+    }
     if (!todo.length) return;
     busy.current = true;
     void (async () => {
