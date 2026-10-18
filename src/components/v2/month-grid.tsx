@@ -286,7 +286,8 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
   }
 
   const showFor = !!forHeader;
-  const nameCls = "sticky left-0 z-[1] bg-surface";
+  // The name column stays put while the months scroll; on phones it is kept narrow (long names are cut with …).
+  const nameCls = "sticky left-0 z-[1] bg-surface shadow-[6px_0_8px_-6px_rgba(0,0,0,0.35)]";
 
   const legend = (
     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-3">
@@ -341,7 +342,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
               <section key={g.id} className="overflow-hidden rounded-2xl border border-line bg-surface" aria-label={g.label}>
                 <button type="button" onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))} aria-expanded={isOpen} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-2">
                   <span className="flex min-w-0 items-center gap-3">
-                    <RefIcon r={g.ref} />
+                    <GroupIcon g={g} />
                     <span className="min-w-0">
                       <span className="block truncate text-[15px] font-semibold">{g.label}</span>
                       <StatusText status={t.status} incoming={t.incoming ?? incoming} className="text-[12px]" />
@@ -441,7 +442,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
         <table className="w-full border-collapse text-[13px] sm:text-[13.5px]">
           <thead>
             <tr className="border-b border-line text-left text-[12px] text-ink-3">
-              <th scope="col" className={cn(nameCls, "w-[7.5rem] min-w-[7.5rem] px-3 py-2.5 font-medium sm:w-auto sm:min-w-[11rem]")}>
+              <th scope="col" className={cn(nameCls, "w-[9.5rem] min-w-[9.5rem] px-3 py-2.5 font-medium sm:w-auto sm:min-w-[11rem]")}>
                 {nameHeader}
               </th>
               {showFor && (
@@ -470,11 +471,11 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                     <th scope="row" className={cn(nameCls, "bg-surface-2 px-0 py-0 text-left align-top font-semibold")}>
                       <button
                         type="button"
-                        className="flex w-full items-start gap-1 px-3 py-2 text-left hover:bg-surface-3/70"
+                        className="flex w-full max-w-[9.5rem] items-start gap-1 px-3 py-2 text-left hover:bg-surface-3/70 sm:max-w-[18rem]"
                         onClick={() => (hasDetails ? setOpen((o) => ({ ...o, [g.id]: !o[g.id] })) : onRow?.(g.total, g))}
                         aria-expanded={hasDetails ? isOpen : undefined}
                       >
-                        <RefIcon r={g.ref} size="xs" className="mr-1 mt-0.5" />
+                        <GroupIcon g={g} size="xs" className="mr-1 mt-0.5" />
                         <span className="min-w-0">
                           <span className="block truncate text-[13.5px] font-semibold text-ink sm:text-[14px]">{g.label}</span>
                           <span className="block truncate text-[11.5px] font-normal text-ink-3 sm:hidden">{g.total.label}</span>
@@ -503,7 +504,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                   {g.rows.map((r) => (
                     <tr key={r.id} className="border-t border-line/70">
                       <th scope="row" className={cn(nameCls, "px-0 py-0 text-left font-normal")}>
-                        <button type="button" className="block w-full px-3 py-2 pl-5 text-left hover:bg-surface-2" onClick={() => onRow?.(r, g)}>
+                        <button type="button" className="block w-full max-w-[9.5rem] px-3 py-2 pl-4 text-left hover:bg-surface-2 sm:max-w-[18rem] sm:pl-5" onClick={() => onRow?.(r, g)}>
                           <span className="flex items-center gap-1.5 truncate text-[13px] text-ink sm:text-[13.5px]">
                             <span className="text-ink-3" aria-hidden>
                               ↳
@@ -647,6 +648,13 @@ function Breakdown({ group, month, incoming, onClose, add, monthAdd }: { group: 
       )}
     </Sheet>
   );
+}
+
+/** A group's badge: its card / fund / person when it stands for one, else one for the kind of group. */
+export function GroupIcon({ g, size = "md", className }: { g: GridGroup; size?: "xs" | "sm" | "md"; className?: string }) {
+  if (g.ref) return <RefIcon r={g.ref} size={size} className={className} />;
+  const kind = g.id === "chits" ? "chit" : g.id === "sips" ? "sip" : g.id === "loans" ? "loan" : g.id === "borrowed" || g.id === "people" ? "people" : null;
+  return kind ? <EntityIcon kind={kind} name={g.label} size={size} className={className} /> : null;
 }
 
 /** The badge for what a row stands for: a card in its colours, a fund, a person, a loan or a chit. */

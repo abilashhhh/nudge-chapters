@@ -144,7 +144,7 @@ export function Tabs<T extends string>({
             )}
           >
             {t.label}
-            {t.count != null && t.count > 0 && <span className="num ml-1.5 rounded-full bg-surface-3 px-1.5 text-[11.5px] text-ink-2">{t.count}</span>}
+            {t.count != null && <span className="num ml-1.5 rounded-full bg-surface-3 px-1.5 text-[11.5px] text-ink-2">{t.count}</span>}
           </button>
         ))}
       </div>

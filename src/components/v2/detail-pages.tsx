@@ -623,6 +623,31 @@ export function HoldingDetailScreen() {
       </div>
       <HoldingChart id={i.id} cost={i.avg_cost ?? (p.units ? p.invested / p.units : null)} fmt={m} />
       <div className="mt-4">
+        {i.invested_amount > 0 && (
+          <section className="mb-4 rounded-2xl border border-line bg-surface p-3 sm:px-4">
+            <h2 className="mb-1 px-1 text-[15px] font-semibold">Your investment</h2>
+            <button type="button" onClick={() => ui.openEditor("investment", i.id)} className="flex w-full items-center gap-3 rounded-xl px-1 py-2.5 text-left transition-colors hover:bg-surface-2">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand">
+                <Plus className="h-4 w-4" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[14.5px] font-medium">{i.start_date ? "Initial investment" : "Invested before tracking began"}</span>
+                <span className="block truncate text-[12px] text-ink-3">
+                  {[
+                    i.start_date ? formatDate(i.start_date, "medium") : `as of ${formatDate(i.track_from, "medium")}`,
+                    p.units != null && i.avg_cost != null ? `${p.units.toLocaleString("en-IN", { maximumFractionDigits: 4 })} ${i.type === "mutual_fund" ? "units" : "shares"} at ${m(i.avg_cost)}` : null,
+                    i.institution,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
+              <span className="num shrink-0 text-[14.5px] font-semibold">{m(i.invested_amount)}</span>
+              <Pencil className="h-3.5 w-3.5 shrink-0 text-ink-3" aria-hidden />
+            </button>
+            {txs.length > 0 && <p className="px-1 pt-1 text-[12px] text-ink-3">Later purchases and sales are listed below.</p>}
+          </section>
+        )}
         {txs.length ? (
           <TxList
             txs={txs}
@@ -636,7 +661,7 @@ export function HoldingDetailScreen() {
             ]}
           />
         ) : (
-          <EmptyState icon={Receipt} title="No purchases recorded" body="Add each purchase or SIP instalment to see them here. The value and profit above work either way." action={<Button onClick={() => ui.openTx({ type: "invest_buy", investment_id: i.id })}>Add purchase</Button>} />
+          <EmptyState icon={Receipt} title={i.invested_amount > 0 ? "No later purchases yet" : "No purchases recorded"} body="Add each new purchase or SIP instalment to see it here." action={<Button onClick={() => ui.openTx({ type: "invest_buy", investment_id: i.id })}>Add purchase</Button>} />
         )}
       </div>
       <p className="mt-3 text-[12px] text-ink-3">

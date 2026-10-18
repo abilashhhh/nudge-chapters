@@ -131,12 +131,26 @@ export function DataTable<T>({
               </li>
             );
           })}
+          {footer && (
+            // The total is a tile of its own, so it sits in the grid instead of stretching under it.
+            <li className="rounded-2xl border-2 border-ink/70 bg-surface-2 p-4">
+              <span className="block text-[14px] font-semibold">{footer[0] ?? "Total"}</span>
+              {main && footer[columns.indexOf(main)] != null && <span className="num mt-2 block text-[20px] font-semibold leading-tight">{footer[columns.indexOf(main)]}</span>}
+              {others.some((c) => footer[columns.indexOf(c)] != null) && (
+                <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[12.5px]">
+                  {others.map((c) =>
+                    footer[columns.indexOf(c)] != null ? (
+                      <span key={c.key} className="min-w-0">
+                        <span className="block text-ink-3">{c.header}</span>
+                        <span className="num block truncate">{footer[columns.indexOf(c)]}</span>
+                      </span>
+                    ) : null,
+                  )}
+                </span>
+              )}
+            </li>
+          )}
         </ul>
-        {footer && (
-          <div className="num mt-2 flex flex-wrap justify-between gap-2 rounded-2xl border border-line bg-surface px-4 py-3 text-[14px] font-bold">
-            {footer.map((f, i) => (f != null ? <span key={i}>{f}</span> : null))}
-          </div>
-        )}
       </div>
     );
   }
