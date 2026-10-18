@@ -35,7 +35,7 @@ const TYPE_LABEL: Record<Account["type"], string> = { savings: "Savings", curren
 /** My Money: bank accounts, money people owe you, and every saving and investment, in one section. */
 export function MyMoneyScreen() {
   const [tab0, setTab] = useTab(TABS, "all");
-  const { positions, ctx } = useFinance();
+  const { ds, positions, ctx } = useFinance();
   const sv = useSavings();
   const visible: Tab[] = ["all", "accounts", "owed", ...sv.tabs.map((t) => t.id)];
   const tab: Tab = visible.includes(tab0) ? tab0 : "all";
@@ -52,7 +52,7 @@ export function MyMoneyScreen() {
         className="mb-4"
         value={tab}
         onChange={setTab}
-        tabs={[{ id: "all", label: "All" }, { id: "accounts", label: "Bank accounts" }, { id: "owed", label: "People owe me" }, ...sv.tabs]}
+        tabs={[{ id: "all", label: "All" }, { id: "accounts", label: "Bank accounts", count: ds.accounts.filter((a) => !a.archived).length }, { id: "owed", label: "People owe me", count: new Set(ds.lendings.filter((l) => l.direction === "lent" && !l.written_off && (positions.lendings.get(l.id)?.outstanding ?? 0) > 0.5).map((l) => l.person.split(/\s+[—–-]\s+/)[0].trim().toLowerCase())).size }, ...sv.tabs]}
       />
       {tab === "all" ? <AllMoney /> : tab === "accounts" ? <Accounts /> : tab === "owed" ? <Owed /> : <SavingsTabBody tab={tab} />}
     </>

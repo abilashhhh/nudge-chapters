@@ -16,9 +16,9 @@ import { billInMonth, cardGrid, chitSipGrid, loanGrid, monthRange, orderForMonth
 import { useStore } from "@/lib/store";
 import { Money } from "../money";
 import { Button } from "../ui/button";
-import { EmptyState, Tabs } from "../ui/misc";
+import { EmptyState, Segmented, Tabs } from "../ui/misc";
 import { LoanPlanSheet } from "./loan-sheet";
-import { MonthGrid, monthLabel, monthPaid, openCell, useGridMonths } from "./month-grid";
+import { GroupIcon, MonthGrid, monthLabel, monthPaid, openCell, useGridMonths } from "./month-grid";
 import { AMOUNT_CLS, StatTile, StatusText, useRangeEvents, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 
@@ -27,7 +27,7 @@ type Tab = (typeof TABS)[number];
 
 export function ToPayScreen() {
   const [tab, setTab] = useTab(TABS, "all");
-  const { month, ds } = useFinance();
+  const { month, ds, positions } = useFinance();
   return (
     <>
       <V2PageHeader title="To Pay" />
@@ -43,8 +43,8 @@ export function ToPayScreen() {
         tabs={[
           { id: "all", label: "All" },
           { id: "cards", label: "Credit cards", count: ds.credit_cards.filter((c) => !c.archived).length },
-          { id: "chits", label: "Monthly investments" },
-          { id: "loans", label: "Loans & borrowed" },
+          { id: "chits", label: "Monthly investments", count: ds.chits.filter((c) => positions.chits.get(c.id)?.remainingCount).length + ds.investments.filter((i) => !i.archived && i.sip_active && i.sip_amount > 0).length },
+          { id: "loans", label: "Loans & borrowed", count: ds.loans.filter((l) => !l.card_id && l.status === "active").length + ds.lendings.filter((l) => l.direction === "borrowed" && (positions.lendings.get(l.id)?.outstanding ?? 0) > 0.5).length },
         ]}
       />
       {tab === "all" && <AllToPay goTab={setTab} />}
@@ -182,6 +182,7 @@ function AllToPay({ goTab }: { goTab: (t: Tab) => void }) {
                 return (
                   <li key={g.id}>
                     <button type="button" onClick={() => !openCell(c) && goTab(p.tab)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2">
+                      <GroupIcon g={g} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14.5px] font-medium">{g.label}</span>
                         <StatusText status={c.status} className="text-[12px]" />
@@ -319,10 +320,24 @@ function Loans() {
   const borrowed = ds.lendings.filter((l) => l.direction === "borrowed").map((l) => ({ l, p: positions.lendings.get(l.id) }));
   const m = (n: number) => formatMoney(n, ctx, { decimals: true });
   const TYPE: Record<string, string> = { home: "Home", personal: "Personal", vehicle: "Vehicle", education: "Education", gold: "Gold", consumer: "Shopping", other: "Other", card_emi: "Card EMI" };
+  // One view at a time: each loan with what's left, or the same loans laid out month by month.
+  const [view, setView] = useState<"list" | "months">("list");
+  const any = loans.length + borrowed.length > 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      {loans.length + borrowed.length === 0 ? (
+    <div className="flex flex-col gap-4">
+      {any && (
+        <Segmented
+          className="self-start"
+          value={view}
+          onChange={setView}
+          options={[
+            { id: "list", label: "What's left" },
+            { id: "months", label: "Month by month" },
+          ]}
+        />
+      )}
+      {!any ? (
         <EmptyState
           icon={Landmark}
           title="No loans or money borrowed"
@@ -336,7 +351,7 @@ function Loans() {
             </div>
           }
         />
-      ) : (
+      ) : view === "list" ? (
         <DataTable
           label="Loans and money borrowed"
           rows={[...loans.map((l) => ({ kind: "loan" as const, id: l.loan.id, l })), ...borrowed.map((b) => ({ kind: "borrow" as const, id: b.l.id, b }))]}
@@ -412,10 +427,7 @@ function Loans() {
             )
           }
         />
-      )}
-
-      <div>
-        <h2 className="mb-2 text-[16px] font-semibold">Month by month</h2>
+      ) : (
         <MonthGrid
           data={data}
           nameHeader="Loan or person"
@@ -433,7 +445,7 @@ function Loans() {
           empty={<p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">Nothing to pay on loans in these months.</p>}
           footnote="EMIs on a credit card are not listed here — they stay with their card in Credit cards."
         />
-      </div>
+      )}
       {sheet && <LoanPlanSheet loanId={sheet.id} view={sheet.view} onClose={() => setSheet(null)} />}
     </div>
   );

@@ -16,7 +16,7 @@ import { enableAlarmPush } from "@/lib/push";
 import { useUI } from "@/lib/ui";
 import { celebrate } from "@/lib/celebrate";
 import { deleteImages } from "@/lib/attachments";
-import { ImageAttachments, PhotoStrip, Thumb } from "./attachments";
+import { ImageAttachments, PhotoStrip, Thumb, removeItemImage } from "./attachments";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Input, Select, Switch, Textarea } from "./ui/form";
 import { Badge, Progress } from "./ui/misc";
@@ -167,7 +167,7 @@ export function ChecklistCard({ item }: { item: LifeItem }) {
         </span>
       </div>
       <Progress className="mt-2" value={p.total ? p.done / p.total : 0} label={`${item.title} progress`} />
-      <PhotoStrip images={item.data?.images} className="mt-2" />
+      <PhotoStrip images={item.data?.images} className="mt-2" onRemove={(ref) => removeItemImage(item, ref)} />
       <ul className="mt-2">
         {(item.data?.items ?? []).map((e) => (
           <li key={e.id}>

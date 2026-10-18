@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, CalendarDays, History, LayoutGrid, ListChecks, Pencil, Plus, RotateCcw, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { BarChart3, CalendarDays, LayoutGrid, ListChecks, Pencil, Plus, RotateCcw, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
@@ -19,15 +19,17 @@ import { SortableList } from "./sortable";
 import { DailyTrendChart, HabitBarsChart, Heatmap, MonthlyTrendChart, StackedDaysChart, WeeklyChart } from "./charts";
 import { CalendarLegend, DayChecklist, HabitDetailSheet, HabitEditorSheet, HabitIcon, MonthCalendar, MonthNav, RhStat, pctText } from "./parts";
 
-const VIEWS = ["overview", "calendar", "activities", "analytics", "history"] as const;
+// Three views: today's checklist with the calendar, your progress (charts and month comparisons), and the activities.
+const VIEWS = ["today", "progress", "activities"] as const;
 type View = (typeof VIEWS)[number];
+/** Older links (?view=overview etc.) still land in the right place. */
+type AnyView = View | "overview" | "calendar" | "analytics" | "history";
+const toView = (v: string | null): View => (v === "progress" || v === "analytics" || v === "history" ? "progress" : v === "activities" ? "activities" : "today");
 
 const VIEW_META: Record<View, { label: string; icon: typeof LayoutGrid }> = {
-  overview: { label: "Overview", icon: LayoutGrid },
-  calendar: { label: "Calendar", icon: CalendarDays },
+  today: { label: "Today", icon: CalendarDays },
+  progress: { label: "Progress", icon: BarChart3 },
   activities: { label: "Activities", icon: ListChecks },
-  analytics: { label: "Analytics", icon: BarChart3 },
-  history: { label: "History", icon: History },
 };
 
 /** Query-string state for this section: ?view=…&month=YYYY-MM&day=YYYY-MM-DD (keeps ?tab=rhythm). */
@@ -35,19 +37,18 @@ function useRhythmParams(today: string) {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const rawView = params.get("view") as View | null;
-  const view: View = rawView && VIEWS.includes(rawView) ? rawView : "overview";
+  const view: View = toView(params.get("view"));
   const rawMonth = params.get("month");
   const month = rawMonth && /^\d{4}-\d{2}$/.test(rawMonth) ? rawMonth : monthKey(today);
   const rawDay = params.get("day");
   const day = rawDay && /^\d{4}-\d{2}-\d{2}$/.test(rawDay) ? rawDay : null;
   const set = useCallback(
-    (patch: { view?: View; month?: string; day?: string | null }) => {
+    (patch: { view?: AnyView; month?: string; day?: string | null }) => {
       const p = new URLSearchParams(params.toString());
       p.set("tab", "rhythm");
       for (const [k, v] of Object.entries(patch)) {
         if (v == null) p.delete(k);
-        else p.set(k, v);
+        else p.set(k, k === "view" ? toView(v) : v);
       }
       router.replace(`${pathname}?${p.toString()}`, { scroll: false });
     },
@@ -81,7 +82,7 @@ export function RhythmSection() {
     <div>
       <div className="mb-4 flex items-center gap-3 lg:mb-5">
         <nav aria-label="Daily Rhythm views" className="min-w-0 flex-1 lg:flex-none">
-          <div className="grid grid-cols-5 gap-0.5 rounded-2xl bg-surface-3/70 p-1 lg:inline-flex lg:gap-1">
+          <div className="grid grid-cols-3 gap-0.5 rounded-2xl bg-surface-3/70 p-1 lg:inline-flex lg:gap-1">
             {VIEWS.map((v) => {
               const Icon = VIEW_META[v].icon;
               return (
@@ -91,7 +92,7 @@ export function RhythmSection() {
                   aria-current={view === v ? "page" : undefined}
                   onClick={() => set({ view: v })}
                   className={cn(
-                    "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[11px] font-medium transition-colors lg:h-9 lg:flex-row lg:gap-1.5 lg:px-3 lg:py-0 lg:text-[13.5px]",
+                    "flex h-9 min-w-0 flex-row items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] font-medium transition-colors lg:px-3 lg:text-[13.5px]",
                     view === v ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink",
                   )}
                 >
@@ -113,11 +114,17 @@ export function RhythmSection() {
         <Welcome onCustom={() => openEditor(null)} />
       ) : (
         <>
-          {view === "overview" && <OverviewView {...ctx} />}
-          {view === "calendar" && <CalendarView {...ctx} />}
+          {view === "today" && <TodayView {...ctx} />}
           {view === "activities" && <ActivitiesView {...ctx} />}
-          {view === "analytics" && <AnalyticsView {...ctx} />}
-          {view === "history" && <HistoryView {...ctx} />}
+          {view === "progress" && (
+            <div className="space-y-6">
+              <AnalyticsView {...ctx} />
+              <div>
+                <h2 className="mb-3 text-[16px] font-semibold">Over the months</h2>
+                <HistoryView {...ctx} />
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -132,7 +139,7 @@ interface ViewCtx {
   setMonth: (m: string) => void;
   day: string | null;
   setDay: (d: string) => void;
-  go: (v: View, extra?: { month?: string; day?: string | null }) => void;
+  go: (v: AnyView, extra?: { month?: string; day?: string | null }) => void;
   openHabit: (h: Habit) => void;
   openEditor: (h: Habit | null) => void;
 }
@@ -196,68 +203,55 @@ function Welcome({ onCustom }: { onCustom: () => void }) {
 // Overview
 // ---------------------------------------------------------------------------
 
-function OverviewView({ go, openHabit, openEditor }: ViewCtx) {
+/** Today: the key numbers, the checklist for the chosen day (today unless you pick another) and the month's calendar. */
+function TodayView({ month, setMonth, day, setDay, openHabit, openEditor, go }: ViewCtx) {
   const { habits, index, today, weekStart, goal } = useRhythm();
   const cur = monthKey(today);
   const data = useMemo(() => {
     const t = daySummary(habits, index, today, today);
     const r = monthReport(habits, index, cur, today, weekStart, goal);
-    const prev = monthReport(habits, index, monthKey(addMonths(`${cur}-01`, -1, 1)), today, weekStart, goal);
-    return { t, r, streak: dayStreaks(habits, index, today, goal), insights: monthInsights(r, prev, today) };
+    return { t, r, streak: dayStreaks(habits, index, today, goal) };
   }, [habits, index, today, cur, weekStart, goal]);
   const { t, r, streak } = data;
-  const remaining = t.tally.pending;
   const active = habits.filter((h) => !h.archived);
-
+  const selected = day ?? today;
+  const shownMonth = day ? monthKey(day) : month;
   return (
-    // Phones: today's checklist first, then the numbers; the "today" cards are left out (the checklist shows them).
     <div className="flex flex-col gap-4">
-      <div className="order-2 grid grid-cols-2 gap-2 sm:gap-3 lg:order-none lg:grid-cols-3 xl:grid-cols-6">
-        <RhStat accent className="hidden lg:block" label="Today" value={t.tally.eligible ? `${t.tally.completed}/${t.tally.eligible}` : "—"} note={t.tally.eligible ? `${pctText(t.tally.rate)} done` : "Nothing scheduled today"} />
-        <RhStat className="hidden lg:block" label="Left today" value={remaining} note={remaining ? "still to tick" : t.tally.eligible ? "All done 🎉" : "Free day"} />
-        <RhStat label={`${formatMonthLong(cur).split(" ")[0]} so far`} value={pctText(r.tally.rate)} note={r.tally.eligible ? `${r.tally.completed} of ${r.tally.eligible} done` : "Nothing counted yet"} onClick={() => go("analytics", { month: cur })} />
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+        <RhStat accent label="Today" value={t.tally.eligible ? `${t.tally.completed}/${t.tally.eligible}` : "—"} note={t.tally.eligible ? (t.tally.pending ? `${t.tally.pending} still to tick` : "All done 🎉") : "Nothing scheduled today"} />
+        <RhStat label={`${formatMonthLong(cur).split(" ")[0]} so far`} value={pctText(r.tally.rate)} note={r.tally.eligible ? `${r.tally.completed} of ${r.tally.eligible} done` : "Nothing counted yet"} onClick={() => go("progress", { month: cur })} />
         <RhStat label="Day streak" value={`${streak.current} ${streak.current === 1 ? "day" : "days"}`} note={`Days with ${goal}%+ done`} />
         <RhStat label="Best streak" value={`${streak.best} ${streak.best === 1 ? "day" : "days"}`} note={streak.bestEnd ? `Ended ${formatDate(streak.bestEnd, "short")}` : "Keep going"} />
-        <RhStat
-          label="Most consistent"
-          value={r.mostConsistent ? `${r.mostConsistent.habit.icon ?? ""} ${pctText(r.mostConsistent.tally.rate)}`.trim() : "—"}
-          note={r.mostConsistent?.habit.name ?? "Needs a few days"}
-          onClick={r.mostConsistent ? () => openHabit(r.mostConsistent!.habit) : undefined}
-        />
       </div>
-
-      <div className="order-1 grid grid-cols-1 gap-4 lg:order-none lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-        <Panel title="Today's checklist" description="Tap the box when it's done. Use ⌄ to mark missed, skip a day or add a note." className="max-lg:[&>header]:hidden">
-          <DayChecklist date={today} onOpenHabit={openHabit} emptyAction={active.length === 0 ? <Button onClick={() => openEditor(null)}>Add an activity</Button> : undefined} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <Panel
+          title={selected === today ? "Today's checklist" : formatDate(selected, "long")}
+          description="Tap the box when it's done. Use ⌄ to mark missed, skip a day or add a note."
+        >
+          <DayChecklist date={selected} onOpenHabit={openHabit} emptyAction={active.length === 0 ? <Button onClick={() => openEditor(null)}>Add an activity</Button> : undefined} />
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => go("calendar", { day: addDays(today, -1), month: monthKey(addDays(today, -1)) })}>
-              Review yesterday
+            <Button size="sm" variant="ghost" onClick={() => setDay(addDays(selected, -1))}>
+              ‹ Previous day
             </Button>
-            <Button size="sm" variant="ghost" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => openEditor(null)}>
+            {selected !== today && (
+              <Button size="sm" onClick={() => setDay(today)}>
+                Back to today
+              </Button>
+            )}
+            {selected < today && (
+              <Button size="sm" variant="ghost" onClick={() => setDay(addDays(selected, 1))}>
+                Next day ›
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="ml-auto" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => openEditor(null)}>
               Add activity
             </Button>
           </div>
         </Panel>
-        <Panel
-          title={formatMonthLong(cur)}
-          description="Tap a day to see or fix its checklist."
-          action={
-            <Button size="sm" onClick={() => go("calendar", { month: cur })}>
-              Full calendar
-            </Button>
-          }
-        >
-          <MonthCalendar month={cur} compact selected={today} onSelect={(d) => go("calendar", { day: d, month: monthKey(d) })} />
+        <Panel title="Calendar" description="Tap a day to see or fix its checklist." action={<MonthNav month={shownMonth} setMonth={setMonth} today={today} />}>
+          <MonthCalendar month={shownMonth} compact selected={selected} onSelect={setDay} />
           <CalendarLegend className="mt-3" />
-        </Panel>
-      </div>
-
-      <div className="order-3 grid grid-cols-1 gap-4 lg:order-none lg:grid-cols-2">
-        <Panel title="Day by day this month" description="Share of each day's activities you completed." action={<Button size="sm" variant="ghost" onClick={() => go("analytics", { month: cur })}>All charts</Button>}>
-          {r.tally.eligible ? <DailyTrendChart days={r.days} today={today} height={190} /> : <NotEnough />}
-        </Panel>
-        <Panel title="What stands out">
-          <InsightList insights={data.insights} />
         </Panel>
       </div>
     </div>
@@ -279,49 +273,6 @@ function InsightList({ insights }: { insights: Insight[] }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Calendar
-// ---------------------------------------------------------------------------
-
-function CalendarView({ month, setMonth, day, setDay, openHabit }: ViewCtx) {
-  const { habits, index, today, weekStart, goal } = useRhythm();
-  const r = useMemo(() => monthReport(habits, index, month, today, weekStart, goal), [habits, index, month, today, weekStart, goal]);
-  const streak = useMemo(() => dayStreaks(habits, index, today, goal), [habits, index, today, goal]);
-  const selected = day && monthKey(day) === month ? day : month === monthKey(today) ? today : `${month}-01`;
-  const scheduled = r.tally.eligible + r.tally.skipped + r.tally.upcoming;
-  return (
-    // On phones the calendar and checklist come first; the numbers follow.
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <MonthNav month={month} setMonth={setMonth} today={today} />
-        <CalendarLegend />
-      </div>
-      <div className="order-2 grid grid-cols-2 gap-2 sm:order-none sm:grid-cols-4 sm:gap-3">
-        <RhStat label="Overall completion" value={pctText(r.tally.rate)} note={r.tally.eligible ? "of the days counted so far" : "Nothing counted yet"} />
-        <RhStat label="Activities completed" value={r.tally.completed} note={`${r.tally.missed} missed · ${r.tally.skipped} skipped`} />
-        <RhStat label="Activities scheduled" value={scheduled} note={r.tally.upcoming ? `${r.tally.upcoming} still to come` : "in this month"} />
-        <RhStat label="Current day streak" value={`${streak.current} ${streak.current === 1 ? "day" : "days"}`} note={`Best ${streak.best} · goal ${goal}%`} />
-      </div>
-      <div className="order-1 grid grid-cols-1 gap-4 sm:order-none xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Panel>
-          <MonthCalendar month={month} selected={selected} onSelect={setDay} />
-        </Panel>
-        <Panel title="Checklist" description="Fix any day — past days you forgot can still be ticked.">
-          <DayChecklist date={selected} onOpenHabit={openHabit} />
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setDay(addDays(selected, -1))}>
-              ‹ Previous day
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setDay(addDays(selected, 1))}>
-              Next day ›
-            </Button>
-          </div>
-        </Panel>
-      </div>
-    </div>
   );
 }
 
@@ -665,48 +616,6 @@ function HistoryView({ month, setMonth, go, openHabit }: ViewCtx) {
         </Panel>
       </div>
 
-      <Panel title="All months" flush>
-        <div className="relative overflow-x-auto">
-          <table className="w-full min-w-[560px] text-[14px]">
-            <thead>
-              <tr className="border-b border-line text-left text-[12px] text-ink-3">
-                <th className="px-4 py-2 font-medium sm:px-5">Month</th>
-                <th className="px-2 py-2 text-right font-medium">Completion</th>
-                <th className="px-2 py-2 text-right font-medium">Done</th>
-                <th className="px-2 py-2 text-right font-medium">Missed</th>
-                <th className="px-2 py-2 text-right font-medium">Skipped</th>
-                <th className="px-2 py-2 text-right font-medium">Best streak</th>
-                <th className="px-4 py-2 text-right font-medium sm:px-5" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ month: m, r }) => (
-                <tr key={m} className={cn("border-b border-line last:border-0", m === sel && "bg-surface-2")}>
-                  <td className="px-4 py-2.5 font-medium sm:px-5">
-                    {formatMonthLong(m)}
-                    {bestMonth?.month === m && <Badge tone="brand" className="ml-2">Best</Badge>}
-                  </td>
-                  <td className="num px-2 text-right font-semibold">{pctText(r.tally.rate)}</td>
-                  <td className="num px-2 text-right">{r.tally.completed}</td>
-                  <td className="num px-2 text-right">{r.tally.missed}</td>
-                  <td className="num px-2 text-right text-ink-3">{r.tally.skipped}</td>
-                  <td className="num px-2 text-right">{r.bestDayStreak}</td>
-                  <td className="px-4 text-right sm:px-5">
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => go("analytics", { month: m })}>
-                        Analytics
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => go("calendar", { month: m, day: null })}>
-                        Calendar
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
     </div>
   );
 }

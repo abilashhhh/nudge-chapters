@@ -1,11 +1,11 @@
 "use client";
 
-import { CalendarClock, HandCoins, Landmark, Rocket, type LucideIcon } from "lucide-react";
+import { CalendarClock, HandCoins, Landmark, Repeat, Rocket, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { holdingColors, skinFor } from "@/lib/v2/card-skins";
 import { CardArt } from "./card-art";
 
-export type EntityKind = "stock" | "fund" | "ipo" | "bank" | "wallet" | "card" | "person" | "loan" | "chit" | "saving";
+export type EntityKind = "stock" | "fund" | "ipo" | "bank" | "wallet" | "card" | "person" | "loan" | "chit" | "saving" | "people" | "sip";
 
 /** "HDFC Bank" → HDFC, "Tata Motors" → TM, "INFY" → INFY, "Zomato" → ZO. */
 export function initials(name: string): string {
@@ -24,7 +24,7 @@ function hue(s: string) {
 }
 
 const SIZE = { xs: "h-5 w-5 text-[8px]", sm: "h-7 w-7 text-[9.5px]", md: "h-9 w-9 text-[11px]", lg: "h-12 w-12 text-[13px]" };
-const GLYPH: Partial<Record<EntityKind, LucideIcon>> = { loan: Landmark, chit: CalendarClock, ipo: Rocket, person: HandCoins };
+const GLYPH: Partial<Record<EntityKind, LucideIcon>> = { loan: Landmark, chit: CalendarClock, ipo: Rocket, person: HandCoins, people: Users, sip: Repeat };
 
 /**
  * A small badge for anything in a list: stocks and funds get their initials on their fund-house / brand colours,
@@ -69,7 +69,7 @@ export function EntityIcon({ name, kind, issuer, color, size = "md", className }
   }
   const Icon = GLYPH[kind] ?? Landmark;
   return (
-    <span className={cn(box, "rounded-[30%] ring-1 ring-inset ring-black/5", kind === "ipo" ? "bg-future-soft text-future-ink" : kind === "chit" ? "bg-warn-soft text-warn" : "bg-brand-soft text-brand")} aria-hidden>
+    <span className={cn(box, "rounded-[30%] ring-1 ring-inset ring-black/5", kind === "ipo" || kind === "sip" ? "bg-future-soft text-future-ink" : kind === "chit" ? "bg-warn-soft text-warn" : kind === "people" ? "bg-ok-soft text-ok" : "bg-brand-soft text-brand")} aria-hidden>
       <Icon className={size === "xs" ? "h-3 w-3" : size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
     </span>
   );

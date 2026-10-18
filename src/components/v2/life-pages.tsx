@@ -14,7 +14,7 @@ import type { LifeItem, LifeKind } from "@/lib/types";
 import { useUI } from "@/lib/ui";
 import { ChecklistCard, EditButton, TaskRow, useLifeActions } from "../life";
 import { NoteEditor } from "./note-editor";
-import { PhotoStrip, Thumb } from "../attachments";
+import { PhotoStrip, Thumb, removeItemImage } from "../attachments";
 import { Button } from "../ui/button";
 import { Input } from "../ui/form";
 import { EmptyState } from "../ui/misc";
@@ -229,7 +229,7 @@ export function RemindersScreen({ embedded }: { embedded?: boolean } = {}) {
                 ["Repeats", REPEAT[i.repeat]],
                 ...(i.body ? ([["Note", i.body]] as [string, string][]) : []),
               ]}
-              children={i.data?.images?.length ? <PhotoStrip images={i.data.images} className="mt-2" size="h-20 w-20" /> : undefined}
+              children={i.data?.images?.length ? <PhotoStrip images={i.data.images} className="mt-2" size="h-20 w-20" onRemove={(ref) => removeItemImage(i, ref)} /> : undefined}
               actions={
                 <>
                   <Button size="sm" variant="primary" onClick={() => (i.status !== "open" ? act.reopen(i) : act.complete(i))}>
@@ -385,7 +385,7 @@ export function WishlistScreen({ embedded }: { embedded?: boolean } = {}) {
                     <li key={r}>• {r}</li>
                   ))}
                 </ul>
-                <PhotoStrip images={i.data?.images} className="mt-2" size="h-20 w-20" />
+                <PhotoStrip images={i.data?.images} className="mt-2" size="h-20 w-20" onRemove={(ref) => removeItemImage(i, ref)} />
               </Details>
             );
           }}

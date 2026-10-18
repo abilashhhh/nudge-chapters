@@ -1,11 +1,13 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, ImagePlus, Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImagePlus, Loader2, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
-import { MAX_IMAGES, uploadImage, useImageUrl } from "@/lib/attachments";
+import { MAX_IMAGES, deleteImages, uploadImage, useImageUrl } from "@/lib/attachments";
+import { useStore } from "@/lib/store";
+import type { LifeItem } from "@/lib/types";
 
 /** One stored photo, loaded through its (signed) link. */
 export function Thumb({ refId, className, alt = "", onClick }: { refId: string; className?: string; alt?: string; onClick?: () => void }) {
@@ -25,9 +27,13 @@ export function Thumb({ refId, className, alt = "", onClick }: { refId: string; 
   );
 }
 
-/** Full-screen viewer: arrows / swipe to move, Esc or tap outside to close. */
-export function Lightbox({ images, index, onClose }: { images: string[]; index: number; onClose: () => void }) {
-  const [i, setI] = useState(index);
+/** Full-screen viewer: arrows / swipe to move, Esc or tap outside to close. With `onDelete`, a Delete button (tap twice). */
+export function Lightbox({ images, index, onClose, onDelete }: { images: string[]; index: number; onClose: () => void; onDelete?: (ref: string) => void }) {
+  const [i, setI] = useState(Math.min(index, images.length - 1));
+  const [sure, setSure] = useState(false);
+  useEffect(() => {
+    setSure(false);
+  }, [i]);
   const url = useImageUrl(images[i]);
   const startX = useRef<number | null>(null);
   const go = useCallback((d: number) => setI((n) => (n + d + images.length) % images.length), [images.length]);
@@ -70,6 +76,22 @@ export function Lightbox({ images, index, onClose }: { images: string[]; index: 
       <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25">
         <X className="h-5 w-5" />
       </button>
+      {onDelete && images[i] && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!sure) return setSure(true);
+            const ref = images[i];
+            if (images.length <= 1) onClose();
+            else setI((n) => Math.max(0, Math.min(n, images.length - 2)));
+            onDelete(ref);
+          }}
+          className={cn("absolute left-3 top-3 inline-flex h-11 items-center gap-2 rounded-full px-4 text-[14px] font-medium text-white", sure ? "bg-[#dc2626]" : "bg-white/15 hover:bg-white/25")}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden /> {sure ? "Tap again to delete" : "Delete photo"}
+        </button>
+      )}
       {images.length > 1 && (
         <>
           <button type="button" onClick={(e) => (e.stopPropagation(), go(-1))} aria-label="Previous photo" className="absolute left-3 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25">
@@ -178,21 +200,40 @@ export function ImageAttachments({ images, onChange, label = "Photos", className
           e.target.value = "";
         }}
       />
-      {view != null && <Lightbox images={images} index={view} onClose={() => setView(null)} />}
+      {view != null && <Lightbox images={images} index={view} onClose={() => setView(null)} onDelete={(ref) => onChange(latest.current.filter((x) => x !== ref))} />}
     </div>
   );
 }
 
+/** Removes one photo from a saved note / to-do / wishlist item (and from storage). */
+export async function removeItemImage(item: LifeItem, ref: string) {
+  const next = (item.data?.images ?? []).filter((x) => x !== ref);
+  await useStore.getState().patch("life_items", item.id, { data: { ...item.data, images: next } });
+  void deleteImages([ref]);
+}
+
 /** Read-only row of photos; tap one to view them full screen. */
-export function PhotoStrip({ images, size = "h-14 w-14", className }: { images?: string[] | null; size?: string; className?: string }) {
+export function PhotoStrip({ images, size = "h-14 w-14", className, onRemove }: { images?: string[] | null; size?: string; className?: string; onRemove?: (ref: string) => void }) {
   const [view, setView] = useState<number | null>(null);
   if (!images?.length) return null;
   return (
     <div className={cn("flex flex-wrap gap-1.5", className)} onClick={(e) => e.stopPropagation()}>
       {images.map((r, k) => (
-        <Thumb key={r} refId={r} onClick={() => setView(k)} className={cn("rounded-lg", size)} alt={`Photo ${k + 1}`} />
+        <span key={r} className="relative">
+          <Thumb refId={r} onClick={() => setView(k)} className={cn("rounded-lg", size)} alt={`Photo ${k + 1}`} />
+          {onRemove && (
+            <button
+              type="button"
+              onClick={() => onRemove(r)}
+              aria-label={`Delete photo ${k + 1}`}
+              className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface text-ink-2 shadow-panel hover:text-danger"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </span>
       ))}
-      {view != null && <Lightbox images={images} index={view} onClose={() => setView(null)} />}
+      {view != null && <Lightbox images={images} index={view} onClose={() => setView(null)} onDelete={onRemove} />}
     </div>
   );
 }
