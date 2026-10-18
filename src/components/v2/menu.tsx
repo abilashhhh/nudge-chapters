@@ -1,11 +1,12 @@
 "use client";
 
-import { Bell, Briefcase, CalendarDays, LockKeyhole, HelpCircle, Landmark, MessageSquareText, PiggyBank, Repeat, Users, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
+import { Bell, Briefcase, CalendarDays, Lightbulb, LockKeyhole, HelpCircle, ShieldHalf, Landmark, MessageSquareText, PiggyBank, Repeat, Users, Settings, ShieldCheck, Target, Sparkles } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useFinance } from "@/lib/finance";
 import { annualPremium } from "@/lib/insurance";
 import { formatMoney } from "@/lib/money";
+import { useIsAdmin } from "@/lib/feedback";
 import { V2PageHeader } from "./ui";
 import { monthlyNeed } from "./sinking";
 
@@ -21,6 +22,7 @@ export function MenuScreen() {
   const yearlyPremium = activePolicies.reduce((t, p) => t + annualPremium(p), 0);
   const sinking = ds.profile.preferences?.sinkingFunds ?? [];
   const sinkingMonth = sinking.reduce((s, f) => s + monthlyNeed(f, today), 0);
+  const admin = useIsAdmin();
   const n = (k: string, c: number, none: string) => (c ? `${c} ${k}${c === 1 ? "" : "s"}` : none);
 
   const groups: { title: string; tiles: Tile[] }[] = [
@@ -45,6 +47,8 @@ export function MenuScreen() {
         { href: "/menu/sms", label: "Bank SMS", icon: MessageSquareText, hint: "Add payments from bank messages (iPhone & Android)" },
         { href: "/menu/settings", label: "Settings", icon: Settings, hint: "Profile, import & export, security, look" },
         { href: "/menu/help", label: "Help & support", icon: HelpCircle, hint: "Questions and answers" },
+        { href: "/menu/feedback", label: "Feature requests & feedback", icon: Lightbulb, hint: "Ask for a feature, tell us what you think" },
+        ...(admin ? [{ href: "/menu/admin", label: "Admin", icon: ShieldHalf, hint: "Users, usage, requests and feedback" }] : []),
       ],
     },
   ];

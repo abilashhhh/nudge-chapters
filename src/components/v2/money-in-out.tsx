@@ -9,6 +9,7 @@ import { formatMoney, toBase } from "@/lib/money";
 import type { Transaction, TxType } from "@/lib/types";
 import { useUI } from "@/lib/ui";
 import { Money } from "../money";
+import { TxIcon } from "./entity-icon";
 import { Button } from "../ui/button";
 
 /** What counts as spending and as earning. Paying a card bill or moving money between accounts isn't either. */
@@ -126,10 +127,10 @@ export function MoneyInOut({ month }: { month: string }) {
           {shown.map((t) => (
             <li key={t.id}>
               <button type="button" onClick={() => ui.openTx(null, t)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 sm:px-5">
-                <span className="w-12 shrink-0 text-[12.5px] text-ink-3">{formatDate(t.date, "short")}</span>
+                <TxIcon cardId={t.card_id} accountId={t.account_id} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px]">{t.description || t.category || (t.type === "card_spend" ? "Card spend" : side === "spent" ? "Spending" : "Income")}</span>
-                  <span className="block truncate text-[12px] text-ink-3">{[t.category && t.description ? t.category : null, where(t)].filter(Boolean).join(" · ") || " "}</span>
+                  <span className="block truncate text-[12px] text-ink-3">{[formatDate(t.date, "short"), t.category && t.description ? t.category : null, where(t)].filter(Boolean).join(" · ")}</span>
                 </span>
                 <span className={cn("num shrink-0 text-[14px] font-semibold", side === "earned" && "text-ok")}>
                   {side === "earned" ? "+" : "−"}

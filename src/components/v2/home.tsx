@@ -22,6 +22,7 @@ import { useMonth, useSelectedMonth } from "../ui/month-picker";
 import { MoneyInOut } from "./money-in-out";
 import { SmsBanner } from "./sms";
 import { AMOUNT_CLS, ChipGroup, StatTile, StatusText, greeting, useRangeEvents } from "./ui";
+import { EventIcon } from "./entity-icon";
 import type { CellStatus } from "@/lib/v2/grids";
 
 export const V2_TYPE_LABEL: Record<FinEvent["kind"], string> = {
@@ -252,10 +253,10 @@ export function V2Home() {
             {upcoming.slice(0, 10).map((e, i) => (
               <li key={`${e.key}:${i}`}>
                 <button type="button" onClick={() => useUI.getState().openEvent(e.key)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 sm:px-5">
-                  <span className="num w-12 shrink-0 text-[13px] text-ink-2">{formatDate(e.date, "short")}</span>
+                  <EventIcon e={e} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-medium">{e.title.replace(/^(EMI|SIP|Chit) · /, "")}</span>
-                    <span className="block text-[12px] text-ink-3">{V2_TYPE_LABEL[e.kind]}</span>
+                    <span className="block text-[12px] text-ink-3">{formatDate(e.date, "short")} · {V2_TYPE_LABEL[e.kind]}</span>
                   </span>
                   <span className="shrink-0 text-right">
                     <Money value={isPending(e) ? e.remaining : e.paid || e.amount} decimals projected={e.estimated && isPending(e)} className={cn("block text-[14px] font-semibold", AMOUNT_CLS[rowStatus(e, today)])} />
