@@ -63,7 +63,6 @@ export const V2_MENU_PAGES: Record<string, string> = {
   "/menu/settings": "Settings",
   "/menu/help": "Help & support",
   "/menu/feedback": "Feature requests & feedback",
-  "/menu/admin": "Admin",
   "/trading/training": "Trading Training",
 };
 

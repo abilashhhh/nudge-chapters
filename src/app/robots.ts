@@ -6,7 +6,7 @@ export const dynamic = "force-static";
 /** App pages are private but stay crawlable so search engines can see their "noindex" tag. */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/onboarding/", "/reset-password/"] },
+    rules: { userAgent: "*", allow: "/", disallow: ["/onboarding/", "/reset-password/", "/admin/"] },
     ...(SITE_URL ? { sitemap: `${SITE_URL}/sitemap.xml` } : {}),
   };
 }

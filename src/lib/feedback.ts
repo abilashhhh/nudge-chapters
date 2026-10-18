@@ -5,7 +5,7 @@
 // functions, which refuse anyone who isn't an admin. Without an account: kept on this device only.
 
 import { useCallback, useEffect, useState } from "react";
-import { getSupabase, supabaseConfigured } from "./data/supabase";
+import { getAdminSupabase, getSupabase, supabaseConfigured } from "./data/supabase";
 import { newId } from "./data/repo";
 import { useStore } from "./store";
 
@@ -96,24 +96,50 @@ export async function deleteFeedback(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Admin
+// Admin (the separate /admin site, signed in as the admin account through its own connection)
 
-/** Are you an admin? (false without an account) */
-export function useIsAdmin(): boolean {
-  const [admin, setAdmin] = useState(false);
-  const status = useStore((s) => s.status);
-  useEffect(() => {
-    if (status !== "ready" || !cloud()) return;
-    let live = true;
-    void (async () => {
-      const { data } = await getSupabase().rpc("is_admin");
-      if (live) setAdmin(data === true);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [status]);
-  return admin;
+const ADMIN_DOMAIN = "nudgechapters.in";
+
+/** Sign in to the admin site with a username ("admin") or a full email. Refuses anyone who isn't an admin. */
+export async function adminSignIn(username: string, password: string): Promise<void> {
+  const sb = getAdminSupabase();
+  const email = username.includes("@") ? username.trim() : `${username.trim().toLowerCase()}@${ADMIN_DOMAIN}`;
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(/invalid/i.test(error.message) ? "Wrong username or password." : error.message);
+  const { data } = await sb.rpc("is_admin");
+  if (data !== true) {
+    await sb.auth.signOut();
+    throw new Error("This account isn't an admin.");
+  }
+}
+
+export async function adminSignOut(): Promise<void> {
+  await getAdminSupabase().auth.signOut();
+}
+
+/** Is the admin site signed in as an admin right now? */
+export async function adminSession(): Promise<boolean> {
+  const sb = getAdminSupabase();
+  const { data: s } = await sb.auth.getSession();
+  if (!s.session) return false;
+  const { data } = await sb.rpc("is_admin");
+  return data === true;
+}
+
+export async function adminChangePassword(password: string): Promise<void> {
+  const { error } = await getAdminSupabase().auth.updateUser({ password });
+  if (error) throw new Error(error.message);
+}
+
+export async function adminFeedback(): Promise<Feedback[]> {
+  const { data, error } = await getAdminSupabase().from("feedback").select("*").order("created_at", { ascending: false }).limit(1000);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Feedback[];
+}
+
+export async function adminUpdateFeedback(id: string, patch: Partial<Feedback>): Promise<void> {
+  const { error } = await getAdminSupabase().from("feedback").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export interface AdminUser {
@@ -144,13 +170,13 @@ export interface AdminUserDetail {
 }
 
 export async function adminUsers(): Promise<AdminUser[]> {
-  const { data, error } = await getSupabase().rpc("admin_users");
+  const { data, error } = await getAdminSupabase().rpc("admin_users");
   if (error) throw new Error(error.message);
   return (data ?? []) as AdminUser[];
 }
 
 export async function adminUserDetail(uid: string): Promise<AdminUserDetail> {
-  const { data, error } = await getSupabase().rpc("admin_user_detail", { uid });
+  const { data, error } = await getAdminSupabase().rpc("admin_user_detail", { uid });
   if (error) throw new Error(error.message);
   return data as AdminUserDetail;
 }

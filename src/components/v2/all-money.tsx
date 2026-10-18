@@ -96,7 +96,8 @@ export function AllMoney() {
       lines: ds.accounts
         .filter((a) => !a.archived)
         .map((a) => ({ id: a.id, label: a.name, sub: a.include_in_cash ? undefined : "Not counted as spendable", value: positions.accounts.get(a.id)?.balanceBase ?? 0, href: `/my-money/account?id=${a.id}`, icon: <EntityIcon kind={a.type === "wallet" || a.type === "cash" ? "wallet" : "bank"} name={a.name} issuer={a.institution} color={a.color} size="sm" /> }))
-        .filter(nz),
+        .filter(nz)
+        .sort((a, b) => b.value - a.value),
     },
     {
       title: "People owe me",
