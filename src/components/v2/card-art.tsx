@@ -100,30 +100,35 @@ export function CardArt({ art }: { art: Art }) {
         </Box>
       );
     case "axis-flipkart":
-      // Black card with a twisting blue-to-pink ribbon.
+      // An original design for this card: deep navy with soft blue and gold arcs on the right, kept clear of the
+      // chip, number and name. Only the card's name is written; no bank or shop logos are drawn.
       return (
         <Box>
           <defs>
-            <linearGradient id={`${u}r`} x1="0" y1="0" x2="1" y2="0.3">
-              <stop offset="0" stopColor="#2d6bff" />
-              <stop offset="0.45" stopColor="#7b3cff" />
-              <stop offset="0.75" stopColor="#d23cb8" />
-              <stop offset="1" stopColor="#ff3d6e" />
+            <linearGradient id={`${u}bg`} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#0f1a3a" />
+              <stop offset="1" stopColor="#070b18" />
             </linearGradient>
+            <radialGradient id={`${u}glow`} cx="0.85" cy="0.2" r="0.7">
+              <stop offset="0" stopColor="#3b6cff" stopOpacity="0.55" />
+              <stop offset="1" stopColor="#3b6cff" stopOpacity="0" />
+            </radialGradient>
           </defs>
-          <path d="M60 -10 C 120 60, 40 120, 140 140 S 260 110, 250 212" stroke={`url(#${u}r)`} strokeWidth="34" fill="none" strokeLinecap="round" opacity="0.95" />
-          <path d="M170 -10 C 150 70, 260 60, 210 140 S 120 190, 160 212" stroke={`url(#${u}r)`} strokeWidth="20" fill="none" strokeLinecap="round" opacity="0.8" />
-          <path d="M60 -10 C 120 60, 40 120, 140 140" stroke="#fff" strokeWidth="2" fill="none" opacity="0.35" />
-          <g transform="translate(14 14)">
-            <text x="0" y="13" fontSize="15" fontWeight="700" fontStyle="italic" fill="#fff" fontFamily="Georgia, 'Times New Roman', serif">
-              Flipkart
-            </text>
-            <rect x="62" y="1" width="14" height="14" rx="3" fill="#ffe11b" />
-            <text x="66" y="12.5" fontSize="11" fontWeight="900" fontStyle="italic" fill="#2874f0" fontFamily="Arial, sans-serif">
-              f
-            </text>
+          <rect width="320" height="202" fill={`url(#${u}bg)`} />
+          <rect width="320" height="202" fill={`url(#${u}glow)`} />
+          <g fill="none" strokeLinecap="round">
+            <circle cx="300" cy="40" r="62" stroke="#5b8cff" strokeOpacity="0.35" strokeWidth="1.2" />
+            <circle cx="300" cy="40" r="88" stroke="#5b8cff" strokeOpacity="0.22" strokeWidth="1.2" />
+            <circle cx="300" cy="40" r="114" stroke="#5b8cff" strokeOpacity="0.14" strokeWidth="1.2" />
+            <path d="M230 202 A 110 110 0 0 1 320 96" stroke="#f5c542" strokeOpacity="0.8" strokeWidth="3" />
           </g>
-          <AxisMark x={226} y={14} />
+          <circle cx="262" cy="150" r="4" fill="#f5c542" opacity="0.9" />
+          <text x="16" y="27" fontSize="13" fontWeight="700" letterSpacing="0.3" fill="#fff" fontFamily="Inter, Arial, Helvetica, sans-serif">
+            Flipkart
+          </text>
+          <text x="16" y="40" fontSize="8" fontWeight="600" letterSpacing="1.6" fill="#fff" opacity="0.6" fontFamily="Inter, Arial, Helvetica, sans-serif">
+            AXIS BANK
+          </text>
         </Box>
       );
     case "amazon-pay":

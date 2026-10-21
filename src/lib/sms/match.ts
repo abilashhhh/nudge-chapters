@@ -4,6 +4,7 @@
 import { addDays, diffDays } from "../dates";
 import { isPending, settlementDraft, type FinEvent } from "../engine/events";
 import type { Positions } from "../engine/ledger";
+import { personKey } from "../engine/reimburse";
 import type { Account, CreditCard, Dataset, ISODate, Transaction, TxType } from "../types";
 import { guessCategory, niceName, type ParsedSms } from "./parse";
 
@@ -222,6 +223,14 @@ export function proposeFromSms(row: SmsRow, p: ParsedSms, ds: Dataset, positions
     return { state: sure ? "ready" : "check", reason: sure ? undefined : "Check the account", tx, account, balance, parsed: p };
   }
 
+  // Money back from someone who owes you (money you lent, or an EMI they repay): it settles what they owe, oldest
+  // first, instead of counting as new income — so marking it received later can't add the money twice.
+  const back = lendingRepayment(row.body, amount, date, ds, positions, base, account.id);
+  if (back) {
+    if (dup) return { state: "duplicate", tx: back.tx, account, duplicateOf: dup, balance, parsed: p };
+    return { state: sure ? "ready" : "check", reason: sure ? undefined : "Check the account", tx: back.tx, also: back.also, account, balance, parsed: p };
+  }
+
   // Money in: salary or other planned income, a repayment, or anything else.
   const ev = plannedMatch(events, amount, date, "in", (e) => !e.accountId || e.accountId === account.id);
   const tx = ev
@@ -304,4 +313,31 @@ export function pairSms(items: Item[], ds: Dataset): Item[] {
     dupOf(w, "Wallet top-up from your card");
   }
   return out;
+}
+
+type Draft = Partial<Transaction> & { type: TxType; amount: number; date: ISODate };
+
+/**
+ * A credit from a person you lent money to: the repayment, split across what they owe (oldest / earliest due
+ * first). Anything more than they owe stays as plain money received.
+ */
+export function lendingRepayment(body: string, amount: number, date: ISODate, ds: Dataset, positions: Positions, base: Partial<Transaction>, accountId: string): { tx: Draft; also: Draft[] } | null {
+  const open = ds.lendings
+    .filter((l) => l.direction === "lent" && !l.written_off && (positions.lendings.get(l.id)?.outstanding ?? 0) > 0.5)
+    .map((l) => ({ l, who: personKey(l.person), left: positions.lendings.get(l.id)!.outstanding }))
+    .filter((x) => x.who.length >= 3 && mentions(body, [x.who]));
+  if (!open.length) return null;
+  const who = open[0].who;
+  const items = open.filter((x) => x.who.toLowerCase() === who.toLowerCase()).sort((a, b) => ((a.l.expected_date ?? a.l.date) < (b.l.expected_date ?? b.l.date) ? -1 : 1));
+  const out: Draft[] = [];
+  let rest = amount;
+  for (const it of items) {
+    if (rest <= 0.5) break;
+    const part = Math.round(Math.min(rest, it.left) * 100) / 100;
+    const label = it.l.person.length > who.length ? it.l.person.slice(who.length).replace(/^\s*[—–-]\s*/, "") : null;
+    out.push({ ...base, type: "lend_repayment", amount: part, date, account_id: accountId, lending_id: it.l.id, card_id: null, description: `${who} paid back${label ? ` · ${label}` : ""}`, category: null, is_partial: part < it.left - 0.5 });
+    rest = Math.round((rest - part) * 100) / 100;
+  }
+  if (rest > 0.5) out.push({ ...base, type: "income", amount: rest, date, account_id: accountId, card_id: null, description: `${who} (extra)`, category: null });
+  return { tx: out[0], also: out.slice(1) };
 }

@@ -53,6 +53,19 @@ describe("SMS → transaction", () => {
     expect(p.state).toBe("check");
     expect(p.reason).toMatch(/7777/);
   });
+  it("money from someone who owes you settles what they owe, oldest first; extra stays as money received", () => {
+    const d = ds();
+    const lend = (id: string, n: number, due: string) => ({ id, direction: "lent", person: `Surya — laptop EMI ${n}/7`, amount: 10222.64, date: due, expected_date: due, interest_rate: 0, account_id: "a1", include_in_projection: true, written_off: false });
+    d.lendings = [lend("l2", 2, "2026-11-26"), lend("l1", 1, "2026-10-26")] as never;
+    const p = propose(d, "Rs. 10,385 received in Kotak A/c XX9012 on 16-Oct-26 from SURYA P via UPI (Ref ID: 131632497612). Avl. Bal. Rs. 30,385.00");
+    expect(p.tx).toMatchObject({ type: "lend_repayment", lending_id: "l1", amount: 10222.64, account_id: "a1", description: "Surya paid back · laptop EMI 1/7" });
+    expect(p.also).toHaveLength(1);
+    expect(p.also?.[0]).toMatchObject({ type: "lend_repayment", lending_id: "l2", amount: 162.36, is_partial: true });
+  });
+  it("money from someone who owes nothing is plain income", () => {
+    const p = propose(ds(), "Rs. 500 received in Kotak A/c XX9012 on 16-Oct-26 from SURYA P via UPI");
+    expect(p.tx?.type).toBe("income");
+  });
   it("OTPs are ignored", () => {
     expect(propose(ds(), "123456 is your OTP for Rs 500 at AMAZON").state).toBe("ignore");
   });

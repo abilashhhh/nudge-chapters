@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Landmark, Plus, Users } from "lucide-react";
+import { AlertTriangle, Check, Landmark, Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { formatDate, relativeDays } from "@/lib/dates";
@@ -318,35 +318,43 @@ function Owed() {
               }
             >
               <ul className="mt-3 divide-y divide-line rounded-lg border border-line">
-                {g.items.map((i) => (
-                  <li key={i.lending.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13.5px] font-medium">
-                        {formatMoney(i.lending.amount, ctx, { decimals: true })}
-                        {i.lending.notes ? <span className="font-normal text-ink-3"> · {i.lending.notes}</span> : null}
+                {g.items.map((i, n) => {
+                  const left = i.outstanding > 0.5 && !i.lending.written_off;
+                  return (
+                    <li key={i.lending.id} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline gap-2 text-[13.5px]">
+                          <span className="truncate font-medium">{shortLabel(i.lending.person, g.items.length > 1 ? `${n + 1}/${g.items.length}` : null)}</span>
+                          <span className="num shrink-0 text-ink-2">{formatMoney(i.lending.amount, ctx, { decimals: true })}</span>
+                        </span>
+                        <span className="block text-[12px] text-ink-3">
+                          {i.lending.expected_date ? `Due ${formatDate(i.lending.expected_date, "short")}` : formatDate(i.lending.date, "short")}
+                          {i.lending.written_off ? " · not counted" : left ? (i.outstanding < i.lending.amount - 0.5 ? ` · ${formatMoney(i.outstanding, ctx, { decimals: true })} left` : "") : " · received"}
+                        </span>
                       </span>
-                      <span className="block text-[12px] text-ink-3">
-                        {formatDate(i.lending.date)}
-                        {i.lending.expected_date ? ` · back by ${formatDate(i.lending.expected_date, "short")}` : ""}
-                        {i.lending.written_off ? " · skipped (not counted)" : i.outstanding > 0.5 ? ` · ${formatMoney(i.outstanding, ctx, { decimals: true })} left` : " · settled"}
-                      </span>
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={() => ui.openEditor("lending", i.lending.id)}>
-                      Edit
-                    </Button>
-                    {i.lending.written_off ? (
-                      <Button size="sm" onClick={() => void useStore.getState().patch("lendings", i.lending.id, { written_off: false }).catch(() => undefined)}>
-                        Count it again
-                      </Button>
-                    ) : (
-                      i.outstanding > 0.5 && (
-                        <Button size="sm" variant="ghost" className="text-ink-3" onClick={() => void useStore.getState().patch("lendings", i.lending.id, { written_off: true }).catch(() => undefined)}>
-                          Won&apos;t get it back
+                      {left && (
+                        <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "lend_repayment", lending_id: i.lending.id, amount: i.outstanding })}>
+                          Received
                         </Button>
-                      )
-                    )}
-                  </li>
-                ))}
+                      )}
+                      {!left && !i.lending.written_off && <Check className="h-4 w-4 text-ok" aria-label="Received" />}
+                      <Button size="sm" variant="ghost" onClick={() => ui.openEditor("lending", i.lending.id)}>
+                        Edit
+                      </Button>
+                      {i.lending.written_off ? (
+                        <Button size="sm" variant="ghost" onClick={() => void useStore.getState().patch("lendings", i.lending.id, { written_off: false }).catch(() => undefined)}>
+                          Count again
+                        </Button>
+                      ) : (
+                        left && (
+                          <Button size="sm" variant="ghost" className="text-ink-3" onClick={() => void useStore.getState().patch("lendings", i.lending.id, { written_off: true }).catch(() => undefined)}>
+                            Won&apos;t get it
+                          </Button>
+                        )
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
               {g.cardRisk && (
                 <p className="mt-2 flex items-start gap-1 text-[12.5px] text-warn">
@@ -424,4 +432,12 @@ function RepaySheet({ g, onClose }: { g: ReimbursementGroup; onClose: () => void
       )}
     </Sheet>
   );
+}
+
+/** "Surya — laptop EMI 3/7" → "Laptop EMI 3/7"; a plain name → "Payment 2/5" (or "Lent" when there's one). */
+function shortLabel(person: string, pos: string | null): string {
+  const m = person.match(/\s[—–-]\s(.+)$/);
+  const tail = m?.[1]?.trim();
+  if (tail) return tail.charAt(0).toUpperCase() + tail.slice(1);
+  return pos ? `Payment ${pos}` : "Lent";
 }

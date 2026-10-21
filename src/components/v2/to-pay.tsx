@@ -96,7 +96,6 @@ function Cards() {
                 bills={ahead.get(c.id) ?? []}
                 owed={positions.cards.get(c.id)?.outstanding}
                 onOpen={() => router.push(`/to-pay/card?id=${c.id}`)}
-                onEdit={() => ui.openEditor("card", c.id)}
               />
             </div>
           );

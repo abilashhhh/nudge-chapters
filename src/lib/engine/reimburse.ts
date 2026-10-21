@@ -79,7 +79,7 @@ export function reimbursements(ds: Dataset, positions: Positions, today: ISODate
     g.items.sort((a, b) => ((a.lending.expected_date ?? a.lending.date) < (b.lending.expected_date ?? b.lending.date) ? -1 : 1));
     g.history.sort((a, b) => (a.date < b.date ? 1 : -1));
     g.recurring = g.items.length > 1 || g.loans.length > 0;
-    g.description = g.loans.length ? g.loans.map((l) => l.name).join(", ") : g.items.length === 1 ? g.items[0].lending.notes ?? "One-time" : `${g.items.length} amounts`;
+    g.description = g.loans.length ? g.loans.map((l) => l.name).join(", ") : g.items.length === 1 ? g.items[0].lending.person.split(/\s+[—–-]\s+/)[1]?.trim() || "One-time" : `${g.items.length} amounts`;
     const all = g.items.every((i) => i.lending.written_off);
     g.status = all && g.items.length ? "written_off" : g.outstanding <= 0.5 ? "completed" : g.overdue > 0.5 ? "overdue" : "active";
     for (const k of ["total", "received", "writtenOff", "outstanding", "overdue", "scheduled"] as const) g[k] = round2(g[k]);

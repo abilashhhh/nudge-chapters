@@ -17,7 +17,7 @@ const KINDS: { id: FeedbackKind; icon: typeof Bug; hint: string }[] = [
   { id: "feedback", icon: MessageCircleHeart, hint: "What you like, what feels off" },
   { id: "bug", icon: Bug, hint: "Something that doesn't work" },
 ];
-const AREAS = ["Home", "My Money", "To Pay", "Trading", "Daily", "Bank SMS", "Passwords", "Other"];
+const AREAS = ["Home", "My Money", "To Pay", "Markets", "Daily", "Bank SMS", "Passwords", "Other"];
 
 export const STATUS_CLS: Record<FeedbackStatus, string> = {
   new: "bg-surface-3 text-ink-2",

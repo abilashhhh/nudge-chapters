@@ -93,7 +93,7 @@ export function TradingScreen() {
   return (
     <>
       <V2PageHeader
-        title="Trading"
+        title="Markets"
         actions={
           <div className="flex gap-2">
             <Button size="sm" icon={<FileUp className="h-4 w-4" />} onClick={() => setImporting(true)}>Import</Button>
@@ -157,19 +157,7 @@ function Overview({ trades, onOpen, onAdd, onImport }: { trades: Trade[]; onOpen
   const days = useMemo(() => pnlByDay(trades), [trades]);
   const m = (n: number) => formatMoney(n, ctx);
   if (!trades.length)
-    return (
-      <EmptyState
-        icon={TrendingUp}
-        title="No trades yet"
-        body="Add your trades one by one, or import your broker's tradebook to see your profit, win rate and best days."
-        action={
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={onAdd}>Add a trade</Button>
-            <Button icon={<FileUp className="h-4 w-4" />} onClick={onImport}>Import from broker</Button>
-          </div>
-        }
-      />
-    );
+    return <HoldingsNow onAdd={onAdd} onImport={onImport} />;
   const from = range === "all" ? "0000" : addDays(today, range === "1m" ? -30 : range === "3m" ? -91 : -365);
   let run = 0;
   const curve = days.filter((d) => d.day >= from).map((d) => ({ day: d.day, pnl: d.pnl, total: Math.round((run += d.pnl) * 100) / 100 }));
@@ -759,5 +747,66 @@ function PaperTile() {
       </span>
       <span className="text-[13px] font-semibold text-brand">Open →</span>
     </Link>
+  );
+}
+
+/** Overview with no trades in the journal: what you hold right now (stocks, ETFs and funds), at today's prices. */
+function HoldingsNow({ onAdd, onImport }: { onAdd: () => void; onImport: () => void }) {
+  const { positions, ctx } = useFinance();
+  const router = useRouter();
+  const list = [...positions.investments.values()]
+    .filter((p) => !p.investment.archived && ["stock", "etf", "mutual_fund"].includes(p.investment.type))
+    .sort((a, b) => b.valueBase - a.valueBase);
+  const empty = (
+    <EmptyState
+      icon={TrendingUp}
+      title={list.length ? "No trades in your journal yet" : "Nothing here yet"}
+      body="Add your trades one by one, or import your broker's tradebook to see your profit, win rate and best days."
+      action={
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={onAdd}>Add a trade</Button>
+          <Button icon={<FileUp className="h-4 w-4" />} onClick={onImport}>Import from broker</Button>
+        </div>
+      }
+    />
+  );
+  if (!list.length) return empty;
+  const inv = list.reduce((s, p) => s + toBase(p.invested, p.investment.currency, ctx), 0);
+  const val = list.reduce((s, p) => s + p.valueBase, 0);
+  return (
+    <div className="flex flex-col gap-4">
+      <Card
+        title="What you hold now"
+        sub={`${list.length} stock${list.length === 1 ? "" : "s"} and fund${list.length === 1 ? "" : "s"} at today's prices`}
+        action={
+          <span className="text-right">
+            <span className="num block text-[15px] font-semibold">{formatMoney(val, ctx)}</span>
+            <span className={cn("num block text-[12px]", plc(val - inv))}>{formatMoney(val - inv, ctx, { sign: true })}{inv > 0 ? ` (${val >= inv ? "+" : ""}${formatPct(((val - inv) / inv) * 100)})` : ""}</span>
+          </span>
+        }
+      >
+        <ul className="-mx-2 flex flex-col">
+          {list.map((p) => (
+            <li key={p.investment.id}>
+              <button type="button" onClick={() => router.push(`/my-money/holding?id=${p.investment.id}`)} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-surface-2">
+                <EntityIcon kind={p.investment.type === "mutual_fund" ? "fund" : "stock"} name={p.investment.name} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14.5px] font-medium">{p.investment.name}</span>
+                  <span className="num block truncate text-[12px] text-ink-3">
+                    {p.units != null ? `${p.units.toLocaleString("en-IN", { maximumFractionDigits: 3 })} ${p.investment.type === "mutual_fund" ? "units" : "shares"}` : ""}
+                    {p.price != null ? ` · ${formatMoney(p.price, ctx, { decimals: true })}` : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="num block text-[14.5px] font-semibold">{formatMoney(p.value, ctx)}</span>
+                  <span className={cn("num block text-[11.5px]", plc(p.gain))}>{formatMoney(p.gain, ctx, { sign: true })}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      {empty}
+    </div>
   );
 }
