@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronRight, CreditCard, Landmark, PiggyBank } from "lucide-react";
-import { CardVisual } from "./card-visual";
+import { FlipCard, useCardBillsAhead } from "./card-flip";
 import { EntityIcon } from "./entity-icon";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -26,7 +26,7 @@ const TABS = ["all", "cards", "chits", "loans"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ToPayScreen() {
-  const [tab, setTab] = useTab(TABS, "all");
+  const [tab, setTab] = useTab(TABS, "cards");
   const { month, ds, positions } = useFinance();
   return (
     <>
@@ -69,6 +69,7 @@ function Cards() {
   const order = new Map(orderForMonth(data.groups, month).map((g, i) => [g.ref?.id, Math.abs(g.total.cells[month]?.amount ?? 0) > 0.005 && g.total.cells[month]?.status !== "paid" ? i : 1000]));
   const owed = (id: string) => positions.cards.get(id)?.outstanding ?? 0;
   const cards = ds.credit_cards.filter((c) => !c.archived).sort((a, b) => (order.get(a.id) ?? 1000) - (order.get(b.id) ?? 1000) || owed(b.id) - owed(a.id));
+  const ahead = useCardBillsAhead();
   const shared = (c: (typeof cards)[number]) => {
     const k = c.shared_limit_group?.trim().toLowerCase();
     if (!k || cards.filter((x) => x.shared_limit_group?.trim().toLowerCase() === k).length < 2) return undefined;
@@ -85,7 +86,18 @@ function Cards() {
           const due = cell && cell.amount > 0 ? `${formatMoney(cell.amount, ctx)} ${cell.status === "paid" ? "paid" : cell.status === "late" ? "late" : "due"}` : null;
           return (
             <div key={c.id} className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
-              <CardVisual card={c} index={i} used={positions.cards.get(c.id)?.utilization} usedLabel={shared(c)} due={due} dueTone={tone} onClick={() => router.push(`/to-pay/card?id=${c.id}`)} />
+              <FlipCard
+                card={c}
+                index={i}
+                used={positions.cards.get(c.id)?.utilization}
+                usedLabel={shared(c)}
+                due={due}
+                dueTone={tone}
+                bills={ahead.get(c.id) ?? []}
+                owed={positions.cards.get(c.id)?.outstanding}
+                onOpen={() => router.push(`/to-pay/card?id=${c.id}`)}
+                onEdit={() => ui.openEditor("card", c.id)}
+              />
             </div>
           );
         })}
