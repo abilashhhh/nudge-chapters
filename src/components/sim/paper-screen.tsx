@@ -257,18 +257,18 @@ function usePolling(tab: string, stock: string | null) {
   useEffect(() => {
     if (status !== "ready") return;
     let alive = true;
+    // Prices are asked for only while this page is open and on screen: leaving the page or hiding the tab stops it.
     const loop = async () => {
+      if (!alive || document.visibilityState !== "visible") return;
+      await refreshAll().catch(() => undefined);
       if (!alive) return;
-      if (document.visibilityState === "visible") await refreshAll().catch(() => undefined);
       const open = marketStatus(Date.now()) !== "closed";
       timer.current = setTimeout(loop, (open ? every : 300) * 1000);
     };
     void loop();
     const onVis = () => {
-      if (document.visibilityState === "visible") {
-        if (timer.current) clearTimeout(timer.current);
-        void loop();
-      }
+      if (timer.current) clearTimeout(timer.current);
+      if (document.visibilityState === "visible") void loop();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {

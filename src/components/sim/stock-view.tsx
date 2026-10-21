@@ -331,7 +331,7 @@ function HoldingHistory({ symbol }: { symbol: string }) {
           <li key={f.id} className="flex items-center justify-between gap-2 py-2">
             <span>
               <span className={cn("font-semibold", f.side === "buy" ? "text-ok" : "text-danger")}>{f.side === "buy" ? "Bought" : "Sold"}</span> {f.qty} at {price(f.price)}
-              <span className="block text-[11.5px] text-ink-3">{new Date(f.executed_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} · {f.product} · charges {inr(f.charges)}</span>
+              <span className="block text-[11.5px] text-ink-3">{new Date(f.executed_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "medium" })} · {f.product} · charges {inr(f.charges)}</span>
             </span>
             {f.realized_pnl != null && <span className={plTone(f.realized_pnl)}>{signed(f.realized_pnl)}</span>}
           </li>
