@@ -64,6 +64,7 @@ export const V2_MENU_PAGES: Record<string, string> = {
   "/menu/help": "Help & support",
   "/menu/feedback": "Feature requests & feedback",
   "/trading/training": "Trading Training",
+  "/trading/paper": "Paper Trading",
 };
 
 function strip(p: string): string {
