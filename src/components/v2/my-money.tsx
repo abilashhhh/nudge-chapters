@@ -321,10 +321,10 @@ function Owed() {
                 {g.items.map((i, n) => {
                   const left = i.outstanding > 0.5 && !i.lending.written_off;
                   return (
-                    <li key={i.lending.id} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2">
-                      <span className="min-w-0 flex-1">
+                    <li key={i.lending.id} className="flex flex-col gap-1.5 px-3 py-2 sm:flex-row sm:items-center sm:gap-2">
+                      <span className="min-w-0 sm:flex-1">
                         <span className="flex items-baseline gap-2 text-[13.5px]">
-                          <span className="truncate font-medium">{shortLabel(i.lending.person, g.items.length > 1 ? `${n + 1}/${g.items.length}` : null)}</span>
+                          <span className="min-w-0 truncate font-medium">{shortLabel(i.lending.person, g.items.length > 1 ? `${n + 1}/${g.items.length}` : null)}</span>
                           <span className="num shrink-0 text-ink-2">{formatMoney(i.lending.amount, ctx, { decimals: true })}</span>
                         </span>
                         <span className="block text-[12px] text-ink-3">
@@ -332,6 +332,7 @@ function Owed() {
                           {i.lending.written_off ? " · not counted" : left ? (i.outstanding < i.lending.amount - 0.5 ? ` · ${formatMoney(i.outstanding, ctx, { decimals: true })} left` : "") : " · received"}
                         </span>
                       </span>
+                      <span className="-ml-1 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
                       {left && (
                         <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "lend_repayment", lending_id: i.lending.id, amount: i.outstanding })}>
                           Received
@@ -352,6 +353,7 @@ function Owed() {
                           </Button>
                         )
                       )}
+                      </span>
                     </li>
                   );
                 })}
