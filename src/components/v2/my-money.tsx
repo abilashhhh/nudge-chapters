@@ -34,11 +34,11 @@ const TYPE_LABEL: Record<Account["type"], string> = { savings: "Savings", curren
 
 /** My Money: bank accounts, money people owe you, and every saving and investment, in one section. */
 export function MyMoneyScreen() {
-  const [tab0, setTab] = useTab(TABS, "all");
+  const [tab0, setTab] = useTab(TABS, "accounts");
   const { ds, positions, ctx } = useFinance();
   const sv = useSavings();
   const visible: Tab[] = ["all", "accounts", "owed", ...sv.tabs.map((t) => t.id)];
-  const tab: Tab = visible.includes(tab0) ? tab0 : "all";
+  const tab: Tab = visible.includes(tab0) ? tab0 : "accounts";
   return (
     <>
       <V2PageHeader title="My Money" />

@@ -26,7 +26,7 @@ import { EntityIcon } from "./entity-icon";
 import { ImportTradesSheet, IpoSheet, TradeSheet } from "./trading-sheets";
 import { StatTile, V2PageHeader } from "./ui";
 
-const TABS = ["overview", "intraday", "trades", "holdings", "ipos"] as const;
+const TABS = ["overview", "intraday", "trades", "holdings", "funds", "ipos"] as const;
 type Tab = (typeof TABS)[number];
 
 const tick = { fill: "var(--ink-3)", fontSize: 11.5 };
@@ -86,6 +86,7 @@ export function TradingScreen() {
   const ist = ipoStats(ipos);
   const stocks = [...positions.investments.values()].filter((p) => !p.investment.archived && (p.investment.type === "stock" || p.investment.type === "etf"));
   const holdGain = stocks.reduce((s, p) => s + p.valueBase - toBase(p.invested, p.investment.currency, ctx), 0);
+  const fundCount = [...positions.investments.values()].filter((p) => !p.investment.archived && p.investment.type === "mutual_fund").length;
   const router = useRouter();
   const openTrade = (trade: Trade) => setEditing({ trade });
   const addTrade = (segment: TradeSegment = "intraday") => setEditing({ preset: { segment } });
@@ -96,8 +97,13 @@ export function TradingScreen() {
         actions={
           <div className="flex gap-2">
             <Button size="sm" icon={<FileUp className="h-4 w-4" />} onClick={() => setImporting(true)}>Import</Button>
-            <Button size="sm" variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => (tab === "ipos" ? setIpoEdit({}) : addTrade(tab === "trades" ? "swing" : "intraday"))}>
-              {tab === "ipos" ? "Add IPO" : "Add trade"}
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<Plus className="h-4 w-4" />}
+              onClick={() => (tab === "ipos" ? setIpoEdit({}) : tab === "funds" ? useUI.getState().openEditor("investment", undefined, { type: "mutual_fund" }) : addTrade(tab === "trades" ? "swing" : "intraday"))}
+            >
+              {tab === "ipos" ? "Add IPO" : tab === "funds" ? "Add fund" : "Add trade"}
             </Button>
           </div>
         }
@@ -117,6 +123,7 @@ export function TradingScreen() {
           { id: "intraday", label: "Intraday", count: trades.filter((t) => t.segment === "intraday").length },
           { id: "trades", label: "Swing & F&O", count: trades.filter((t) => t.segment !== "intraday").length },
           { id: "holdings", label: "Holdings", count: stocks.length },
+          { id: "funds", label: "Mutual funds", count: fundCount },
           { id: "ipos", label: "IPOs", count: ipos.length },
           { id: "training", label: "Training" },
         ]}
@@ -126,6 +133,7 @@ export function TradingScreen() {
       {tab === "intraday" && <Intraday trades={trades.filter((t) => t.segment === "intraday")} onOpen={openTrade} onAdd={() => addTrade("intraday")} />}
       {tab === "trades" && <Positional trades={trades.filter((t) => t.segment !== "intraday")} onOpen={openTrade} onAdd={() => addTrade("swing")} />}
       {tab === "holdings" && <Holdings />}
+      {tab === "funds" && <Funds />}
       {tab === "ipos" && <Ipos list={ipos} onOpen={(ipo) => setIpoEdit({ ipo })} onAdd={() => setIpoEdit({})} />}
       <p className="mt-4 text-[12px] text-ink-3">
         Your trade journal and IPOs are a record only: they don&apos;t move money in your bank accounts. Profits shown are after the charges you enter.
@@ -565,6 +573,66 @@ function Holdings() {
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mutual funds: the same funds as My Money, with live NAVs, SIPs and profit
+// ---------------------------------------------------------------------------
+
+function Funds() {
+  const { positions, ctx } = useFinance();
+  const router = useRouter();
+  const list = [...positions.investments.values()].filter((p) => !p.investment.archived && p.investment.type === "mutual_fund").sort((a, b) => b.valueBase - a.valueBase);
+  if (!list.length)
+    return <EmptyState icon={Wallet} title="No mutual funds yet" body="Funds you hold show here with today's NAV, your SIP and your profit." action={<Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => useUI.getState().openEditor("investment", undefined, { type: "mutual_fund" })}>Add a fund</Button>} />;
+  const inv = list.reduce((s, p) => s + toBase(p.invested, p.investment.currency, ctx), 0);
+  const val = list.reduce((s, p) => s + p.valueBase, 0);
+  const sip = list.reduce((s, p) => s + (p.investment.sip_active ? p.investment.sip_amount : 0), 0);
+  const open = (id: string) => router.push(`/my-money/holding?id=${id}`);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        <Mini label="Invested" value={formatMoney(inv, ctx)} />
+        <Mini label="Current" value={formatMoney(val, ctx)} />
+        <Mini label={val - inv >= 0 ? "Profit" : "Loss"} value={formatMoney(val - inv, ctx, { sign: true })} tone={plc(val - inv)} note={inv > 0 ? formatPct(((val - inv) / inv) * 100) : undefined} />
+        <Mini label="SIPs a month" value={formatMoney(sip, ctx)} />
+      </div>
+      <section aria-label="Your funds" className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
+        {list.map((p, i) => (
+          <div key={p.investment.id} className="w-[82%] max-w-[340px] shrink-0 snap-center sm:w-auto sm:max-w-none">
+            <HoldingTile id={p.investment.id} index={i} onClick={() => open(p.investment.id)} />
+          </div>
+        ))}
+      </section>
+      <Card title="All funds" sub="NAVs update from AMFI when you open the app.">
+        <ul className="-mx-2 flex flex-col">
+          {list.map((p) => {
+            const i = p.investment;
+            const cost = p.units ? p.invested / p.units : null;
+            return (
+              <li key={i.id}>
+                <button type="button" onClick={() => open(i.id)} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-surface-2">
+                  <EntityIcon kind="fund" name={i.name} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14.5px] font-medium">{i.name}</span>
+                    <span className="num block truncate text-[12px] text-ink-3">
+                      {p.units != null ? `${p.units.toLocaleString("en-IN", { maximumFractionDigits: 3 })} units` : ""}
+                      {cost != null && p.price != null ? ` · ${formatMoney(cost, ctx, { decimals: true })} → ${formatMoney(p.price, ctx, { decimals: true })}` : ""}
+                      {i.sip_active && i.sip_amount > 0 ? ` · SIP ${formatMoney(i.sip_amount, ctx)}` : ""}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="num block text-[14.5px] font-semibold">{formatMoney(p.value, ctx)}</span>
+                    <span className={cn("num block text-[11.5px]", plc(p.gain))}>{formatMoney(p.gain, ctx, { sign: true })} ({p.gainPct >= 0 ? "+" : ""}{formatPct(p.gainPct)})</span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
     </div>
   );
 }

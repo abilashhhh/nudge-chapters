@@ -21,7 +21,8 @@ import { Button } from "../ui/button";
 import { EmptyState, Segmented } from "../ui/misc";
 import { useHoldingHistory } from "../price-refresher";
 import { initials } from "./entity-icon";
-import { AccountVisual, CardVisual } from "./card-visual";
+import { AccountVisual } from "./card-visual";
+import { FlipCard, useCardBillsAhead } from "./card-flip";
 
 const tick = { fill: "var(--ink-3)", fontSize: 11.5 };
 
@@ -214,6 +215,7 @@ export function CardDetailScreen() {
   const card = ds.credit_cards.find((c) => c.id === id);
   const cp = card ? positions.cards.get(card.id) : undefined;
   const txs = useMemo(() => (card ? ds.transactions.filter((t) => t.card_id === card.id) : []), [ds.transactions, card]);
+  const ahead = useCardBillsAhead();
   const m = (n: number) => formatMoney(n, ctx);
   if (!card || !cp)
     return (
@@ -236,13 +238,19 @@ export function CardDetailScreen() {
   const topCats = [...cats.entries()].map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount).slice(0, 6);
   const emis = ds.loans.filter((l) => l.card_id === card.id && l.status === "active");
   const thisMonth = months.at(-1)!.amount;
+
   const prevMonth = months.at(-2)!.amount;
   return (
     <>
       <Back href="/to-pay?tab=cards" label="Credit cards" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
-          <CardVisual card={card} used={cp.utilization} usedLabel={mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined} due={lastSt ? `${m(lastSt.remaining)} due ${formatDate(lastSt.statement.due_date, "short")}` : "No bill due"} dueTone={lastSt ? (lastSt.statement.due_date < today ? "late" : lastSt.statement.due_date <= addDays(today, 7) ? "soon" : null) : "paid"} />
+          <FlipCard
+            bills={ahead.get(card.id) ?? []}
+            owed={cp.outstanding}
+            onOpen={() => ui.openEditor("card", card.id)}
+            openLabel="Edit card"
+            card={card} used={cp.utilization} usedLabel={mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined} due={lastSt ? `${m(lastSt.remaining)} due ${formatDate(lastSt.statement.due_date, "short")}` : "No bill due"} dueTone={lastSt ? (lastSt.statement.due_date < today ? "late" : lastSt.statement.due_date <= addDays(today, 7) ? "soon" : null) : "paid"} />
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" icon={<Receipt className="h-4 w-4" />} onClick={() => ui.openTx({ type: "card_payment", card_id: card.id })}>Pay bill</Button>
             <Button icon={<Plus className="h-4 w-4" />} onClick={() => ui.openTx({ type: "card_spend", card_id: card.id })}>Add spend</Button>
@@ -356,7 +364,8 @@ export function AccountDetailScreen() {
       <Back href="/my-money?tab=accounts" label="Bank accounts" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
-          <AccountVisual account={a} balance={<Money value={bal} decimals currency={a.currency} className="text-inherit" />} />
+          <AccountVisual account={a} balance={<Money value={bal} decimals currency={a.currency} className="text-inherit" />} onClick={() => ui.openEditor("account", a.id)} />
+          <p className="-mt-1 text-[12px] text-ink-3">Tap the card to edit the account.</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" icon={<Plus className="h-4 w-4" />} onClick={() => ui.openTx({ type: "expense", account_id: a.id })}>Add entry</Button>
             <Button icon={<RefreshCw className="h-4 w-4" />} onClick={() => ui.openTx({ type: "adjustment", account_id: a.id, description: "Balance matched with bank" })}>Fix balance</Button>
