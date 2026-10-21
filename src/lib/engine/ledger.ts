@@ -20,6 +20,8 @@ import { xirr } from "./xirr";
 
 /** Cash movements a transaction causes, as [accountId, delta] pairs. */
 export function cashDeltas(t: Transaction): [string, number][] {
+  // Already in the bank balance through another entry (e.g. a bank SMS): recorded, but doesn't move cash again.
+  if (Array.isArray(t.tags) && t.tags.includes("in-balance")) return [];
   const a = t.account_id;
   const amt = t.amount;
   switch (t.type) {

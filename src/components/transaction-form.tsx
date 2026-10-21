@@ -6,7 +6,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
-import { addDays, addMonths, formatDate, formatMonthLong, startOfMonth } from "@/lib/dates";
+import { addDays, addMonths, diffDays, formatDate, formatMonthLong, startOfMonth } from "@/lib/dates";
 import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
 import { TX_TYPE_LABEL } from "@/lib/engine/defaults";
 import { chitDividendRecord, chitInstallmentInMonth, chitInstallmentOn } from "@/lib/engine/chits";
@@ -16,9 +16,11 @@ import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import type { Transaction, TxType } from "@/lib/types";
 import { useAppVersion } from "@/lib/app-version";
+import { IN_BALANCE, bankDirection, clearMatch, findBankMatches, mergeIntoBankEntry } from "@/lib/bank-match";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Input, NumberInput, Select, Switch, Textarea } from "./ui/form";
 import { ConfirmSheet, Sheet } from "./ui/sheet";
+import { BankMatchPicker } from "./bank-match-picker";
 
 const PRIMARY: { id: TxType; label: string }[] = [
   { id: "expense", label: "Expense" },
@@ -128,6 +130,27 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
   const [moreOpen, setMoreOpen] = useState(() => !!editing && ((editing.tags ?? []).length > 0 || !!editing.notes));
   const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
   const type = d.type ?? "expense";
+  // "Money's already in my bank account": the bank side was recorded already (usually from a bank SMS). Then this
+  // entry either takes over that bank entry (no double counting) or is saved without touching the balance.
+  const bankDir = bankDirection(type, d.payWith);
+  const [inBank, setInBank] = useState(() => !!editing && (editing.tags ?? []).includes(IN_BALANCE));
+  const [useTx, setUseTx] = useState<string | null>(null);
+  const bankMatches = useMemo(() => {
+    if (!bankDir || !d.date) return [];
+    const acct = type === "expense" ? (d.payWith ?? "").split(":")[1] : d.account_id;
+    return findBankMatches(ds, { dir: bankDir, accountId: acct, date: d.date, amount: d.amount, excludeId: editing?.id });
+  }, [bankDir, type, d.payWith, d.account_id, d.date, d.amount, ds, editing?.id]);
+  // Coming from "Mark received" with a bank entry that clearly matches: suggest it straight away.
+  useEffect(() => {
+    if (editing || !preset?.lending_id || inBank) return;
+    const best = clearMatch(bankMatches, d.amount);
+    if (best) {
+      setInBank(true);
+      setUseTx(best.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankMatches.length]);
+  const picked = inBank && useTx ? bankMatches.find((t) => t.id === useTx) ?? null : null;
 
   // Pre-fill EMI split from the loan's next installment.
   useEffect(() => {
@@ -222,8 +245,18 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
       body.units = Math.round((body.amount / body.price) * 1e6) / 1e6;
     }
     if (type !== "transfer") body.to_account_id = null;
+    body.tags = (body.tags ?? []).filter((t) => t !== IN_BALANCE);
+    if (bankDir && inBank && !picked) body.tags = [...body.tags, IN_BALANCE];
     setBusy(true);
     try {
+      if (bankDir && picked) {
+        // Turn the bank entry into this one, so the money is counted once. Anything extra stays as it was.
+        const extra = await mergeIntoBankEntry(picked, body, { add, patch });
+        if (editing) await remove("transactions", editing.id);
+        toast.success(extra > 0.5 ? `Matched to the bank entry · ${formatMoney(extra, ctx)} left as it was` : "Matched to the bank entry — counted once");
+        onClose();
+        return;
+      }
       if (editing) {
         const { id, created_at: _c, updated_at: _u, user_id: _uid, ...rest } = body as Transaction;
         await patch("transactions", id, rest);
@@ -613,6 +646,8 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
 
           {specific}
 
+          {bankDir && <BankMatchPicker dir={bankDir} on={inBank} setOn={setInBank} matches={bankMatches} picked={useTx} setPicked={setUseTx} amount={d.amount} />}
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Date" error={errors.date} htmlFor="tx-date">
               <DateInput id="tx-date" value={d.date ?? ""} onChange={(e) => set({ date: e.target.value })} />
@@ -743,3 +778,4 @@ export function QuickAddSheet() {
     </Sheet>
   );
 }
+

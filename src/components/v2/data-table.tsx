@@ -214,7 +214,8 @@ export function DataTable<T>({
                 {isOpen && details && (
                   <tr className="bg-surface-2">
                     <td colSpan={span} className="px-3 pb-3 pt-0">
-                      {details(r)}
+                      {/* Zero intrinsic width: long text inside can't stretch the table past the screen on phones. */}
+                      <div className="w-0 min-w-full">{details(r)}</div>
                     </td>
                   </tr>
                 )}

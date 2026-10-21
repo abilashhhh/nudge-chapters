@@ -14,7 +14,7 @@ export const V2_NAV: V2NavItem[] = [
   { href: "/", label: "Home", meaning: "Your money at a glance" },
   { href: "/my-money", label: "My Money", meaning: "Your bank accounts, money others owe you, and your savings and investments" },
   { href: "/to-pay", label: "To Pay", meaning: "Bills, EMIs and installments you have to pay" },
-  { href: "/trading", label: "Trading", meaning: "Your intraday and swing trades, stocks you hold, and IPOs" },
+  { href: "/trading", label: "Markets", meaning: "Your trades, stocks and funds you hold, IPOs and paper trading" },
   { href: "/daily", label: "Daily", meaning: "Your daily rhythm, to-do, reminders, notes and wishlist" },
   { href: "/menu", label: "Menu", meaning: "Planning tools and settings" },
 ];

@@ -26,7 +26,7 @@ export function V2PageHeader({ title, shortTitle, actions }: { title: string; sh
     <div className={cn("mb-4 flex items-center justify-between gap-3 lg:mb-5", barSection && !actions && "hidden lg:flex")}>
       <div className={cn("flex min-w-0 items-center gap-2", barSection && "hidden lg:flex")}>
         {back && (
-          <Link href={back} aria-label={back === "/menu" ? "Back to Menu" : "Back to Trading"} className="no-print inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:text-ink">
+          <Link href={back} aria-label={back === "/menu" ? "Back to Menu" : "Back to Markets"} className="no-print inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:text-ink">
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </Link>
         )}

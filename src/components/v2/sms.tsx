@@ -546,7 +546,7 @@ export function SmsScreen() {
               {recent.map((r) => {
                 const t = txOf(r.transaction_id);
                 return (
-                  <li key={r.id} className="flex items-start gap-3 px-4 py-2.5 sm:px-5">
+                  <li key={r.id} className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 px-4 py-2.5 sm:flex sm:px-5">
                     <span className={cn("mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", r.status === "added" ? "bg-ok/15 text-ok" : r.status === "ignored" ? "bg-surface-3 text-ink-3" : "bg-warn/15 text-warn")}>
                       {r.status === "added" ? "Added" : r.status === "ignored" ? "Ignored" : "Waiting"}
                     </span>
@@ -557,12 +557,13 @@ export function SmsScreen() {
                         </button>
                       )}
                       {r.status === "new" && waiting.get(r.id)?.p.reason && <span className="block text-[12.5px] font-medium text-warn">{waiting.get(r.id)?.p.reason}</span>}
-                      <span className="line-clamp-2 block text-[12.5px] text-ink-2">{r.body}</span>
+                      <span className="line-clamp-2 text-[12.5px] text-ink-2 [overflow-wrap:anywhere]">{r.body}</span>
                       <span className="block text-[11.5px] text-ink-3">
                         {r.sender ? `${r.sender} · ` : ""}
                         {formatDate(r.received_at.slice(0, 10), "short")}
                       </span>
                     </span>
+                    <span className="col-start-2 justify-self-start sm:shrink-0">
                     {r.status === "new" && waiting.get(r.id)?.p.state === "ignore" ? (
                       <Button size="sm" onClick={() => void useSms.getState().mark(r.id, "ignored")} title={waiting.get(r.id)?.p.reason}>
                         Ignore
@@ -576,6 +577,7 @@ export function SmsScreen() {
                         Look again
                       </Button>
                     ) : null}
+                    </span>
                   </li>
                 );
               })}

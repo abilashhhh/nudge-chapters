@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarClock, Check, CircleSlash, Pencil, RotateCcw, SkipForward } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { addDays, addMonths, endOfMonth, formatDate, formatMonthLong, relativeDays, startOfMonth } from "@/lib/dates";
 import { buildEvents, isPending, settlementDraft, SETTLED, type FinEvent } from "@/lib/engine/events";
@@ -16,6 +16,8 @@ import { useAppVersion } from "@/lib/app-version";
 import { Money } from "./money";
 import { Button } from "./ui/button";
 import { AmountInput, DateInput, Field, Select, Switch } from "./ui/form";
+import { BankMatchPicker } from "./bank-match-picker";
+import { IN_BALANCE, clearMatch, findBankMatches, mergeIntoBankEntry } from "@/lib/bank-match";
 import { KV, StatusPill } from "./ui/misc";
 import { ConfirmSheet, Sheet } from "./ui/sheet";
 
@@ -127,6 +129,21 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
   };
 
   const needsAccount = !isCardOnly && e.kind !== "card_statement";
+  // "Money's already in my bank account" (see lib/bank-match): settle it from the bank entry instead of adding money again.
+  const [inBank, setInBank] = useState(false);
+  const [bankPick, setBankPick] = useState<string | null>(null);
+  const bankMatches = useMemo(
+    () => (needsAccount && date ? findBankMatches(ds, { dir: flowIn ? "in" : "out", accountId: account || null, date, amount }) : []),
+    [needsAccount, ds, flowIn, account, date, amount],
+  );
+  useEffect(() => {
+    // A bank entry that clearly matches (e.g. the SMS for this very payment): suggest it.
+    if (!inBank && bankPick === null && clearMatch(bankMatches, amount)) {
+      setInBank(true);
+      setBankPick(bankMatches[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankMatches.length]);
   const settle = () =>
     run(async () => {
       if (!amount || amount <= 0) return;
@@ -139,7 +156,11 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
         // EMIs are matched by order; record against this installment.
         draft.occurrence_date = e.occurrence;
       }
-      await add("transactions", draft);
+      const pickedTx = inBank && bankPick ? bankMatches.find((t) => t.id === bankPick) ?? null : null;
+      if (pickedTx) {
+        const extra = await mergeIntoBankEntry(pickedTx, draft, { add, patch });
+        toast.success(extra > 0.5 ? `Matched to the bank entry · ${formatMoney(extra, ctx)} left as it was` : "Matched to the bank entry — counted once");
+      } else await add("transactions", inBank && needsAccount ? { ...draft, tags: [...(draft.tags ?? []), IN_BALANCE] } : draft);
       // A chit installment paid in full for less than planned: the difference is this month's dividend, not a
       // shortfall. Save it on the installment so it's counted as profit and future estimates learn from it.
       if (e.kind === "chit" && e.chitId && e.installment && !partial) {
@@ -365,6 +386,7 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
             <Field label="Date" htmlFor="ev-date">
               <DateInput id="ev-date" value={date} onChange={(x) => setDate(x.target.value)} />
             </Field>
+            {needsAccount && <BankMatchPicker dir={flowIn ? "in" : "out"} on={inBank} setOn={setInBank} matches={bankMatches} picked={bankPick} setPicked={setBankPick} amount={amount} />}
             {!isCountBased && amount != null && amount < e.remaining - 0.5 && e.kind === "chit" && !partial && (
               <p className="rounded-xl bg-ok-soft px-3 py-2 text-[12.5px] text-ok">
                 {formatMoney(e.remaining - amount, ctx)} less than planned — counted as this month&apos;s dividend (your profit from the auction), not as money still due.

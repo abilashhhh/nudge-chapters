@@ -249,7 +249,6 @@ export function CardDetailScreen() {
             bills={ahead.get(card.id) ?? []}
             owed={cp.outstanding}
             onOpen={() => ui.openEditor("card", card.id)}
-            openLabel="Edit card"
             card={card} used={cp.utilization} usedLabel={mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined} due={lastSt ? `${m(lastSt.remaining)} due ${formatDate(lastSt.statement.due_date, "short")}` : "No bill due"} dueTone={lastSt ? (lastSt.statement.due_date < today ? "late" : lastSt.statement.due_date <= addDays(today, 7) ? "soon" : null) : "paid"} />
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" icon={<Receipt className="h-4 w-4" />} onClick={() => ui.openTx({ type: "card_payment", card_id: card.id })}>Pay bill</Button>
@@ -490,7 +489,7 @@ export function HoldingTile({ id, onClick, index = 0 }: { id: string; onClick?: 
       <span className="relative flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[30%] bg-white/15 text-[12px] font-bold ring-1 ring-inset ring-white/25 backdrop-blur-sm">{initials(i.name)}</span>
         <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 block text-[15px] font-semibold leading-snug">{i.name}</span>
+          <span className="line-clamp-2 text-[15px] font-semibold leading-snug">{i.name}</span>
           <span className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] opacity-75">{i.type === "mutual_fund" ? "Mutual fund" : i.type === "etf" ? "ETF" : "Stock"}{i.institution ? ` · ${i.institution}` : ""}</span>
         </span>
         <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold shadow-sm", up ? "bg-[#16a34a]" : "bg-[#dc2626]")}>
