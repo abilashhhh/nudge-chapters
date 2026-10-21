@@ -89,7 +89,7 @@ export function FlipCard({
           aria-label={`${card.name}: bills for the next three months`}
         >
           <button type="button" className="absolute inset-0 h-full w-full cursor-pointer text-left" onClick={() => (touch.current ? setFlipped(false) : onOpen?.())} aria-label={touch.current ? "Turn the card back" : openLabel} tabIndex={-1} />
-          <div className="pointer-events-none relative flex h-full flex-col" style={{ padding: `${px(14)} ${px(18)}` }}>
+          <div className="pointer-events-none relative flex h-full flex-col" style={{ padding: `${px(12)} ${px(16)}` }}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate font-semibold" style={{ fontSize: px(14) }}>{card.name}</p>
@@ -102,17 +102,17 @@ export function FlipCard({
                 </div>
               )}
             </div>
-            <ul className="mt-[2%] flex flex-1 flex-col justify-center" style={{ gap: px(5) }}>
+            <ul className="flex flex-1 flex-col justify-center" style={{ gap: px(3) }}>
               {bills.map((b, i) => {
                 const st = b.status === "upcoming" && b.estimated ? { label: "Estimate", cls: "bg-[var(--future-on-inverse)]/25 text-[var(--future-on-inverse)]" } : STATUS[b.status];
                 return (
-                  <li key={b.month} className={cn("flex items-center gap-2 rounded-xl", i === 0 && "bg-white/8")} style={{ padding: `${px(5)} ${px(8)}` }}>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium" style={{ fontSize: px(12.5) }}>{i === 0 ? `This month · ${formatMonth(b.month, false)}` : formatMonth(b.month, false)}</span>
-                      <span className="block opacity-70" style={{ fontSize: px(10.5) }}>due {formatDate(b.due, "short")}</span>
+                  <li key={b.month} className={cn("flex items-center gap-2 rounded-lg", i === 0 && "bg-white/8")} style={{ padding: `${px(3.5)} ${px(8)}` }}>
+                    <span className="min-w-0 flex-1 truncate" style={{ fontSize: px(12) }}>
+                      <span className="font-medium">{i === 0 ? `This month · ${formatMonth(b.month, false)}` : formatMonth(b.month, false)}</span>
+                      <span className="opacity-65"> · due {formatDate(b.due, "short")}</span>
                     </span>
-                    <span className={cn("shrink-0 rounded-full font-medium", st.cls)} style={{ fontSize: px(10), padding: `${px(1.5)} ${px(7)}` }}>{st.label}</span>
-                    <span className={cn("num w-[30%] shrink-0 text-right font-semibold", b.status === "none" && "opacity-50", b.status === "paid" && "opacity-70 line-through decoration-1")} style={{ fontSize: px(14) }}>
+                    <span className={cn("shrink-0 rounded-full font-medium", st.cls)} style={{ fontSize: px(9.5), padding: `${px(1)} ${px(6)}` }}>{st.label}</span>
+                    <span className={cn("num w-[26%] shrink-0 text-right font-semibold", b.status === "none" && "opacity-50", b.status === "paid" && "opacity-70 line-through decoration-1")} style={{ fontSize: px(13.5) }}>
                       {b.status === "none" ? "—" : m(b.amount)}
                     </span>
                   </li>
@@ -122,7 +122,7 @@ export function FlipCard({
             <div className="flex items-end justify-between gap-2">
               <div>
                 <p className="uppercase tracking-wider opacity-70" style={{ fontSize: px(9.5) }}>Still to pay · 3 months</p>
-                <p className="num font-semibold" style={{ fontSize: px(17) }}>{m(pending)}</p>
+                <p className="num font-semibold leading-tight" style={{ fontSize: px(16) }}>{m(pending)}</p>
               </div>
               <div className="pointer-events-auto flex items-center" style={{ gap: px(6) }}>
                 {onEdit && (

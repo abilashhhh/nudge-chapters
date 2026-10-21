@@ -25,17 +25,27 @@ export function PaperTradingScreen() {
 
   useEffect(() => {
     if (repoKind === "supabase" && sim.status === "idle") void sim.load();
+    // Demo / device-only mode: market data still works (it isn't personal), trading needs an account.
+    if (repoKind && repoKind !== "supabase" && sim.status === "idle") useSim.setState({ status: "ready" });
   }, [repoKind, sim]);
 
   usePolling(view.tab, view.stock);
 
-  if (repoKind && repoKind !== "supabase")
+  if (repoKind && repoKind !== "supabase") {
+    if (view.stock) return <StockView symbol={view.stock} onBack={() => go({ stock: null })} />;
     return (
       <>
-        <V2PageHeader title="Paper Trading" />
-        <EmptyState icon={ChartCandlestick} title="Sign in to use Paper Trading" body="The simulator keeps your virtual account on the server and gets market prices there, so it needs a signed-in account (it isn't available in demo mode)." />
+        <V2PageHeader title="Paper Trading" actions={<MarketPill />} />
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 text-[13.5px]">
+          <ChartCandlestick className="mt-0.5 h-5 w-5 shrink-0 text-ink-3" aria-hidden />
+          <p className="text-ink-2">
+            <span className="font-semibold text-ink">Browsing only.</span> Sign in to get a virtual account and place simulated trades — the account and its orders are kept on the server, so they aren&apos;t available in demo mode.
+          </p>
+        </div>
+        <MarketTab open={(s) => go({ stock: s })} readOnly />
       </>
     );
+  }
   if (sim.status === "idle" || sim.status === "loading")
     return (
       <>
