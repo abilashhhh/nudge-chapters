@@ -297,11 +297,15 @@ body {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.card-back { transform: rotateY(180deg); }
+.card-back { transform: rotateY(180deg) translateZ(1px); pointer-events: none; }
 .card-flip.is-flipped .card-flip-inner { transform: rotateY(180deg); }
+/* Only the side facing you takes clicks (the front tilts toward the pointer and would poke through the back). */
+.card-flip.is-flipped .card-back { pointer-events: auto; }
+.card-flip.is-flipped .card-face:not(.card-back) { pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
   .card-flip:hover .card-flip-inner { transform: rotateY(180deg); }
-  .card-flip-back-btn { display: none; }
+  .card-flip:hover .card-back { pointer-events: auto; }
+  .card-flip:hover .card-face:not(.card-back) { pointer-events: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .card-flip-inner { transition: none; }
