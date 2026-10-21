@@ -12,7 +12,7 @@ import { Box, Fresh, Mono, pct, plTone, price } from "./shared";
 
 type Sort = "change" | "gainers" | "losers" | "name" | "volume";
 
-export function MarketTab({ open }: { open: (symbol: string) => void }) {
+export function MarketTab({ open, readOnly }: { open: (symbol: string) => void; readOnly?: boolean }) {
   const { quotes, watchlist } = useSim();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<{ symbol: string; name: string; exchange: string }[] | null>(null);
@@ -109,7 +109,7 @@ export function MarketTab({ open }: { open: (symbol: string) => void }) {
                       <span className="block text-[12px] text-ink-3">{ticker(r.symbol)} · {r.exchange}</span>
                     </span>
                   </button>
-                  <StarBtn on={watchlist.some((w) => w.symbol === r.symbol)} onClick={() => star(r.symbol, r.name)} />
+                  {!readOnly && <StarBtn on={watchlist.some((w) => w.symbol === r.symbol)} onClick={() => star(r.symbol, r.name)} />}
                 </li>
               ))}
             </ul>
@@ -117,7 +117,7 @@ export function MarketTab({ open }: { open: (symbol: string) => void }) {
         </Box>
       )}
 
-      <Box title="Your watchlist" sub={watchlist.length ? undefined : "Tap ☆ on any stock to keep it here."}>
+      {!readOnly && <Box title="Your watchlist" sub={watchlist.length ? undefined : "Tap + on any stock to keep it here."}>
         {watchlist.length > 0 && (
           <ul className="-mx-2 flex flex-col">
             {watchlist.map((w) => (
@@ -125,7 +125,7 @@ export function MarketTab({ open }: { open: (symbol: string) => void }) {
             ))}
           </ul>
         )}
-      </Box>
+      </Box>}
 
       <Box
         title="Large caps"
@@ -144,7 +144,7 @@ export function MarketTab({ open }: { open: (symbol: string) => void }) {
         ) : (
           <ul className="-mx-2 flex flex-col">
             {list.map((s) => (
-              <StockRow key={s.symbol} symbol={s.symbol} name={s.name} q={s.q} onOpen={() => open(s.symbol)} star={<StarBtn on={watchlist.some((w) => w.symbol === s.symbol)} onClick={() => star(s.symbol, s.name)} />} />
+              <StockRow key={s.symbol} symbol={s.symbol} name={s.name} q={s.q} onOpen={() => open(s.symbol)} star={readOnly ? undefined : <StarBtn on={watchlist.some((w) => w.symbol === s.symbol)} onClick={() => star(s.symbol, s.name)} />} />
             ))}
           </ul>
         )}

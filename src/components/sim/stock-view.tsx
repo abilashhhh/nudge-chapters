@@ -78,7 +78,7 @@ export function StockView({ symbol, onBack }: { symbol: string; onBack: () => vo
           <h1 className="display truncate text-[20px] font-semibold leading-tight lg:text-[24px]">{q?.name ?? ticker(symbol)}</h1>
           <p className="text-[12.5px] text-ink-3">{ticker(symbol)} · {symbol.endsWith(".BO") ? "BSE" : symbol.startsWith("^") ? "Index" : "NSE"}</p>
         </div>
-        <Button
+        {account && <Button
           size="sm"
           variant="ghost"
           icon={starred ? <Star className="h-4 w-4 fill-warn text-warn" /> : <Plus className="h-4 w-4" />}
@@ -92,7 +92,7 @@ export function StockView({ symbol, onBack }: { symbol: string; onBack: () => vo
           }}
         >
           {starred ? "Watching" : "Watch"}
-        </Button>
+        </Button>}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
