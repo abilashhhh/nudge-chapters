@@ -50,8 +50,8 @@ function Tip({ title, rows }: { title: string; rows: [string, string, string?][]
 function Card({ title, sub, children, className, action }: { title: string; sub?: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
     <section className={cn("rounded-2xl border border-line bg-surface p-4", className)}>
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div>
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
           <h2 className="text-[15px] font-semibold">{title}</h2>
           {sub && <p className="text-[12px] text-ink-3">{sub}</p>}
         </div>
@@ -719,14 +719,14 @@ function TrainingTile() {
   const t = useTraining();
   const started = t.data.attempts.length > 0 || t.data.lessons.length > 0;
   return (
-    <Link href={TRAINING_PATH} className="lift group mb-4 flex items-center gap-4 rounded-2xl bg-inverse p-4 text-on-inverse">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10">
-        <ChartCandlestick className="h-7 w-7 text-warn" aria-hidden />
+    <Link href={TRAINING_PATH} className="lift group mb-4 flex items-center gap-3 rounded-2xl bg-inverse p-3 text-on-inverse sm:gap-4 sm:p-4">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 sm:h-12 sm:w-12">
+        <ChartCandlestick className="h-6 w-6 text-warn sm:h-7 sm:w-7" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[16px] font-semibold leading-tight">Trading Training</span>
         <span className="mt-0.5 block text-[12.5px] opacity-75">
-          {started ? `Level ${t.level.level} · ${t.streak.current}-day streak · ${t.todayStats.xp} XP today` : "Learn to read candlestick charts: lessons, quizzes and daily practice"}
+          {started ? `Level ${t.level.level} · ${t.streak.current}-day streak · ${t.todayStats.xp} XP today` : "Lessons, quizzes and daily chart practice"}
         </span>
       </span>
       <span className="text-[13px] font-semibold text-warn">Open →</span>
@@ -737,13 +737,13 @@ function TrainingTile() {
 /** Paper Trading: practise with virtual money against real market prices. */
 function PaperTile() {
   return (
-    <Link href="/trading/paper" className="lift group mb-3 flex items-center gap-4 rounded-2xl border border-line bg-surface p-4">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ok/15">
-        <TrendingUp className="h-7 w-7 text-ok" aria-hidden />
+    <Link href="/trading/paper" className="lift group mb-3 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 sm:gap-4 sm:p-4">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-ok/15 sm:h-12 sm:w-12">
+        <TrendingUp className="h-6 w-6 text-ok sm:h-7 sm:w-7" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[16px] font-semibold leading-tight">Paper Trading</span>
-        <span className="mt-0.5 block text-[12.5px] text-ink-3">Buy and sell real stocks at market prices with virtual money — practice only</span>
+        <span className="mt-0.5 block text-[12.5px] text-ink-3">Practise with virtual money at real market prices</span>
       </span>
       <span className="text-[13px] font-semibold text-brand">Open →</span>
     </Link>
