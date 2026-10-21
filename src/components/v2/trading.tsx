@@ -777,7 +777,7 @@ function HoldingsNow({ onAdd, onImport }: { onAdd: () => void; onImport: () => v
     <div className="flex flex-col gap-4">
       <Card
         title="What you hold now"
-        sub={`${list.length} stock${list.length === 1 ? "" : "s"} and fund${list.length === 1 ? "" : "s"} at today's prices`}
+        sub={`${holdingsCount(list.map((p) => p.investment.type))} · at today's prices`}
         action={
           <span className="text-right">
             <span className="num block text-[15px] font-semibold">{formatMoney(val, ctx)}</span>
@@ -793,6 +793,7 @@ function HoldingsNow({ onAdd, onImport }: { onAdd: () => void; onImport: () => v
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14.5px] font-medium">{p.investment.name}</span>
                   <span className="num block truncate text-[12px] text-ink-3">
+                    <span className="mr-1.5 rounded bg-surface-3 px-1.5 py-px text-[10.5px] font-medium uppercase tracking-wide text-ink-2">{TYPE_TAG[p.investment.type] ?? "Holding"}</span>
                     {p.units != null ? `${p.units.toLocaleString("en-IN", { maximumFractionDigits: 3 })} ${p.investment.type === "mutual_fund" ? "units" : "shares"}` : ""}
                     {p.price != null ? ` · ${formatMoney(p.price, ctx, { decimals: true })}` : ""}
                   </span>
@@ -809,4 +810,19 @@ function HoldingsNow({ onAdd, onImport }: { onAdd: () => void; onImport: () => v
       {empty}
     </div>
   );
+}
+
+const TYPE_TAG: Record<string, string> = { stock: "Stock", etf: "ETF", mutual_fund: "Mutual fund" };
+
+/** "3 stocks · 1 mutual fund". */
+function holdingsCount(types: string[]): string {
+  const n = (t: string[]) => types.filter((x) => t.includes(x)).length;
+  const parts: string[] = [];
+  const st = n(["stock"]);
+  const etf = n(["etf"]);
+  const mf = n(["mutual_fund"]);
+  if (st) parts.push(`${st} stock${st === 1 ? "" : "s"}`);
+  if (etf) parts.push(`${etf} ETF${etf === 1 ? "" : "s"}`);
+  if (mf) parts.push(`${mf} mutual fund${mf === 1 ? "" : "s"}`);
+  return parts.join(" · ");
 }

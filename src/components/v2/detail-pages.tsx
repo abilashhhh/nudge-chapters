@@ -23,6 +23,7 @@ import { useHoldingHistory } from "../price-refresher";
 import { initials } from "./entity-icon";
 import { AccountVisual } from "./card-visual";
 import { FlipCard, useCardBillsAhead } from "./card-flip";
+import { LoanPlanSheet } from "./loan-sheet";
 
 const tick = { fill: "var(--ink-3)", fontSize: 11.5 };
 
@@ -216,6 +217,7 @@ export function CardDetailScreen() {
   const cp = card ? positions.cards.get(card.id) : undefined;
   const txs = useMemo(() => (card ? ds.transactions.filter((t) => t.card_id === card.id) : []), [ds.transactions, card]);
   const ahead = useCardBillsAhead();
+  const [plan, setPlan] = useState<string | null>(null);
   const m = (n: number) => formatMoney(n, ctx);
   if (!card || !cp)
     return (
@@ -248,7 +250,6 @@ export function CardDetailScreen() {
           <FlipCard
             bills={ahead.get(card.id) ?? []}
             owed={cp.outstanding}
-            onOpen={() => ui.openEditor("card", card.id)}
             card={card} used={cp.utilization} usedLabel={mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined} due={lastSt ? `${m(lastSt.remaining)} due ${formatDate(lastSt.statement.due_date, "short")}` : "No bill due"} dueTone={lastSt ? (lastSt.statement.due_date < today ? "late" : lastSt.statement.due_date <= addDays(today, 7) ? "soon" : null) : "paid"} />
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" icon={<Receipt className="h-4 w-4" />} onClick={() => ui.openTx({ type: "card_payment", card_id: card.id })}>Pay bill</Button>
@@ -286,7 +287,7 @@ export function CardDetailScreen() {
                   const st = positions.loans.get(l.id)?.state;
                   return (
                     <li key={l.id}>
-                      <button type="button" onClick={() => ui.openEditor("loan", l.id)} className="flex w-full items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-left text-[13px] hover:bg-surface-2">
+                      <button type="button" onClick={() => setPlan(l.id)} className="flex w-full items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-left text-[13px] hover:bg-surface-2">
                         <span className="truncate">{l.name}</span>
                         <span className="num shrink-0 text-ink-2">{m(st?.schedule[st.paidCount]?.emi ?? l.emi_amount ?? 0)}/mo{st ? ` · ${m(st.outstanding)} left` : ""}</span>
                       </button>
@@ -313,6 +314,7 @@ export function CardDetailScreen() {
           ]}
         />
       </div>
+      {plan && <LoanPlanSheet loanId={plan} onClose={() => setPlan(null)} />}
     </>
   );
 }

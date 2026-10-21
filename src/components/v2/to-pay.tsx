@@ -65,11 +65,26 @@ function Cards() {
   const ui = useUI.getState();
   const router = useRouter();
   const month = today.slice(0, 7);
-  // Cards with a bill to pay come first (late, then soonest due), then the rest by what's owed on them.
-  const order = new Map(orderForMonth(data.groups, month).map((g, i) => [g.ref?.id, Math.abs(g.total.cells[month]?.amount ?? 0) > 0.005 && g.total.cells[month]?.status !== "paid" ? i : 1000]));
-  const owed = (id: string) => positions.cards.get(id)?.outstanding ?? 0;
-  const cards = ds.credit_cards.filter((c) => !c.archived).sort((a, b) => (order.get(a.id) ?? 1000) - (order.get(b.id) ?? 1000) || owed(b.id) - owed(a.id));
   const ahead = useCardBillsAhead();
+  const owed = (id: string) => positions.cards.get(id)?.outstanding ?? 0;
+  // Cards with something to pay first (late, then due this month by date, then later dues), then paid, then nothing due.
+  const rank = (id: string): [number, string] => {
+    const b = ahead.get(id) ?? [];
+    const now = b[0];
+    const pend = b.filter((x) => x.status !== "none" && x.status !== "skipped" && x.status !== "paid");
+    if (now?.status === "late") return [0, now.due];
+    if (pend[0] && pend[0].month === now?.month) return [1, pend[0].due];
+    if (pend[0]) return [2, pend[0].due];
+    if (now?.status === "paid") return [3, now.due];
+    return [4, "9999"];
+  };
+  const cards = ds.credit_cards
+    .filter((c) => !c.archived)
+    .sort((a, b) => {
+      const [ra, da] = rank(a.id);
+      const [rb, db] = rank(b.id);
+      return ra - rb || da.localeCompare(db) || owed(b.id) - owed(a.id);
+    });
   const shared = (c: (typeof cards)[number]) => {
     const k = c.shared_limit_group?.trim().toLowerCase();
     if (!k || cards.filter((x) => x.shared_limit_group?.trim().toLowerCase() === k).length < 2) return undefined;
