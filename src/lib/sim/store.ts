@@ -213,7 +213,7 @@ export async function removeFromWatchlist(symbol: string) {
 export function freshness(q: Quote | undefined, now = Date.now()): { label: string; tone: "live" | "delayed" | "closed" | "stale" } {
   if (!q) return { label: "No price yet", tone: "stale" };
   const age = Math.max(0, (now - new Date(q.time).getTime()) / 1000);
-  const at = new Date(q.time).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+  const at = new Date(q.time).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit", timeZone: "Asia/Kolkata" });
   if (q.stale) return { label: `Couldn't refresh · last ${at}`, tone: "stale" };
   if (q.status !== "open") return { label: q.status === "pre_open" ? `Pre-open · last ${at}` : `Market closed · last ${at}`, tone: "closed" };
   if (age <= 60) return { label: `Live · ${at}`, tone: "live" };

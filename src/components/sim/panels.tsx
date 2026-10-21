@@ -15,7 +15,7 @@ import { EmptyState, Segmented } from "../ui/misc";
 import { ConfirmSheet } from "../ui/sheet";
 import { Box, Metric, Mono, inr, pct, plTone, price, signed, usePortfolio } from "./shared";
 
-const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", second: "2-digit" });
 
 // ------------------------------------------------------------------ Portfolio
 
@@ -175,7 +175,7 @@ export function OrdersTab({ open }: { open: (s: string) => void }) {
                   </span>
                   <span className="block text-[11.5px] text-ink-3">
                     Simulated {when(f.executed_at)} · {f.product} · value {inr(f.value)} · charges {inr(f.charges)}
-                    {f.quote_time ? ` · price quoted ${new Date(f.quote_time).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}` : ""}
+                    {f.quote_time ? ` · price quoted ${new Date(f.quote_time).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", second: "2-digit" })}` : ""}
                   </span>
                 </span>
                 {f.realized_pnl != null && <span className={cn("shrink-0 font-semibold", plTone(f.realized_pnl))}>{signed(f.realized_pnl)}</span>}
