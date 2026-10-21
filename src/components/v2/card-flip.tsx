@@ -77,15 +77,24 @@ export function FlipCard({
   const clear = pending < 0.5 && (owed ?? 0) < 0.5;
   const flip = (v: boolean) => setFlipped(v);
   return (
-    <div className={cn("card-flip relative aspect-[1.586] w-full [perspective:1100px]", flipped && "is-flipped")} onPointerDown={(e) => (touch.current = e.pointerType !== "mouse")} onMouseLeave={() => setFlipped(false)}>
+    // The click is handled here, on the card as a whole: while it turns, the press and release can land on
+    // different faces, and only an element containing both gets the click.
+    <div
+      className={cn("card-flip relative aspect-[1.586] w-full cursor-pointer [perspective:1100px]", flipped && "is-flipped")}
+      onPointerDown={(e) => (touch.current = e.pointerType !== "mouse")}
+      onMouseLeave={() => setFlipped(false)}
+      onClick={() => {
+        if (touch.current && !flipped) flip(true); // phones: first tap turns it over
+        else if (onOpen) onOpen();
+        else flip(!flipped);
+      }}
+    >
       <div className="card-flip-inner relative h-full w-full">
         <div className="card-face absolute inset-0">
-          <CardVisual {...front} onClick={() => (touch.current || !onOpen ? flip(true) : onOpen())} />
+          <CardVisual {...front} />
         </div>
-        <button
-          type="button"
-          tabIndex={-1}
-          onClick={() => (onOpen ? onOpen() : flip(false))}
+        <div
+          aria-hidden={!flipped}
           aria-label={`${card.name}: ${clear ? "nothing to pay" : `${m(pending)} to pay`}`}
           className="card-face card-back absolute inset-0 overflow-hidden rounded-[18px] bg-inverse text-left text-on-inverse [container-type:inline-size] shadow-[0_18px_36px_-16px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
         >
@@ -132,7 +141,7 @@ export function FlipCard({
               </>
             )}
           </span>
-        </button>
+        </div>
       </div>
     </div>
   );
