@@ -45,7 +45,20 @@ export function LoanPlanSheet({ loanId, view: initial = "plan", onClose }: { loa
               Record this extra payment
             </Button>
           </div>
-        ) : undefined
+        ) : (
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                onClose();
+                useUI.getState().openEditor("loan", loan.id);
+              }}
+            >
+              Edit EMI
+            </Button>
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        )
       }
     >
       <Segmented

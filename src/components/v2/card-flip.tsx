@@ -23,10 +23,10 @@ export interface BillAhead {
   due: ISODate;
 }
 
-/** Each card's bill this month and the next two (the same figures as To Pay → Credit cards). */
+/** Each card's bill this month and the 11 after (the same figures as To Pay → Credit cards). */
 export function useCardBillsAhead(): Map<string, BillAhead[]> {
   const { ds, positions, today } = useFinance();
-  const months = useMemo(() => monthRange(startOfMonth(today), 3), [today]);
+  const months = useMemo(() => monthRange(startOfMonth(today), 12), [today]);
   const events = useRangeEvents(months);
   return useMemo(() => {
     const grid = cardGrid(ds, positions, events, months, today);
@@ -66,20 +66,26 @@ export function FlipCard({
   const touch = useRef(false);
   const m = (n: number) => formatMoney(n, ctx);
   const { card } = front;
-  // Only months with something on them; paid ones stay (struck through) so you can see they're done.
-  const rows = bills.filter((b) => b.status !== "none" && b.status !== "skipped");
-  const pending = rows.filter((b) => b.status !== "paid").reduce((s, b) => s + b.amount, 0);
+  // What's still to pay: this month's bill when it's unpaid, otherwise everything pending. Two rows at most,
+  // then "+N more months".
+  const pendingRows = bills.filter((b) => b.status !== "none" && b.status !== "skipped" && b.status !== "paid");
+  const thisMonth = bills[0] && pendingRows[0]?.month === bills[0].month ? pendingRows[0] : null;
+  const rows = pendingRows.slice(0, 2);
+  const more = pendingRows.slice(2);
+  const pending = pendingRows.reduce((s, b) => s + b.amount, 0);
+  const headline = thisMonth ? thisMonth.amount : pending;
   const clear = pending < 0.5 && (owed ?? 0) < 0.5;
+  const flip = (v: boolean) => setFlipped(v);
   return (
     <div className={cn("card-flip relative aspect-[1.586] w-full [perspective:1100px]", flipped && "is-flipped")} onPointerDown={(e) => (touch.current = e.pointerType !== "mouse")} onMouseLeave={() => setFlipped(false)}>
       <div className="card-flip-inner relative h-full w-full">
         <div className="card-face absolute inset-0">
-          <CardVisual {...front} onClick={() => (touch.current ? setFlipped(true) : onOpen?.())} />
+          <CardVisual {...front} onClick={() => (touch.current || !onOpen ? flip(true) : onOpen())} />
         </div>
         <button
           type="button"
           tabIndex={-1}
-          onClick={() => onOpen?.()}
+          onClick={() => (onOpen ? onOpen() : flip(false))}
           aria-label={`${card.name}: ${clear ? "nothing to pay" : `${m(pending)} to pay`}`}
           className="card-face card-back absolute inset-0 overflow-hidden rounded-[18px] bg-inverse text-left text-on-inverse [container-type:inline-size] shadow-[0_18px_36px_-16px_rgba(0,0,0,0.6),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
         >
@@ -96,23 +102,33 @@ export function FlipCard({
               </span>
             ) : (
               <>
-                <span className="mt-auto block opacity-65" style={{ fontSize: px(11) }}>{pending >= 0.5 ? "To pay" : "Spent, not billed yet"}</span>
-                <span className="num block font-semibold leading-none" style={{ fontSize: px(28) }}>{m(pending >= 0.5 ? pending : owed ?? 0)}</span>
-                <span className="mt-auto flex flex-col" style={{ gap: px(4), marginTop: px(12) }}>
-                  {rows.map((b) => {
-                    const st = STATUS[b.status];
-                    return (
-                      <span key={b.month} className="flex items-center gap-2 border-t border-white/10" style={{ paddingTop: px(4), fontSize: px(12.5) }}>
-                        <span className="min-w-0 flex-1 truncate">
-                          {formatMonth(b.month, false)}
-                          <span className="opacity-55"> · due {formatDate(b.due, "short")}</span>
-                        </span>
-                        {st && <span className={cn("shrink-0 font-medium", st.cls)} style={{ fontSize: px(11) }}>{st.label}</span>}
-                        <span className={cn("num shrink-0 text-right font-semibold", b.status === "paid" && "line-through opacity-60")}>{m(b.amount)}</span>
-                      </span>
-                    );
-                  })}
+                <span className="mt-auto block opacity-65" style={{ fontSize: px(11) }}>
+                  {pending < 0.5 ? "Spent, not billed yet" : thisMonth ? `Due this month · ${formatDate(thisMonth.due, "short")}` : "Still to pay"}
                 </span>
+                <span className="num block font-semibold leading-none" style={{ fontSize: px(28) }}>{m(pending < 0.5 ? owed ?? 0 : headline)}</span>
+                {rows.length > 0 && (
+                  <span className="mt-auto flex flex-col" style={{ gap: px(4), marginTop: px(12) }}>
+                    {rows.map((b) => {
+                      const st = STATUS[b.status];
+                      return (
+                        <span key={b.month} className="flex items-center gap-2 border-t border-white/10" style={{ paddingTop: px(4), fontSize: px(12.5) }}>
+                          <span className="min-w-0 flex-1 truncate">
+                            {formatMonth(b.month, false)}
+                            <span className="opacity-55"> · due {formatDate(b.due, "short")}</span>
+                          </span>
+                          {st && <span className={cn("shrink-0 font-medium", st.cls)} style={{ fontSize: px(11) }}>{st.label}</span>}
+                          <span className="num shrink-0 text-right font-semibold">{m(b.amount)}</span>
+                        </span>
+                      );
+                    })}
+                    {more.length > 0 && (
+                      <span className="flex items-center justify-between gap-2 opacity-70" style={{ fontSize: px(11.5) }}>
+                        <span>+{more.length} more month{more.length === 1 ? "" : "s"}</span>
+                        <span className="num">{m(more.reduce((s, b) => s + b.amount, 0))}</span>
+                      </span>
+                    )}
+                  </span>
+                )}
               </>
             )}
           </span>
