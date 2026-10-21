@@ -2,7 +2,7 @@
   "name": "nudge-chapters",
   "version": "1.0.0",
   "private": true,
-  "description": "Nudge Chapters \u2014 small nudges, bigger chapters. A personal command centre for cash flow, bills, cards, EMIs, investments, EPF, chits, lending, goals and future projections.",
+  "description": "Nudge Chapters — small nudges, bigger chapters. A personal command centre for cash flow, bills, cards, EMIs, investments, EPF, chits, lending, goals and future projections.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,6 +16,7 @@
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/hanken-grotesk": "^5.3.0",
     "@supabase/supabase-js": "^2.117.3",
+    "lightweight-charts": "^5.1.0",
     "lucide-react": "^1.53.0",
     "next": "^16.4.0",
     "papaparse": "^5.7.0",

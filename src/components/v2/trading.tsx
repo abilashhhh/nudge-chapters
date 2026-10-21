@@ -114,10 +114,10 @@ export function TradingScreen() {
         <StatTile label="Holdings profit" value={holdGain} tone="pl" note={`${stocks.length} stock${stocks.length === 1 ? "" : "s"}`} onClick={() => setTab("holdings")} />
         <StatTile label="IPO gains" value={ist.gains} tone="pl" note={`${ist.allotted} of ${ist.decided} allotted`} onClick={() => setTab("ipos")} />
       </div>
-      <Tabs<Tab | "training">
+      <Tabs<Tab | "training" | "paper">
         className="mb-4"
         value={tab}
-        onChange={(t) => (t === "training" ? router.push(TRAINING_PATH) : setTab(t))}
+        onChange={(t) => (t === "training" ? router.push(TRAINING_PATH) : t === "paper" ? router.push("/trading/paper") : setTab(t))}
         tabs={[
           { id: "overview", label: "Overview" },
           { id: "intraday", label: "Intraday", count: trades.filter((t) => t.segment === "intraday").length },
@@ -126,8 +126,10 @@ export function TradingScreen() {
           { id: "funds", label: "Mutual funds", count: fundCount },
           { id: "ipos", label: "IPOs", count: ipos.length },
           { id: "training", label: "Training" },
+          { id: "paper", label: "Paper Trading" },
         ]}
       />
+      {tab === "overview" && <PaperTile />}
       {tab === "overview" && <TrainingTile />}
       {tab === "overview" && <Overview trades={trades} onOpen={openTrade} onAdd={() => addTrade()} onImport={() => setImporting(true)} />}
       {tab === "intraday" && <Intraday trades={trades.filter((t) => t.segment === "intraday")} onOpen={openTrade} onAdd={() => addTrade("intraday")} />}
@@ -740,6 +742,22 @@ function TrainingTile() {
         </span>
       </span>
       <span className="text-[13px] font-semibold text-warn">Open →</span>
+    </Link>
+  );
+}
+
+/** Paper Trading: practise with virtual money against real market prices. */
+function PaperTile() {
+  return (
+    <Link href="/trading/paper" className="lift group mb-3 flex items-center gap-4 rounded-2xl border border-line bg-surface p-4">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ok/15">
+        <TrendingUp className="h-7 w-7 text-ok" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] font-semibold leading-tight">Paper Trading</span>
+        <span className="mt-0.5 block text-[12.5px] text-ink-3">Buy and sell real stocks at market prices with virtual money — practice only</span>
+      </span>
+      <span className="text-[13px] font-semibold text-brand">Open →</span>
     </Link>
   );
 }
