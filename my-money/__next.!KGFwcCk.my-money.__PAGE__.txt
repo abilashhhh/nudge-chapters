@@ -1,0 +1,75 @@
+1:"$Sreact.fragment"
+2:"/_next/static/chunks/1ui-lisuxg6k_.js"
+3:"/_next/static/chunks/3alc-wniuloyv.js"
+4:"/_next/static/chunks/3isbbklfstv-u.js"
+5:I[39756,["$2","$3","$4"],"default"]
+6:I[37457,["$2","$3","$4"],"default"]
+7:I[46696,["$2","$3","$4"],"Toaster"]
+8:I[73295,["$2","$3","$4"],"ServiceWorker"]
+9:I[94452,["$2","$3","$4"],"UpdateWatcher"]
+d:"/_next/static/chunks/1oei1l8hnu-80.js"
+e:"/_next/static/chunks/0_7oqbj3f_-8l.js"
+f:"/_next/static/chunks/3hutqhjqhejgv.js"
+10:"/_next/static/chunks/3ghpvmh2n6svr.js"
+11:"/_next/static/chunks/26a_e1--zqm7t.js"
+12:"/_next/static/chunks/03_t3wrppsydz.js"
+13:"/_next/static/chunks/3wyrsqiuux0by.js"
+14:"/_next/static/chunks/0eakvft7c-opg.js"
+15:"/_next/static/chunks/2tjzh19zq0t_i.js"
+16:"/_next/static/chunks/1_rnbi-hcump1.js"
+17:"/_next/static/chunks/22hsin622nl0t.js"
+18:"/_next/static/chunks/0z0-dp9l8tvmk.js"
+19:I[11418,["$2","$3","$4","$d","$e","$f","$10","$11","$12","$13","$14","$15","$16","$17","$18"],"AppLayoutClient"]
+1a:"/_next/static/chunks/451r9n28rubie.js"
+1b:I[98247,["$2","$3","$4","$d","$e","$f","$10","$11","$12","$13","$14","$15","$16","$17","$18","$1a"],"default"]
+23:"ViewportBoundary"
+24:I[97367,["$2","$3","$4"],"$23"]
+25:"MetadataBoundary"
+26:I[97367,["$2","$3","$4"],"$25"]
+27:"$Sreact.suspense"
+:HL["/_next/static/chunks/1qvg1ff8277ty.css","style"]
+b:X
+1f:X
+1f:C
+20:[["children",{"s":"__PAGE__","h":160,"d":{"r":"$L21","p":"$@22","v":null,"s":"$b"}}]]
+1d:[["children",{"s":"my-money","h":96,"d":{"r":["$","$1","c",{"children":[null,["$","$L5",null,{"parallelRouterKey":"children","template":["$","$L6",null,{}]}]]}],"p":"$@1e","v":"$1f","s":"$b"},"c":"$Q20"}]]
+c:[["children",{"s":"(app)","h":96,"d":{"r":["$","$1","c",{"children":[[["$","script","script-0",{"src":"/_next/static/chunks/1oei1l8hnu-80.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/0_7oqbj3f_-8l.js","async":true}],["$","script","script-2",{"src":"/_next/static/chunks/3hutqhjqhejgv.js","async":true}],["$","script","script-3",{"src":"/_next/static/chunks/3ghpvmh2n6svr.js","async":true}],["$","script","script-4",{"src":"/_next/static/chunks/26a_e1--zqm7t.js","async":true}],["$","script","script-5",{"src":"/_next/static/chunks/03_t3wrppsydz.js","async":true}],["$","script","script-6",{"src":"/_next/static/chunks/3wyrsqiuux0by.js","async":true}],["$","script","script-7",{"src":"/_next/static/chunks/0eakvft7c-opg.js","async":true}],["$","script","script-8",{"src":"/_next/static/chunks/2tjzh19zq0t_i.js","async":true}],["$","script","script-9",{"src":"/_next/static/chunks/1_rnbi-hcump1.js","async":true}],["$","script","script-10",{"src":"/_next/static/chunks/22hsin622nl0t.js","async":true}],["$","script","script-11",{"src":"/_next/static/chunks/0z0-dp9l8tvmk.js","async":true}]],["$","$L19",null,{"children":["$","$L5",null,{"parallelRouterKey":"children","error":"$1b","errorStyles":[],"errorScripts":[["$","script","script-0",{"src":"/_next/static/chunks/451r9n28rubie.js","async":true}]],"template":["$","$L6",null,{}],"notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":"$0:t:t:d:r:props:children:1:props:children:1:props:children:0:props:notFound:0:1:props:style","children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":"$0:t:t:d:r:props:children:1:props:children:1:props:children:0:props:notFound:0:1:props:children:props:children:1:props:style","children":404}],["$","div",null,{"style":"$0:t:t:d:r:props:children:1:props:children:1:props:children:0:props:notFound:0:1:props:children:props:children:2:props:style","children":["$","h2",null,{"style":"$0:t:t:d:r:props:children:1:props:children:1:props:children:0:props:notFound:0:1:props:children:props:children:2:props:children:props:style","children":"This page could not be found."}]}]]}]}]],[]]}]}]]}],"p":"$@1c","v":null,"s":"$b"},"c":"$Q1d"}]]
+0:{"t":{"t":{"s":"","h":80,"d":{"r":["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/1qvg1ff8277ty.css","precedence":"next"}],["$","script","script-0",{"src":"/_next/static/chunks/1ui-lisuxg6k_.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/3alc-wniuloyv.js","async":true}],["$","script","script-2",{"src":"/_next/static/chunks/3isbbklfstv-u.js","async":true}]],["$","html",null,{"lang":"en-IN","suppressHydrationWarning":true,"children":[["$","head",null,{"children":["$","script",null,{"dangerouslySetInnerHTML":{"__html":"try{var s=localStorage;for(var i=s.length-1;i>=0;i--){var k=s.key(i);if(k&&k.indexOf('kosh')===0){var n='nudge'+k.slice(4);if(s.getItem(n)===null)s.setItem(n,s.getItem(k));s.removeItem(k);}}var t=s.getItem('nudge:theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}"}}]}],["$","body",null,{"children":[["$","$L5",null,{"parallelRouterKey":"children","template":["$","$L6",null,{}],"notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]]}],["$","$L7",null,{"position":"top-center","richColors":true,"closeButton":true,"toastOptions":{"style":{"fontFamily":"var(--font-sans)"}}}],["$","$L8",null,{}],["$","$L9",null,{}]]}]]}]]}],"p":"$@a","v":null,"s":"$b"},"c":"$Qc"},"h":{"r":["$","$1","h",{"children":[null,["$","$L24",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1, viewport-fit=cover"}],["$","meta","2",{"name":"theme-color","content":"#eef1ec","media":"(prefers-color-scheme: light)"}],["$","meta","3",{"name":"theme-color","content":"#0d1210","media":"(prefers-color-scheme: dark)"}]]}],["$","$L26",null,{"children":[["$","div",null,{"hidden":true,"children":["$","$27",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"Nudge Chapters — Small nudges. Bigger chapters."}],["$","meta","1",{"name":"description","content":"Free personal finance tracker for India: bank balances, credit card bills, EMIs, chit funds, EPF, SIPs, budgets and lending on one timeline — with what's safe to spend and a view of any future date."}],["$","meta","2",{"name":"application-name","content":"Nudge Chapters"}],["$","link","3",{"rel":"manifest","href":"/manifest.webmanifest"}],["$","meta","4",{"name":"keywords","content":"expense tracker,budget app India,credit card bill tracker,EMI tracker,chit fund tracker,EPF tracker,SIP tracker,net worth tracker,personal finance app,money manager"}],["$","meta","5",{"name":"robots","content":"noindex, follow"}],["$","meta","6",{"name":"category","content":"finance"}],["$","meta","7",{"name":"format-detection","content":"telephone=no"}],["$","meta","8",{"name":"mobile-web-app-capable","content":"yes"}],["$","meta","9",{"name":"apple-mobile-web-app-title","content":"Nudge Chapters"}],["$","meta","10",{"name":"apple-mobile-web-app-status-bar-style","content":"default"}],["$","meta","11",{"property":"og:title","content":"Nudge Chapters — Small nudges. Bigger chapters."}],["$","meta","12",{"property":"og:description","content":"Free personal finance tracker for India: bank balances, credit card bills, EMIs, chit funds, EPF, SIPs, budgets and lending on one timeline — with what's safe to spend and a view of any future date."}],"$L28","$L29","$L2a","$L2b","$L2c","$L2d","$L2e","$L2f","$L30","$L31","$L32","$L33","$L34","$L35","$L36","$L37"]}]}],null]}],"$L38"]}],"p":"$@39","v":null,"s":"$b"}},"a":"$@3a","u":"$@3b","b":"gWbCTdoMeqMH8fTNe_9Hc"}
+3c:I[47257,["$2","$3","$4"],"ClientPageRoot"]
+3d:"/_next/static/chunks/0urvn-9dxqise.js"
+3e:"/_next/static/chunks/1uutko8st-osd.js"
+3f:"/_next/static/chunks/2h43kdeqtndy-.js"
+40:"/_next/static/chunks/34bbfnukcvnc4.js"
+41:I[2856,["$2","$3","$4","$d","$e","$f","$10","$11","$12","$13","$14","$15","$16","$17","$18","$3d","$3e","$3f","$40"],"default"]
+44:I[97367,["$2","$3","$4"],"OutletBoundary"]
+46:I[27201,["$2","$3","$4"],"IconMark"]
+21:["$","$1","c",{"children":[["$","$L3c",null,{"Component":"$41","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@42","$@43"]}}],[["$","script","script-0",{"src":"/_next/static/chunks/0urvn-9dxqise.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/1uutko8st-osd.js","async":true}],["$","script","script-2",{"src":"/_next/static/chunks/2h43kdeqtndy-.js","async":true}],["$","script","script-3",{"src":"/_next/static/chunks/34bbfnukcvnc4.js","async":true}]],["$","$L44",null,{"children":["$","$27",null,{"name":"Next.MetadataOutlet","children":"$@45"}]}]]}]
+28:["$","meta","13",{"property":"og:site_name","content":"Nudge Chapters"}]
+29:["$","meta","14",{"property":"og:locale","content":"en_IN"}]
+2a:["$","meta","15",{"property":"og:image","content":"https://nudgechapters.in/og.png"}]
+2b:["$","meta","16",{"property":"og:image:width","content":"1200"}]
+2c:["$","meta","17",{"property":"og:image:height","content":"630"}]
+2d:["$","meta","18",{"property":"og:image:alt","content":"Nudge Chapters — Small nudges. Bigger chapters."}]
+2e:["$","meta","19",{"property":"og:type","content":"website"}]
+2f:["$","meta","20",{"name":"twitter:card","content":"summary_large_image"}]
+30:["$","meta","21",{"name":"twitter:title","content":"Nudge Chapters — Small nudges. Bigger chapters."}]
+31:["$","meta","22",{"name":"twitter:description","content":"Free personal finance tracker for India: bank balances, credit card bills, EMIs, chit funds, EPF, SIPs, budgets and lending on one timeline — with what's safe to spend and a view of any future date."}]
+32:["$","meta","23",{"name":"twitter:image","content":"https://nudgechapters.in/og.png"}]
+33:["$","link","24",{"rel":"icon","href":"/icon.svg","type":"image/svg+xml"}]
+34:["$","link","25",{"rel":"icon","href":"/favicon-32.png","sizes":"32x32","type":"image/png"}]
+35:["$","link","26",{"rel":"icon","href":"/icon-192.png","sizes":"192x192","type":"image/png"}]
+36:["$","link","27",{"rel":"apple-touch-icon","href":"/apple-touch-icon.png"}]
+37:["$","$L46","28",{}]
+38:["$","meta",null,{"name":"next-size-adjust","content":""}]
+b:300
+42:{}
+43:"$21:props:children:0:props:serverProvidedParams:params"
+45:null
+3b:true
+b:C
+3a:0
+1e:"$undefined"
+1c:"$undefined"
+a:"$undefined"
+39:"$undefined"
+22:"$undefined"
