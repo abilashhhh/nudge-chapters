@@ -10,7 +10,6 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceLine, Res
 import { cn } from "@/lib/cn";
 import { addDays, addMonths, formatDate, formatMonth, monthKey } from "@/lib/dates";
 import { cashDeltas } from "@/lib/engine/ledger";
-import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
 import { useFinance } from "@/lib/finance";
 import { formatMoney, formatPct } from "@/lib/money";
 import type { Transaction } from "@/lib/types";
@@ -24,6 +23,7 @@ import { initials } from "./entity-icon";
 import { AccountVisual } from "./card-visual";
 import { FlipCard, useCardBillsAhead } from "./card-flip";
 import { LoanPlanSheet } from "./loan-sheet";
+import { CardActions, cardDatesLabel } from "./card-actions";
 
 const tick = { fill: "var(--ink-3)", fontSize: 11.5 };
 
@@ -41,27 +41,6 @@ function Stat({ label, value, note, tone }: { label: string; value: ReactNode; n
       <p className="text-[12px] text-ink-3">{label}</p>
       <p className={cn("num anim-count mt-0.5 truncate text-[19px] font-semibold leading-tight sm:text-[21px]", tone === "ok" && "text-ok", tone === "warn" && "text-warn", tone === "danger" && "text-danger")}>{value}</p>
       {note && <p className="mt-0.5 truncate text-[11.5px] text-ink-3">{note}</p>}
-    </div>
-  );
-}
-
-/** A ring showing how much of something is used. */
-function Ring({ value, label, sub }: { value: number; label: string; sub?: string }) {
-  const v = Math.max(0, Math.min(1, value));
-  const r = 42;
-  const c = 2 * Math.PI * r;
-  const tone = v > 0.7 ? "var(--danger)" : v > 0.3 ? "var(--warn)" : "var(--ok)";
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 sm:p-4">
-      <svg viewBox="0 0 100 100" className="h-20 w-20 shrink-0 -rotate-90" role="img" aria-label={`${label}: ${Math.round(v * 100)}%`}>
-        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--surface-3)" strokeWidth="10" />
-        <circle cx="50" cy="50" r={r} fill="none" stroke={tone} strokeWidth="10" strokeLinecap="round" strokeDasharray={`${c * v} ${c}`} className="transition-[stroke-dasharray] duration-700" />
-      </svg>
-      <div className="min-w-0">
-        <p className="num text-[22px] font-semibold leading-none">{Math.round(v * 100)}%</p>
-        <p className="mt-1 text-[12.5px] font-medium">{label}</p>
-        {sub && <p className="text-[11.5px] text-ink-3">{sub}</p>}
-      </div>
     </div>
   );
 }
@@ -230,8 +209,9 @@ export function CardDetailScreen() {
   const group = card.shared_limit_group?.trim().toLowerCase();
   const mates = group ? ds.credit_cards.filter((c) => !c.archived && c.id !== card.id && c.shared_limit_group?.trim().toLowerCase() === group) : [];
   const limit = mates.length ? Math.max(card.credit_limit, ...mates.map((x) => x.credit_limit)) : card.credit_limit;
-  const nextS = statementDateOnOrAfter(card, today);
-  const lastSt = [...cp.statements].reverse().find((s) => s.remaining > 0);
+  const bills = ahead.get(card.id) ?? [];
+  const pending = bills.filter((b) => b.status !== "none" && b.status !== "skipped" && b.status !== "paid");
+  const next = pending[0];
   const spends = txs.filter((t) => t.type === "card_spend");
   const months = lastMonths(today, 6).map((mo) => ({ month: mo, amount: Math.round(spends.filter((t) => t.date.startsWith(mo)).reduce((s, t) => s + t.amount, 0)) }));
   const period = month ?? monthKey(today);
@@ -240,7 +220,6 @@ export function CardDetailScreen() {
   const topCats = [...cats.entries()].map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount).slice(0, 6);
   const emis = ds.loans.filter((l) => l.card_id === card.id && l.status === "active");
   const thisMonth = months.at(-1)!.amount;
-
   const prevMonth = months.at(-2)!.amount;
   return (
     <>
@@ -248,25 +227,51 @@ export function CardDetailScreen() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
           <FlipCard
-            bills={ahead.get(card.id) ?? []}
+            bills={bills}
             owed={cp.outstanding}
-            card={card} used={cp.utilization} usedLabel={mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined} due={lastSt ? `${m(lastSt.remaining)} due ${formatDate(lastSt.statement.due_date, "short")}` : "No bill due"} dueTone={lastSt ? (lastSt.statement.due_date < today ? "late" : lastSt.statement.due_date <= addDays(today, 7) ? "soon" : null) : "paid"} />
-          <div className="flex flex-wrap gap-2">
-            <Button variant="primary" icon={<Receipt className="h-4 w-4" />} onClick={() => ui.openTx({ type: "card_payment", card_id: card.id })}>Pay bill</Button>
-            <Button icon={<Plus className="h-4 w-4" />} onClick={() => ui.openTx({ type: "card_spend", card_id: card.id })}>Add spend</Button>
-            <Button icon={<Pencil className="h-4 w-4" />} onClick={() => ui.openEditor("card", card.id)}>Edit card</Button>
-            <Button variant="ghost" onClick={() => ui.openEditor("statement", undefined, { card_id: card.id })}>Add bill</Button>
-          </div>
+            card={card}
+            used={cp.utilization}
+            usedLabel={mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined}
+            due={next ? `${m(next.amount)} due ${formatDate(next.due, "short")}` : "Nothing to pay"}
+            dueTone={next ? (next.status === "late" ? "late" : next.due <= addDays(today, 7) ? "soon" : null) : "paid"}
+          />
+          <CardActions card={card} />
         </div>
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-            <Stat label="You owe now" value={m(Math.max(0, cp.outstanding))} note={`${m(cp.billedUnpaid)} billed · ${m(cp.unbilled)} new`} />
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="To pay next" value={next ? m(next.amount) : "Nothing"} note={next ? `by ${formatDate(next.due, "medium")}${next.estimated ? " · so far" : ""}` : "All clear"} tone={next?.status === "late" ? "danger" : next ? "warn" : "ok"} />
+            <Stat label="You owe now" value={m(Math.max(0, cp.outstanding))} note="Everything on the card today" />
             <Stat label={mates.length ? "Available (shared)" : "Available"} value={limit > 0 ? m(cp.available) : "Set a limit"} note={limit > 0 ? `of ${m(limit)}${mates.length ? ` with ${mates.map((x) => x.name).join(", ")}` : ""}` : "Edit the card to add its limit"} tone={limit > 0 && cp.utilization > 0.7 ? "danger" : undefined} />
-            <Stat label="Bill due" value={lastSt ? m(lastSt.remaining) : "Nothing"} note={lastSt ? `by ${formatDate(lastSt.statement.due_date, "medium")}` : `Next bill ${formatDate(nextS, "short")}, due ${formatDate(dueDateFor(card, nextS), "short")}`} tone={lastSt && lastSt.statement.due_date < today ? "danger" : lastSt ? "warn" : "ok"} />
             <Stat label="Spent this month" value={m(thisMonth)} note={prevMonth ? `${thisMonth >= prevMonth ? "▲" : "▼"} ${formatPct(prevMonth ? ((thisMonth - prevMonth) / prevMonth) * 100 : 0, 0)} vs last month` : undefined} />
-            <Stat label="Bill date" value={`${card.statement_day}${["th", "st", "nd", "rd"][card.statement_day % 10 > 3 || [11, 12, 13].includes(card.statement_day) ? 0 : card.statement_day % 10]}`} note={`Due on the ${card.due_day}${["th", "st", "nd", "rd"][card.due_day % 10 > 3 || [11, 12, 13].includes(card.due_day) ? 0 : card.due_day % 10]}`} />
-            {limit > 0 ? <Ring value={cp.utilization} label={mates.length ? "Shared limit used" : "Limit used"} sub={cp.utilization > 0.3 ? "Under 30% is healthiest for your score" : "Healthy"} /> : <Stat label="Limit" value="—" note="Not set" />}
           </div>
+          <section className="rounded-2xl border border-line bg-surface">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+              <h2 className="text-[15px] font-semibold">Bills</h2>
+              <button type="button" onClick={() => ui.openEditor("card", card.id)} className="truncate text-[12.5px] text-ink-3 hover:text-ink">
+                {cardDatesLabel(card)} · <span className="underline underline-offset-2">change</span>
+              </button>
+            </div>
+            {pending.length ? (
+              <ul className="divide-y divide-line/70">
+                {pending.slice(0, 6).map((b) => (
+                  <li key={b.month} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14px] font-medium">Due {formatDate(b.due, "medium")}</span>
+                      <span className={cn("block text-[12px]", b.status === "late" ? "text-danger" : "text-ink-3")}>
+                        {b.status === "late" ? "Late" : b.status === "partial" ? "Part paid" : b.estimated ? "Spends so far — can still grow" : "Bill"}
+                      </span>
+                    </span>
+                    <Money value={b.amount} decimals className="shrink-0 text-[15px] font-semibold" />
+                    <Button size="sm" variant={b === next ? "primary" : "secondary"} onClick={() => ui.openTx({ type: "card_payment", card_id: card.id, amount: Math.round(b.amount * 100) / 100 })}>
+                      Pay
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="px-4 py-3 text-[13.5px] text-ink-3">Nothing to pay on this card.</p>
+            )}
+          </section>
         </div>
       </div>
 

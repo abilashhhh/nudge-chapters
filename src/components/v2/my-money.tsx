@@ -15,7 +15,7 @@ import type { Account } from "@/lib/types";
 import { TxRow } from "../event-row";
 import { Money } from "../money";
 import { Button } from "../ui/button";
-import { AmountInput, Field, Select } from "../ui/form";
+import { Field, Select } from "../ui/form";
 import { EmptyState, Tabs } from "../ui/misc";
 import { Sheet } from "../ui/sheet";
 import { MonthGrid, useGridMonths } from "./month-grid";
@@ -64,7 +64,6 @@ export function MyMoneyScreen() {
 function Accounts() {
   const { ds, positions, ctx } = useFinance();
   const [showClosed, setShowClosed] = useState(false);
-  const [fix, setFix] = useState<Account | null>(null);
   const [history, setHistory] = useState<Account | null>(null);
   const ui = useUI.getState();
   const router = useRouter();
@@ -155,7 +154,7 @@ function Accounts() {
               ]}
               actions={
                 <>
-                  <Button size="sm" variant="primary" onClick={() => setFix(a)}>
+                  <Button size="sm" variant="primary" onClick={() => ui.openFixBalance(a.id)}>
                     Fix balance
                   </Button>
                   <Button size="sm" onClick={() => setHistory(a)}>
@@ -171,62 +170,8 @@ function Accounts() {
         }}
         footer={["Total", <Money key="t" value={total} decimals className="font-bold" />]}
       />
-      {fix && <FixBalanceSheet a={fix} onClose={() => setFix(null)} />}
       {history && <HistorySheet a={history} onClose={() => setHistory(null)} />}
     </div>
-  );
-}
-
-function FixBalanceSheet({ a, onClose }: { a: Account; onClose: () => void }) {
-  const { positions, today, ctx } = useFinance();
-  const add = useStore((s) => s.add);
-  const patch = useStore((s) => s.patch);
-  const balance = positions.accounts.get(a.id)?.balance ?? 0;
-  const [actual, setActual] = useState<number | null>(balance);
-  const [busy, setBusy] = useState(false);
-  const diff = Math.round(((actual ?? 0) - balance) * 100) / 100;
-  const c = { ...ctx, currency: a.currency };
-  return (
-    <Sheet
-      open
-      onClose={onClose}
-      title={`Fix balance · ${a.name}`}
-      size="sm"
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            loading={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                if (Math.abs(diff) >= 0.01)
-                  await add("transactions", { date: today, type: "adjustment", amount: diff, account_id: a.id, description: "Balance matched with bank", is_partial: false, reconciled: true, tags: ["reconcile"] });
-                await patch("accounts", a.id, { last_verified_at: today });
-                onClose();
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {Math.abs(diff) >= 0.01 ? "Fix balance" : "Looks right"}
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-4">
-        <p className="text-[14px] text-ink-2">
-          This app shows <span className="num font-semibold text-ink">{formatMoney(balance, c, { decimals: true })}</span>.
-        </p>
-        <Field label="What does your bank app show?" htmlFor="fix-actual">
-          <AmountInput id="fix-actual" large value={actual} onChange={setActual} currency={a.currency} allowNegative />
-        </Field>
-        <p className={cn("rounded-xl px-3 py-2 text-[13.5px]", Math.abs(diff) < 0.01 ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn")}>
-          {Math.abs(diff) < 0.01 ? "They match." : `We'll record the difference of ${formatMoney(diff, c, { sign: true, decimals: true })} so the two match. It doesn't count as spending or income.`}
-        </p>
-      </div>
-    </Sheet>
   );
 }
 

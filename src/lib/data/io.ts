@@ -36,7 +36,7 @@ const FK_ARRAYS = ["linked_account_ids", "linked_investment_ids"];
 const COLUMNS: Record<TableName, string[]> = {
   accounts: ["id", "name", "type", "institution", "currency", "opening_balance", "opening_date", "min_balance", "include_in_cash", "is_emergency_fund", "last_verified_at", "archived", "color", "notes"],
   categories: ["id", "name", "kind", "is_fixed", "is_essential", "color", "archived"],
-  credit_cards: ["id", "name", "issuer", "last4", "network", "credit_limit", "statement_day", "due_day", "payment_account_id", "opening_outstanding", "opening_date", "expected_monthly_spend", "annual_fee", "interest_rate_apr", "reward_points", "color", "shared_limit_group", "archived", "notes"],
+  credit_cards: ["id", "name", "issuer", "last4", "network", "credit_limit", "statement_day", "due_day", "pay_by_month_end", "payment_account_id", "opening_outstanding", "opening_date", "expected_monthly_spend", "annual_fee", "interest_rate_apr", "reward_points", "color", "shared_limit_group", "archived", "notes"],
   card_statements: ["id", "card_id", "statement_date", "due_date", "total_due", "min_due", "notes"],
   loans: ["id", "name", "lender", "type", "principal", "interest_rate", "interest_type", "tenure_months", "emi_amount", "first_emi_date", "emis_paid_offset", "payment_account_id", "card_id", "reimbursable_person", "processing_fee", "status", "notes"],
   chits: ["id", "name", "provider", "chit_value", "monthly_contribution", "installments", "start_date", "installments_paid_offset", "payout_status", "payout_amount", "payout_date", "commission_pct", "auction_notes", "account_id", "installment_records", "status", "notes"],

@@ -3,17 +3,16 @@
 import { Check, ChevronRight, CreditCard, Landmark, PiggyBank } from "lucide-react";
 import { FlipCard, useCardBillsAhead } from "./card-flip";
 import { EntityIcon } from "./entity-icon";
+import { CardActions, cardDatesLabel } from "./card-actions";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { formatDate, monthKey, startOfMonth } from "@/lib/dates";
-import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
 import { useFinance } from "@/lib/finance";
-import { formatMoney, formatPct } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
-import { billInMonth, cardGrid, chitSipGrid, loanGrid, monthRange, orderForMonth, sumCells, type GridGroup } from "@/lib/v2/grids";
-import { useStore } from "@/lib/store";
+import { cardGrid, chitSipGrid, loanGrid, monthRange, orderForMonth, sumCells, type GridGroup } from "@/lib/v2/grids";
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { EmptyState, Segmented, Tabs } from "../ui/misc";
@@ -125,11 +124,11 @@ function Cards() {
       exportName="card-bills"
       onRow={(row) => {
         if (row.ref?.kind === "loan") ui.openEditor("loan", row.ref.id);
-        else if (row.ref?.kind === "card-spends" || row.ref?.kind === "card") ui.openEditor("card", row.ref.id);
+        else if (row.ref?.kind === "card-spends" || row.ref?.kind === "card") router.push(`/to-pay/card?id=${row.ref.id}`);
       }}
+      // The card's picture opens the card, just like tapping the card above.
+      onGroup={(g) => g.ref && router.push(`/to-pay/card?id=${g.ref.id}`)}
       groupDetails={(g) => <CardDetails g={g} />}
-      groupAdd={{ label: "Add spend", run: (g) => g.ref && ui.openTx({ type: "card_spend", card_id: g.ref.id }) }}
-      monthAdd={{ label: (m) => `Add bill for ${monthLabel(m)}`, run: (g, m) => addBill(g, m) }}
       bottomAdd={{ label: "Add a card", run: () => ui.openEditor("card") }}
       empty={<EmptyState icon={CreditCard} title="No credit cards yet" body="Add each card with its bill date and due date. Its EMIs and spends then show here month by month." />}
       footnote="Card total = EMIs + spends on that bill. EMIs on a card are paid through the card bill, so they are never added to the total twice."
@@ -233,52 +232,20 @@ function monthOpenAll(data: { groups: GridGroup[] }, m: string) {
   });
 }
 
-/** Record a bill on a card, due in the month you tapped. */
-function addBill(g: GridGroup, m: string) {
-  const card = g.ref?.kind === "card" ? useStore.getState().ds?.credit_cards.find((c) => c.id === g.ref!.id) : undefined;
-  if (!card) return;
-  const b = billInMonth(card, m);
-  useUI.getState().openEditor("statement", undefined, { card_id: card.id, statement_date: b.statement, due_date: b.due, total_due: 0 });
-}
-
 function CardDetails({ g }: { g: GridGroup }) {
-  const { ds, positions, today, ctx } = useFinance();
+  const { ds, positions, ctx } = useFinance();
   const card = ds.credit_cards.find((c) => c.id === g.ref?.id);
   const cp = card ? positions.cards.get(card.id) : undefined;
   if (!card || !cp) return null;
-  const nextS = statementDateOnOrAfter(card, today);
-  const lastSt = [...cp.statements].reverse()[0];
-  const ui = useUI.getState();
-  const util = cp.utilization;
   return (
     <div className="flex flex-col gap-3 text-[13px]">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4 lg:grid-cols-8">
-        <Fact k="Bill date" v={`${formatDate(nextS, "short")} (every ${ordinal(card.statement_day)})`} />
-        <Fact k="Due date" v={`${formatDate(dueDateFor(card, nextS), "short")} (every ${ordinal(card.due_day)})`} />
-        <Fact k="Limit" v={formatMoney(card.credit_limit, ctx)} />
-        <Fact k="Limit used" v={<span className={cn(util > 0.7 ? "text-danger" : util > 0.3 ? "text-warn" : "text-ok")}>{formatPct(util * 100, 0)}</span>} />
-        <Fact k="Minimum to pay" v={lastSt && lastSt.remaining > 0 ? formatMoney(lastSt.statement.min_due, ctx, { decimals: true }) : "–"} />
-        <Fact k="New spends (not billed yet)" v={<Money value={cp.unbilled} decimals className="text-ink-2" />} />
-        <Fact k="EMIs still to come" v={<Money value={Number(g.meta?.emiLeft ?? 0)} decimals className="text-ink-2" />} />
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+        <Fact k="Pay by" v={cardDatesLabel(card)} />
+        <Fact k="You owe now" v={<Money value={Math.max(0, cp.outstanding)} decimals />} />
+        <Fact k="Available" v={card.credit_limit > 0 ? formatMoney(cp.available, ctx) : "–"} />
         <Fact k="All dues on this card" v={<Money value={Number(g.meta?.totalDue ?? 0)} decimals />} />
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="primary" onClick={() => ui.openTx({ type: "card_payment", card_id: card.id })}>
-          Pay bill
-        </Button>
-        <Button size="sm" onClick={() => ui.openTx({ type: "card_spend", card_id: card.id })}>
-          Add spend
-        </Button>
-        <Button size="sm" onClick={() => ui.openEditor("statement", undefined, { card_id: card.id })}>
-          Add bill
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => ui.openEditor("loan", undefined, { type: "card_emi", card_id: card.id, payment_account_id: null, name: `${card.name} EMI` })}>
-          Change to EMI
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => ui.openEditor("card", card.id)}>
-          Edit card
-        </Button>
-      </div>
+      <CardActions card={card} size="sm" open />
     </div>
   );
 }
@@ -292,11 +259,6 @@ function Fact({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-function ordinal(n: number) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
 
 // ---------------------------------------------------------------------------
 

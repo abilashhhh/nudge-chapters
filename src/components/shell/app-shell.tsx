@@ -1,5 +1,6 @@
 "use client";
 
+import { FixBalanceHost } from "../v2/fix-balance";
 import {
   Bell, Eye, EyeOff, Home, LogOut, Moon, Plus, Search, Sun, 
   TrendingUp, Wallet, Menu as MenuIcon, Receipt, CalendarCheck } from "lucide-react";
@@ -289,6 +290,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <BmcFloating hidden={simple || v2} />
       {v2 ? <V2QuickAddSheet /> : <QuickAddSheet />}
       <TransactionSheet />
+      <FixBalanceHost />
       <EventSheet />
       <SmsSync />
       <ChitInstallmentsSheet />
