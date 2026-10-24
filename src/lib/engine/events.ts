@@ -595,13 +595,18 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
   return events.sort((a, b) => (a.date === b.date ? a.title.localeCompare(b.title) : a.date < b.date ? -1 : 1));
 }
 
-export function statementDateOnOrAfter(card: Pick<CreditCard, "statement_day">, d: ISODate): ISODate {
+type CardDays = Pick<CreditCard, "statement_day"> & Partial<Pick<CreditCard, "pay_by_month_end">>;
+
+export function statementDateOnOrAfter(card: CardDays, d: ISODate): ISODate {
+  const day = card.pay_by_month_end ? 31 : card.statement_day;
   const p = parseISO(d);
-  const s = clampDay(p.getUTCFullYear(), p.getUTCMonth(), card.statement_day);
-  return s >= d ? s : clampDay(p.getUTCFullYear(), p.getUTCMonth() + 1, card.statement_day);
+  const s = clampDay(p.getUTCFullYear(), p.getUTCMonth(), day);
+  return s >= d ? s : clampDay(p.getUTCFullYear(), p.getUTCMonth() + 1, day);
 }
 
-export function dueDateFor(card: Pick<CreditCard, "statement_day" | "due_day">, statementDate: ISODate): ISODate {
+export function dueDateFor(card: CardDays & Pick<CreditCard, "due_day">, statementDate: ISODate): ISODate {
+  // Paid by the end of the month: the bill closing on the month's last day is due that same day.
+  if (card.pay_by_month_end) return statementDate;
   const p = parseISO(statementDate);
   const sameMonth = clampDay(p.getUTCFullYear(), p.getUTCMonth(), card.due_day);
   return card.due_day > card.statement_day && sameMonth > statementDate
@@ -679,7 +684,17 @@ function projectCardCycles(
     const cycleReimb = round2(inCycle.reduce((a, s) => a + s.reimb, 0));
     const bill = round2(carried + cycleSpend + expected);
     carried = 0;
-    if (bill > 0.5 && due <= to) {
+    // Paid by the month's end: a bill recorded earlier in the month is due the same day as the month's new spends —
+    // one bill for that day, not two.
+    const recorded = card.pay_by_month_end
+      ? events.find((e) => e.kind === "card_bill" && e.cardId === card.id && e.statementId && e.occurrence === due && e.status !== "skipped" && e.status !== "cancelled")
+      : undefined;
+    if (recorded && bill > 0.5) {
+      recorded.amount = round2(recorded.amount + bill);
+      recorded.remaining = round2(recorded.remaining + bill);
+      if (recorded.status === "paid") recorded.status = recorded.paid > 0 ? (due < today ? "overdue" : "partial") : pendingStatus(due, today);
+      if (cycleReimb > 0) recorded.reimbursablePart = Math.min(round2((recorded.reimbursablePart ?? 0) + cycleReimb), recorded.amount);
+    } else if (bill > 0.5 && due <= to) {
       const ov = ovs.get(`card:${card.id}:${due}`);
       const pays = paymentsByDue.get(due) ?? [];
       const ev = resolve(

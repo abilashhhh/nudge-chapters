@@ -6,7 +6,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
-import { addDays, addMonths, diffDays, formatDate, formatMonthLong, startOfMonth } from "@/lib/dates";
+import { formatDate } from "@/lib/dates";
 import { dueDateFor, statementDateOnOrAfter } from "@/lib/engine/events";
 import { TX_TYPE_LABEL } from "@/lib/engine/defaults";
 import { chitDividendRecord, chitInstallmentInMonth, chitInstallmentOn } from "@/lib/engine/chits";
@@ -87,25 +87,12 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
     return base;
   };
   const [d, setD] = useState<Draft>(init);
-  // Card spends: which bill you'll pay it with (the one it naturally lands on, or a later/earlier one).
-  const [billDue, setBillDue] = useState<string | null>(null);
-  const spendCard = !editing && (d.payWith ?? "").startsWith("card:") ? ds.credit_cards.find((c) => `card:${c.id}` === d.payWith) : undefined;
-  const billOptions = useMemo(() => {
-    if (!spendCard || !d.date) return [];
-    const natural = dueDateFor(spendCard, statementDateOnOrAfter(spendCard, d.date));
-    const opts: { due: string; label: string; natural: boolean }[] = [];
-    let s = statementDateOnOrAfter(spendCard, addDays(natural, -40));
-    for (let i = 0; i < 6 && opts.length < 3; i++) {
-      const due = dueDateFor(spendCard, s);
-      if (due >= startOfMonth(today) && due >= addMonths(natural, -1) && !opts.some((o) => o.due.slice(0, 7) === due.slice(0, 7))) {
-        opts.push({ due, natural: due === natural, label: formatMonthLong(due.slice(0, 7)).split(" ")[0] });
-      }
-      s = statementDateOnOrAfter(spendCard, addDays(s, 1));
-    }
-    if (!opts.some((o) => o.natural)) opts.unshift({ due: natural, natural: true, label: formatMonthLong(natural.slice(0, 7)).split(" ")[0] });
-    return opts.sort((a, b) => (a.due < b.due ? -1 : 1));
-  }, [spendCard, d.date, today]);
-  const naturalDue = billOptions.find((o) => o.natural)?.due ?? null;
+  // Card spends: the bill it goes on (shown, not chosen — it follows the card's dates).
+  const spendCard = (d.payWith ?? "").startsWith("card:") ? ds.credit_cards.find((c) => `card:${c.id}` === d.payWith) : undefined;
+  const spendDue = spendCard && d.date ? dueDateFor(spendCard, statementDateOnOrAfter(spendCard, d.date)) : null;
+  // Adding a spend from a card: a short form just for that card.
+  const cardMode = !editing && preset?.type === "card_spend";
+  const [changeCard, setChangeCard] = useState(false);
   // Things you've recorded before on this card (or account): pick one to fill in the same name, amount and category.
   const pastSpends = useMemo(() => {
     if (editing || (d.type ?? "expense") !== "expense" || !d.payWith) return [];
@@ -122,7 +109,6 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
     }
     return out;
   }, [editing, d.type, d.payWith, ds.transactions]);
-  const pickedDue = billDue && billOptions.some((o) => o.due === billDue) ? billDue : naturalDue;
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -262,13 +248,6 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
         await patch("transactions", id, rest);
       } else {
         await add("transactions", body);
-        // Paying this spend with a different month's bill: move the bill it lands on to that month.
-        if (body.type === "card_spend" && body.card_id && naturalDue && pickedDue && pickedDue !== naturalDue) {
-          const ov = ds.event_overrides.find((o) => o.source_type === "card" && o.source_id === body.card_id && o.occurrence_date === naturalDue);
-          const ovBody = { source_type: "card" as const, source_id: body.card_id, occurrence_date: naturalDue, action: "reschedule" as const, new_date: pickedDue, new_amount: null };
-          if (ov) await patch("event_overrides", ov.id, ovBody);
-          else await add("event_overrides", ovBody);
-        }
         if (type === "chit_payout" && body.chit_id) await patch("chits", body.chit_id, { payout_status: "received", payout_amount: body.amount, payout_date: body.date });
       }
       // Paid less than the plan for this installment (new or edited): the difference is that month's dividend (profit).
@@ -319,6 +298,17 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
     case "expense":
       specific = (
         <>
+        {cardMode && !changeCard && spendCard ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2 text-[13.5px]">
+            <span>
+              On <span className="font-semibold">{spendCard.name}</span>
+              {spendCard.last4 ? <span className="text-ink-3"> ··{spendCard.last4}</span> : null}
+            </span>
+            <button type="button" className="font-medium text-ink-2 underline-offset-2 hover:text-ink hover:underline" onClick={() => setChangeCard(true)}>
+              Change
+            </button>
+          </div>
+        ) : (
         <Field label={v2 ? "Paid from" : "Paid with"} error={errors.payWith} htmlFor="tx-paywith">
           <Select id="tx-paywith" value={d.payWith ?? ""} onChange={(e) => set({ payWith: e.target.value })}>
             <option value="">Choose…</option>
@@ -341,6 +331,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
             )}
           </Select>
         </Field>
+        )}
           {pastSpends.length > 0 && (
             <Field label="Same as before" htmlFor="tx-past">
               <div id="tx-past" className="no-scrollbar flex gap-1.5 overflow-x-auto">
@@ -361,26 +352,10 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
               </div>
             </Field>
           )}
-          {billOptions.length > 1 && (
-            <Field label="Pay it with the bill due in" htmlFor="tx-bill">
-              <div id="tx-bill" className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Bill">
-                {billOptions.map((o) => (
-                  <button
-                    key={o.due}
-                    type="button"
-                    role="radio"
-                    aria-checked={pickedDue === o.due}
-                    onClick={() => setBillDue(o.due)}
-                    className={cn("rounded-full px-3 py-1.5 text-[13px] font-medium", pickedDue === o.due ? "bg-inverse text-on-inverse" : "bg-surface-3/70 text-ink-2 hover:text-ink")}
-                  >
-                    {o.label} <span className="opacity-70">· {formatDate(o.due, "short")}</span>
-                  </button>
-                ))}
-              </div>
-              {pickedDue && naturalDue && pickedDue !== naturalDue && (
-                <p className="mt-1 text-[12px] text-ink-3">The bill due {formatDate(naturalDue, "short")} moves to {formatDate(pickedDue, "short")}.</p>
-              )}
-            </Field>
+          {spendCard && spendDue && (
+            <p className="-mt-1 text-[12.5px] text-ink-3">
+              Goes on the {spendCard.name} bill due <span className="font-medium text-ink-2">{formatDate(spendDue, "medium")}</span>.
+            </p>
           )}
         </>
       );
@@ -559,7 +534,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
       specific = (
         <>
           {renderAccount("Account")}
-          <Note>{v2 ? "Type what your bank app shows minus what this app shows. " : ""}Use a positive amount to add to the balance and a negative one to reduce it. Adjustments aren&apos;t income or expenses.</Note>
+          <Note>This is a correction: a positive amount adds to the balance, a negative one takes away. To match your bank app, use Fix balance on the account and type what the bank shows.</Note>
         </>
       );
       break;
@@ -572,7 +547,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
       <Sheet
         open
         onClose={onClose}
-        title={v2 ? (editing ? "Edit entry" : V2_TX_LABEL[type]) : editing ? "Edit transaction" : "Add transaction"}
+        title={cardMode && spendCard ? `Add spend · ${spendCard.name}` : v2 ? (editing ? "Edit entry" : V2_TX_LABEL[type]) : editing ? "Edit transaction" : "Add transaction"}
         footer={
           <div className="flex items-center gap-2">
             {editing && (
@@ -610,6 +585,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
             void save(false);
           }}
         >
+          {!cardMode && (
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-xl bg-surface-3 p-1" role="radiogroup" aria-label="Transaction type">
               {PRIMARY.map((t) => (
@@ -629,7 +605,13 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
               aria-label="Other transaction types"
               className={cn("h-9 w-auto min-w-36 text-[13.5px]", MORE.includes(type) && "border-future")}
               value={MORE.includes(type) ? type : ""}
-              onChange={(e) => e.target.value && set({ type: e.target.value as TxType, category: null })}
+              onChange={(e) => {
+                const t = e.target.value as TxType;
+                if (!t) return;
+                // Fixing a balance asks what the bank shows, in its own sheet.
+                if (t === "adjustment" && !editing) useUI.getState().openFixBalance(d.account_id ?? null);
+                else set({ type: t, category: null });
+              }}
             >
               <option value="">{v2 ? "Something else…" : "More types…"}</option>
               {MORE.map((m) => (
@@ -639,6 +621,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
               ))}
             </Select>
           </div>
+          )}
 
           <Field label="Amount" error={errors.amount} htmlFor="tx-amount">
             <AmountInput id="tx-amount" large autoFocus={!editing} value={d.amount ?? null} allowNegative={type === "adjustment"} onChange={(v) => set({ amount: v ?? undefined })} />

@@ -34,11 +34,15 @@ interface UIState {
   life: { kind: LifeKind; id?: string; preset?: Partial<LifeItem> } | null;
   /** Chit whose installment table is open. */
   chitSheet: string | null;
+  /** "Fix balance": the account being matched with the bank ("" = choose one in the sheet). */
+  fixBalance: string | null;
   editor: EditorState | null;
   palette: boolean;
   alerts: boolean;
   openTx(preset?: Partial<Transaction> | null, editing?: Transaction | null): void;
   closeTx(): void;
+  openFixBalance(accountId?: string | null): void;
+  closeFixBalance(): void;
   openQuick(): void;
   closeQuick(): void;
   openEvent(key: string | null, mode?: "view" | "settle"): void;
@@ -61,11 +65,20 @@ export const useUI = create<UIState>((set) => ({
   eventKey: null,
   eventMode: "view",
   chitSheet: null,
+  fixBalance: null,
   life: null,
   editor: null,
   palette: false,
   alerts: false,
-  openTx: (preset = null, editing = null) => set({ txOpen: true, txPreset: preset, txEditing: editing, quickOpen: false, palette: false }),
+  // A new balance fix asks what the bank shows (the difference is worked out for you), so it has its own sheet.
+  openTx: (preset = null, editing = null) =>
+    set(
+      preset?.type === "adjustment" && !editing
+        ? { fixBalance: preset.account_id ?? "", txOpen: false, txPreset: null, txEditing: null, quickOpen: false, palette: false }
+        : { txOpen: true, txPreset: preset, txEditing: editing, quickOpen: false, palette: false },
+    ),
+  openFixBalance: (accountId) => set({ fixBalance: accountId ?? "", txOpen: false, quickOpen: false, palette: false }),
+  closeFixBalance: () => set({ fixBalance: null }),
   closeTx: () => set({ txOpen: false, txPreset: null, txEditing: null }),
   openQuick: () => set({ quickOpen: true }),
   closeQuick: () => set({ quickOpen: false }),
@@ -78,5 +91,5 @@ export const useUI = create<UIState>((set) => ({
   setPalette: (v) => set({ palette: v }),
   setAlerts: (v) => set(v ? { alerts: true, palette: false } : { alerts: false }),
   closeAll: () =>
-    set({ txOpen: false, txPreset: null, txEditing: null, quickOpen: false, eventKey: null, eventMode: "view", chitSheet: null, life: null, editor: null, palette: false, alerts: false }),
+    set({ txOpen: false, txPreset: null, txEditing: null, quickOpen: false, eventKey: null, eventMode: "view", chitSheet: null, fixBalance: null, life: null, editor: null, palette: false, alerts: false }),
 }));

@@ -51,6 +51,8 @@ export interface CreditCard extends Owned {
   credit_limit: number;
   statement_day: number;
   due_day: number;
+  /** Paid in full at the end of every month: the bill closes on the month's last day and is due that day. */
+  pay_by_month_end?: boolean | null;
   payment_account_id?: UUID | null;
   opening_outstanding: number;
   opening_date: ISODate;

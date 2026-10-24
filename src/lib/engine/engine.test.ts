@@ -254,6 +254,25 @@ describe("card bill projection", () => {
   });
 });
 
+describe("cards paid by the end of the month", () => {
+  it("closes and falls due on the month's last day", () => {
+    const c = { statement_day: 31, due_day: 25, pay_by_month_end: true };
+    expect(statementDateOnOrAfter(c, "2026-10-24")).toBe("2026-10-31");
+    expect(dueDateFor(c, "2026-10-31")).toBe("2026-10-31");
+    expect(statementDateOnOrAfter({ ...c, statement_day: 9 }, "2026-11-02")).toBe("2026-11-30");
+  });
+
+  it("puts the month's bill and its new spends on one bill due on the 31st", () => {
+    const ds = emptyDs();
+    const c = card({ statement_day: 31, due_day: 30, pay_by_month_end: true, opening_outstanding: 1_500, opening_date: "2026-10-09" });
+    ds.credit_cards = [c];
+    ds.card_statements = [{ id: "s1", card_id: c.id, statement_date: "2026-10-09", due_date: "2026-10-31", total_due: 1_500, min_due: 0 }];
+    ds.transactions = [tx({ type: "card_spend", amount: 2_000, card_id: c.id, date: "2026-10-16" }), tx({ type: "card_spend", amount: 500, card_id: c.id, date: "2026-10-20" })];
+    const bills = buildEvents(ds, { from: "2026-10-01", to: "2026-12-31", today: "2026-10-24" }).filter((e) => e.kind === "card_bill" && e.remaining > 0);
+    expect(bills.map((b) => [b.date, b.remaining])).toEqual([["2026-10-31", 4_000]]);
+  });
+});
+
 describe("demo dataset", () => {
   const today = TODAY;
   const ds = buildDemoDataset(today);

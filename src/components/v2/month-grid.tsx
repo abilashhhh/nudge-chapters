@@ -150,6 +150,8 @@ export interface MonthGridProps {
   /** Label of the grand-total row. */
   grandLabel?: string;
   onRow?: (row: GridRow, group: GridGroup) => void;
+  /** Tapping a group's icon (e.g. a card's picture) opens it. */
+  onGroup?: (group: GridGroup) => void;
   /** Shown when a group's name is tapped (details and actions). */
   groupDetails?: (group: GridGroup) => ReactNode;
   /** "+ Add" inside each group (e.g. add a spend to this card). */
@@ -167,7 +169,7 @@ export interface MonthGridProps {
   footnote?: ReactNode;
 }
 
-export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "Grand total", onRow, groupDetails, groupAdd, monthAdd, bottomAdd, exportName, empty, incoming, footnote }: MonthGridProps) {
+export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "Grand total", onRow, onGroup, groupDetails, groupAdd, monthAdd, bottomAdd, exportName, empty, incoming, footnote }: MonthGridProps) {
   const { today, ctx } = useFinance();
   const range = useGridRange();
   const phone = usePhone();
@@ -342,7 +344,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
               <section key={g.id} className="overflow-hidden rounded-2xl border border-line bg-surface" aria-label={g.label}>
                 <button type="button" onClick={() => setOpen((o) => ({ ...o, [g.id]: !o[g.id] }))} aria-expanded={isOpen} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-2">
                   <span className="flex min-w-0 items-center gap-3">
-                    <GroupIcon g={g} />
+                    <GroupIconLink g={g} onGroup={onGroup} />
                     <span className="min-w-0">
                       <span className="block truncate text-[15px] font-semibold">{g.label}</span>
                       <StatusText status={t.status} incoming={t.incoming ?? incoming} className="text-[12px]" />
@@ -475,7 +477,7 @@ export function MonthGrid({ data, nameHeader, forHeader = "For", grandLabel = "G
                         onClick={() => (hasDetails ? setOpen((o) => ({ ...o, [g.id]: !o[g.id] })) : onRow?.(g.total, g))}
                         aria-expanded={hasDetails ? isOpen : undefined}
                       >
-                        <GroupIcon g={g} size="xs" className="mr-1 mt-0.5" />
+                        <GroupIconLink g={g} onGroup={onGroup} size="xs" className="mr-1 mt-0.5" />
                         <span className="min-w-0">
                           <span className="block truncate text-[13.5px] font-semibold text-ink sm:text-[14px]">{g.label}</span>
                           <span className="block truncate text-[11.5px] font-normal text-ink-3 sm:hidden">{g.total.label}</span>
@@ -651,6 +653,31 @@ function Breakdown({ group, month, incoming, onClose, add, monthAdd }: { group: 
 }
 
 /** A group's badge: its card / fund / person when it stands for one, else one for the kind of group. */
+function GroupIconLink({ g, onGroup, ...rest }: { g: GridGroup; onGroup?: (g: GridGroup) => void; size?: "xs" | "sm" | "md"; className?: string }) {
+  if (!onGroup) return <GroupIcon g={g} {...rest} />;
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      aria-label={`Open ${g.label}`}
+      className="shrink-0 cursor-pointer rounded-md transition-transform hover:scale-105"
+      onClick={(e) => {
+        e.stopPropagation();
+        onGroup(g);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          onGroup(g);
+        }
+      }}
+    >
+      <GroupIcon g={g} {...rest} />
+    </span>
+  );
+}
+
 export function GroupIcon({ g, size = "md", className }: { g: GridGroup; size?: "xs" | "sm" | "md"; className?: string }) {
   if (g.ref) return <RefIcon r={g.ref} size={size} className={className} />;
   const kind = g.id === "chits" ? "chit" : g.id === "sips" ? "sip" : g.id === "loans" ? "loan" : g.id === "borrowed" || g.id === "people" ? "people" : null;
