@@ -108,7 +108,7 @@ export function TaxScreen() {
   return (
     <>
       <V2PageHeader title="Tax estimate" />
-      <div className="mx-auto flex max-w-4xl flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <p className="text-[13.5px] text-ink-2">
           Income tax for FY {auto.fy.label} (April to March), under 60, using this year&apos;s slabs. Figures from your data are filled in — change any of them. An estimate for planning, not tax advice.
         </p>

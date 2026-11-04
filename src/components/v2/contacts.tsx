@@ -121,7 +121,7 @@ export function ContactsScreen() {
           }
         />
       ) : (
-        <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
             <input

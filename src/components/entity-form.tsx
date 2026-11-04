@@ -47,6 +47,17 @@ export interface FieldDef<T = Record<string, unknown>> {
   allowNegative?: boolean;
   section?: string;
   autoFocus?: boolean;
+  /** Always shown, even though it's optional or a switch (forms show only the essentials until "More details"). */
+  essential?: boolean;
+  /** Kept under "More details" even though it's filled in by default (rarely changed). */
+  more?: boolean;
+}
+
+/** What a form shows straight away: required fields and plain ones. Optional fields, switches, notes and sections wait. */
+export function isEssential<T>(f: FieldDef<T>): boolean {
+  if (f.more) return false;
+  if (f.essential || f.required) return true;
+  return !f.optional && !f.section && f.type !== "toggle" && f.type !== "textarea";
 }
 
 type Values = Record<string, unknown>;
@@ -259,7 +270,13 @@ export function EntityForm<T>({
   onChange: (v: Values) => void;
   errors: Record<string, string>;
 }) {
-  const visible = fields.filter((f) => !f.showIf || f.showIf(values as Partial<T>));
+  const [more, setMore] = useState(false);
+  const shown = fields.filter((f) => !f.showIf || f.showIf(values as Partial<T>));
+  // Fields after the first section belong to it, like the section's own fields.
+  const firstSection = shown.findIndex((f) => !!f.section);
+  const extraField = (f: FieldDef<T>, i: number) => !isEssential(f) || (firstSection >= 0 && i > firstSection && !f.essential && !f.required);
+  const hidden = shown.filter((f, i) => extraField(f, i) && !errors[f.name]);
+  const visible = more ? shown : shown.filter((f) => !hidden.includes(f));
   const set = (k: string, v: unknown) => onChange({ ...values, [k]: v });
   const out: ReactNode[] = [];
   let lastSection: string | undefined;
@@ -273,12 +290,24 @@ export function EntityForm<T>({
       lastSection = f.section;
     }
     out.push(
-      <div key={`${f.name}:${f.label}`} className={cn(f.half ? "col-span-2 sm:col-span-1" : "col-span-2")}>
+      <div key={`${f.name}:${f.label}`} className={cn(f.half ? "col-span-2 sm:col-span-1" : "col-span-2", f.type === "textarea" && "lg:col-span-4")}>
         <FieldControl f={f} values={values} set={set} error={errors[f.name]} />
       </div>,
     );
   });
-  return <div className="grid grid-cols-2 gap-x-4 gap-y-4">{out}</div>;
+  if (hidden.length)
+    out.push(
+      <button
+        key="more"
+        type="button"
+        onClick={() => setMore((m) => !m)}
+        aria-expanded={more}
+        className="col-span-full justify-self-start text-[13.5px] font-medium text-ink-2 underline-offset-2 hover:text-ink hover:underline"
+      >
+        {more ? "Fewer details" : `More details (${hidden.length})`}
+      </button>,
+    );
+  return <div className="grid grid-cols-2 gap-x-4 gap-y-4 lg:grid-cols-4">{out}</div>;
 }
 
 export function validateFields<T>(fields: FieldDef<T>[], values: Values): Record<string, string> {

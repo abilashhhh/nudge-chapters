@@ -11,7 +11,7 @@ import type {
   Certainty, CreditCard, Dataset, EventOverride, ISODate, OverrideSource, RecurringRule, ScenarioAssumptions, Transaction, TxType,
 } from "../types";
 import { DEFAULT_ASSUMPTIONS } from "./defaults";
-import { computePositions, isOpening, isRefund, isReimbursable, isSelfTransfer, type Positions } from "./ledger";
+import { cardDelta, computePositions, isOpening, isRefund, isReimbursable, isSelfTransfer, type Positions } from "./ledger";
 import { nextOccurrenceAfter, occurrences } from "./schedule";
 
 export type EventKind =
@@ -629,18 +629,32 @@ function projectCardCycles(
   const out: FinEvent[] = [];
   const lastRecorded = recordedStatementDates.sort().at(-1);
   let cursor = statementDateOnOrAfter(card, lastRecorded && lastRecorded >= today ? addDays(lastRecorded, 1) : today);
-  // Spends not yet on a statement: pending items on this card, effective no earlier than today.
+  // A statement date that has already passed this cycle without its bill being recorded (e.g. the 3rd, when today
+  // is the 5th): what was spent up to that day is on that bill, due on its own due date — not on next month's.
+  let lastClosed = statementDateOnOrAfter(card, addDays(today, -62));
+  for (let n = statementDateOnOrAfter(card, addDays(lastClosed, 1)); n <= today; n = statementDateOnOrAfter(card, addDays(n, 1))) lastClosed = n;
+  const closed =
+    lastClosed <= today && (!lastRecorded || lastClosed > lastRecorded) && lastClosed >= card.opening_date && dueDateFor(card, lastClosed) >= today ? lastClosed : null;
+  const start = closed ?? today;
+  if (closed) cursor = closed;
+  // Spends not yet on a statement: pending items on this card, effective no earlier than the first bill they can be on.
   const spends = events
     .filter((e) => e.cardId === card.id && (e.kind === "card_spend" || (e.kind === "emi" && e.flow === "none")) && isPending(e) && !e.excluded)
-    .map((e) => ({ date: e.date < today ? today : e.date, amount: e.remaining, reimb: e.reimbursable ? e.remaining : 0 }));
+    .map((e) => ({ date: e.date < start ? start : e.date, amount: e.remaining, reimb: e.reimbursable ? e.remaining : 0 }));
+  // What's owed but not billed splits at that statement date: spent up to it goes on its bill, the rest on the next.
+  let carriedNext = 0;
+  if (closed) {
+    const after = ds.transactions.filter((t) => t.card_id === card.id && t.date > closed && t.date <= today && t.date >= card.opening_date).reduce((a, t) => a + cardDelta(t), 0);
+    carriedNext = round2(Math.min(unbilled, Math.max(0, after)));
+  }
   const paymentsByDue = new Map<string, Transaction[]>();
   for (const t of ds.transactions) {
     if (t.card_id === card.id && t.type === "card_payment" && !t.statement_id && t.occurrence_date) {
       paymentsByDue.set(t.occurrence_date, [...(paymentsByDue.get(t.occurrence_date) ?? []), t]);
     }
   }
-  let prev = addDays(today, -1);
-  let carried = unbilled;
+  let prev = addDays(start, -1);
+  let carried = round2(unbilled - carriedNext);
   let first = true;
   const cycleDays = 30.4375;
   for (let guard = 0; guard < 600; guard++) {
@@ -683,7 +697,8 @@ function projectCardCycles(
     const cycleSpend = inCycle.reduce((a, s) => a + s.amount, 0);
     const cycleReimb = round2(inCycle.reduce((a, s) => a + s.reimb, 0));
     const bill = round2(carried + cycleSpend + expected);
-    carried = 0;
+    carried = carriedNext;
+    carriedNext = 0;
     // Paid by the month's end: a bill recorded earlier in the month is due the same day as the month's new spends —
     // one bill for that day, not two.
     const recorded = card.pay_by_month_end

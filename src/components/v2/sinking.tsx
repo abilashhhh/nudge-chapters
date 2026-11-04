@@ -104,7 +104,7 @@ export function SinkingScreen() {
           </Button>
         }
       />
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <p className="text-[13.5px] text-ink-2">Costs that come once or a few times a year — insurance, school fees, festivals. Put a little aside every month so the money&apos;s ready when they come.</p>
         {funds.length > 0 && (
           <div className="grid grid-cols-2 gap-2">

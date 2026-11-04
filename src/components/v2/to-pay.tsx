@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, ChevronRight, CreditCard, Landmark, PiggyBank } from "lucide-react";
+import { Check, ChevronRight, CreditCard, Landmark, PiggyBank, Receipt } from "lucide-react";
 import { FlipCard, useCardBillsAhead } from "./card-flip";
 import { EntityIcon } from "./entity-icon";
+import { UpcomingPayments } from "./upcoming";
 import { CardActions, cardDatesLabel } from "./card-actions";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,7 +13,7 @@ import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
-import { cardGrid, chitSipGrid, loanGrid, monthRange, orderForMonth, sumCells, type GridGroup } from "@/lib/v2/grids";
+import { billGrid, cardGrid, chitSipGrid, loanGrid, monthRange, orderForMonth, sumCells, type GridGroup } from "@/lib/v2/grids";
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { EmptyState, Segmented, Tabs } from "../ui/misc";
@@ -21,7 +22,7 @@ import { GroupIcon, MonthGrid, monthLabel, monthPaid, openCell, useGridMonths } 
 import { AMOUNT_CLS, StatTile, StatusText, useRangeEvents, V2PageHeader } from "./ui";
 import { Cell2, DataTable, Details } from "./data-table";
 
-const TABS = ["all", "cards", "chits", "loans"] as const;
+const TABS = ["all", "cards", "bills", "chits", "loans"] as const;
 type Tab = (typeof TABS)[number];
 
 export function ToPayScreen() {
@@ -42,12 +43,14 @@ export function ToPayScreen() {
         tabs={[
           { id: "all", label: "All" },
           { id: "cards", label: "Credit cards", count: ds.credit_cards.filter((c) => !c.archived).length },
+          { id: "bills", label: "Bills", count: ds.recurring_rules.filter((r) => r.active && r.kind === "expense" && !r.card_id).length },
           { id: "chits", label: "Monthly investments", count: ds.chits.filter((c) => positions.chits.get(c.id)?.remainingCount).length + ds.investments.filter((i) => !i.archived && i.sip_active && i.sip_amount > 0).length },
           { id: "loans", label: "Loans & borrowed", count: ds.loans.filter((l) => !l.card_id && l.status === "active").length + ds.lendings.filter((l) => l.direction === "borrowed" && (positions.lendings.get(l.id)?.outstanding ?? 0) > 0.5).length },
         ]}
       />
       {tab === "all" && <AllToPay goTab={setTab} />}
       {tab === "cards" && <Cards />}
+      {tab === "bills" && <Bills />}
       {tab === "chits" && <ChitsSips />}
       {tab === "loans" && <Loans />}
     </>
@@ -137,6 +140,32 @@ function Cards() {
   );
 }
 
+/** Rent, electricity, subscriptions… — what's coming up, then each bill month by month. */
+function Bills() {
+  const { ds, today } = useFinance();
+  const months = useGridMonths();
+  const events = useRangeEvents(months);
+  const data = useMemo(() => billGrid(ds, events, months, today), [ds, events, months, today]);
+  const ui = useUI.getState();
+  const bill = (e: { kind: string; flow: string; cardId?: string | null; source: string }) => e.kind === "expense" && e.flow === "out" && !e.cardId && (e.source === "rule" || e.source === "task");
+  return (
+    <div className="flex flex-col gap-4">
+      <UpcomingPayments only={bill} title="Bills coming up" seeAll={false} />
+      <MonthGrid
+        data={data}
+        nameHeader="Bill"
+        forHeader={null}
+        grandLabel="All bills"
+        exportName="bills"
+        onRow={(row) => row.ref?.kind === "rule" && ui.openEditor("rule", row.ref.id)}
+        onGroup={(g) => g.ref?.kind === "rule" && ui.openEditor("rule", g.ref.id)}
+        bottomAdd={{ label: "Add a bill", run: () => ui.openEditor("rule", undefined, { kind: "expense" }) }}
+        empty={<EmptyState icon={Receipt} title="No bills yet" body="Add rent, electricity, phone and other bills you pay every month. They show up here and on Home before they're due." />}
+      />
+    </div>
+  );
+}
+
 /** Everything to pay in one month — one line per card, chit, SIP or loan — kept deliberately simple. */
 function AllToPay({ goTab }: { goTab: (t: Tab) => void }) {
   const { ds, positions, today } = useFinance();
@@ -145,6 +174,7 @@ function AllToPay({ goTab }: { goTab: (t: Tab) => void }) {
   const parts = useMemo(
     () => [
       { tab: "cards" as const, title: "Credit cards", data: cardGrid(ds, positions, events, months, today) },
+      { tab: "bills" as const, title: "Bills", data: billGrid(ds, events, months, today) },
       { tab: "chits" as const, title: "Monthly investments", data: chitSipGrid(ds, positions, events, months, today) },
       { tab: "loans" as const, title: "Loans & borrowed", data: loanGrid(ds, positions, events, months, today) },
     ],

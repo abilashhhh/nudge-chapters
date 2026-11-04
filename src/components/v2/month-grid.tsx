@@ -706,6 +706,7 @@ function RefIcon({ r, size = "md", className }: { r?: GridRow["ref"]; size?: "xs
     const l = ds.lendings.find((x) => x.id === r.id);
     return <EntityIcon kind="person" name={l?.person ?? "?"} size={size} className={className} />;
   }
+  if (r.kind === "rule") return <EntityIcon kind="sip" name="Bill" size={size} className={className} />;
   return null;
 }
 

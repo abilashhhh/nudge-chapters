@@ -441,6 +441,25 @@ export function chitSipGrid(ds: Dataset, positions: Positions, events: FinEvent[
 }
 
 // ---------------------------------------------------------------------------
+// To Pay → Bills (rent, electricity, subscriptions… paid from a bank account; bills on a card stay with the card)
+// ---------------------------------------------------------------------------
+
+export function billGrid(ds: Dataset, events: FinEvent[], months: string[], today: ISODate): MonthGridData {
+  const bills = events.filter((e) => e.kind === "expense" && e.flow === "out" && !e.cardId && !e.budget && (e.source === "rule" || e.source === "task"));
+  // One line per bill, like one per card.
+  const groups: GridGroup[] = [];
+  for (const r of ds.recurring_rules.filter((x) => x.kind === "expense" && !x.card_id)) {
+    const evs = bills.filter((e) => e.source === "rule" && e.sourceId === r.id);
+    if (!evs.length) continue;
+    const ref = { kind: "rule" as const, id: r.id };
+    groups.push({ id: `rule:${r.id}`, label: r.name, ref, total: { id: `rule:${r.id}:total`, label: r.category ?? "Bill", cells: cellsFrom(evs, months, today), ref }, rows: [] });
+  }
+  const tasks = bills.filter((e) => e.source === "task");
+  if (tasks.length) groups.push({ id: "tasks", label: "Planned one-offs", total: { id: "tasks-total", label: "One-off", cells: cellsFrom(tasks, months, today) }, rows: [] });
+  return { months, groups, grand: sumCells(groups.map((g) => g.total.cells), months) };
+}
+
+// ---------------------------------------------------------------------------
 // To Pay → Loans & borrowed (card EMIs stay with their card)
 // ---------------------------------------------------------------------------
 
