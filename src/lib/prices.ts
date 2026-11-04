@@ -3,7 +3,7 @@
  * The Supabase Edge Function `market-prices` looks prices up; `components/price-refresher.tsx`
  * calls it when the app opens and saves the new price on each holding.
  */
-import type { Investment, ISODate } from "./types";
+import type { Investment, ISODate, Transaction } from "./types";
 
 export type PriceKind = "stock" | "fund";
 
@@ -22,6 +22,8 @@ export interface PriceResult {
   matched?: string;
   price?: number;
   date?: ISODate;
+  /** With `on` in the request: the price on that day (or the next trading day). */
+  at?: { date: ISODate; price: number } | null;
   error?: string;
 }
 
@@ -86,4 +88,30 @@ export function newCodes(items: PriceItem[], results: PriceResult[], codes: Pric
     changed = true;
   }
   return changed ? next : null;
+}
+
+// ---------------------------------------------------------------------------
+// Purchases and SIPs saved without units: they're bought at that day's NAV / price.
+
+/** Stamp duty taken from every mutual-fund purchase (0.005%) before units are allotted. */
+export const FUND_STAMP_DUTY = 0.00005;
+
+/** Buys and sells of a priced holding recorded with neither units nor a price. */
+export function missingUnits(investments: Investment[], txs: Transaction[], codes: PriceCodes = {}): (PriceItem & { on: ISODate; txId: string })[] {
+  const items = new Map(priceItems(investments, codes).map((i) => [i.id, i]));
+  const out: (PriceItem & { on: ISODate; txId: string })[] = [];
+  for (const t of txs) {
+    if ((t.type !== "invest_buy" && t.type !== "invest_sell") || !t.investment_id || t.units != null || t.price != null || !(t.amount > 0)) continue;
+    const it = items.get(t.investment_id);
+    const inv = investments.find((i) => i.id === t.investment_id);
+    if (!it || !inv || t.date < inv.track_from) continue;
+    out.push({ ...it, id: t.id, txId: t.id, on: t.date });
+  }
+  return out;
+}
+
+/** Units bought (or sold) for `amount` at `price`. Fund purchases lose the stamp duty first. */
+export function unitsAt(kind: PriceKind, type: "invest_buy" | "invest_sell", amount: number, price: number): number {
+  const net = kind === "fund" && type === "invest_buy" ? amount * (1 - FUND_STAMP_DUTY) : amount;
+  return Math.round((net / price) * 1e4) / 1e4;
 }

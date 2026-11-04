@@ -190,7 +190,8 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
   useEffect(() => {
     if ((type !== "invest_buy" && type !== "invest_sell") || !d.investment_id || editing) return;
     const p = positions.investments.get(d.investment_id);
-    if (p?.price && d.price == null) set({ price: p.price });
+    // Funds are bought at the NAV of the day you pick, looked up for you — so no price is filled in for them.
+    if (p?.price && d.price == null && p.investment.type !== "mutual_fund") set({ price: p.price });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type, d.investment_id]);
 
@@ -467,7 +468,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
             <Field label="Units" optional htmlFor="tx-units">
               <NumberInput id="tx-units" value={d.units ?? ""} onChange={(e) => set({ units: e.target.value === "" ? null : Number(e.target.value) })} />
             </Field>
-            <Field label="Price / NAV" optional htmlFor="tx-price">
+            <Field label="Price / NAV" optional htmlFor="tx-price" help={d.investment_id && ds.investments.find((i) => i.id === d.investment_id)?.type === "mutual_fund" ? "Leave blank: that day's NAV is used" : undefined}>
               <NumberInput id="tx-price" value={d.price ?? ""} onChange={(e) => set({ price: e.target.value === "" ? null : Number(e.target.value) })} />
             </Field>
           </div>

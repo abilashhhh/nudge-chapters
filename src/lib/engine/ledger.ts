@@ -8,7 +8,7 @@
 //  4. Investment purchases move cash into assets; they are not consumption.
 //  5. Only balance adjustments may change a balance without a counterpart.
 
-import { diffMonths, yearsBetween } from "../dates";
+import { yearsBetween } from "../dates";
 import { round2, toBase, type MoneyContext } from "../money";
 import type {
   Account, CardStatement, Chit, CreditCard, Dataset, Investment, ISODate, Lending, Loan, Transaction,
@@ -294,6 +294,21 @@ function addMonthsSafe(d: ISODate, n: number): ISODate {
   return dt.toISOString().slice(0, 10);
 }
 
+/** The day of the month EPF contributions are credited (roughly: employers pay by the 15th). */
+export const EPF_CREDIT_DAY = 15;
+
+/** EPF monthly credits after `from` up to and including `to`. */
+export function epfCreditsBetween(from: ISODate, to: ISODate): number {
+  let n = 0;
+  const [y, m] = from.split("-").map(Number);
+  for (let i = 0; i < 600; i++) {
+    const d = new Date(Date.UTC(y, m - 1 + i, EPF_CREDIT_DAY)).toISOString().slice(0, 10);
+    if (d > to) break;
+    if (d > from) n++;
+  }
+  return n;
+}
+
 export function investmentPosition(inv: Investment, txs: Transaction[], today: ISODate, ctx: MoneyContext): InvestmentPosition {
   const own = txs.filter((t) => t.investment_id === inv.id && !isOpening(t) && t.date <= today);
   const buys = own.filter((t) => t.type === "invest_buy");
@@ -306,8 +321,11 @@ export function investmentPosition(inv: Investment, txs: Transaction[], today: I
 
   if (unitBased) {
     const after = (t: Transaction) => t.date >= inv.track_from;
-    const buyUnits = buys.filter(after).reduce((s, t) => s + (t.units ?? (t.price ? t.amount / t.price : 0)), 0);
-    const sellUnits = sells.filter(after).reduce((s, t) => s + (t.units ?? (t.price ? t.amount / t.price : 0)), 0);
+    // Units bought or sold. Saved without units or a price (the NAV on that day is looked up and saved later):
+    // counted at today's price until then, so the money never shows up as a loss.
+    const unitsOf = (t: Transaction) => t.units ?? (t.price ? t.amount / t.price : inv.current_price ? t.amount / inv.current_price : 0);
+    const buyUnits = buys.filter(after).reduce((s, t) => s + unitsOf(t), 0);
+    const sellUnits = sells.filter(after).reduce((s, t) => s + unitsOf(t), 0);
     const baseUnits = inv.units ?? 0;
     const grossUnits = baseUnits + buyUnits;
     const grossInvested = inv.invested_amount + buys.filter(after).reduce((s, t) => s + t.amount, 0);
@@ -334,12 +352,16 @@ export function investmentPosition(inv: Investment, txs: Transaction[], today: I
     }
   }
 
-  let estimatedValue = value;
-  if (inv.type === "epf") {
-    const asOf = inv.value_as_of ?? inv.track_from;
-    const months = Math.max(0, diffMonths(asOf, today));
-    estimatedValue = value + months * (inv.employee_contribution + inv.employer_contribution);
+  // EPF: your share and your employer's go in every month, credited around the 15th. Each credit since the
+  // balance you last entered is added to what it's worth and to what's been put in (interest is credited yearly,
+  // so it shows up when you next update the balance).
+  if (inv.type === "epf" && !unitBased) {
+    const credits = epfCreditsBetween(inv.value_as_of ?? inv.track_from, today);
+    const monthly = inv.employee_contribution + inv.employer_contribution;
+    value += credits * monthly;
+    invested += credits * monthly;
   }
+  const estimatedValue = value;
 
   const flows: { date: ISODate; amount: number }[] = [];
   if (inv.invested_amount > 0) flows.push({ date: inv.start_date || inv.track_from, amount: -inv.invested_amount });
