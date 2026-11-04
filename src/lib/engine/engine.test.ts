@@ -505,3 +505,17 @@ describe("personal system", () => {
     expect(food.over).toBeGreaterThan(3_000); // 4,000 vs ~774 expected by the 8th
   });
 });
+
+describe("EPF monthly contributions", () => {
+  it("adds each month's credit (around the 15th) after the balance you entered", async () => {
+    const { epfCreditsBetween, investmentPosition, moneyCtx } = await import("./ledger");
+    expect(epfCreditsBetween("2026-11-04", "2026-11-14")).toBe(0);
+    expect(epfCreditsBetween("2026-11-04", "2026-11-15")).toBe(1);
+    expect(epfCreditsBetween("2026-11-04", "2027-01-20")).toBe(3);
+    const epf = { id: "e", type: "epf", name: "EPF", asset_class: "debt", invested_amount: 114_753, current_value: 119_427, value_as_of: "2026-11-04", track_from: "2026-10-09", employee_contribution: 3_000, employer_contribution: 3_000, pension_contribution: 0, sip_amount: 0, sip_active: false, is_international: false, currency: "INR", archived: false } as never;
+    const ctx = moneyCtx({ profile: { currency: "INR", locale: "en-IN", fx_rates: {} } } as never);
+    expect(investmentPosition(epf, [], "2026-11-10", ctx).value).toBe(119_427);
+    const dec = investmentPosition(epf, [], "2026-12-20", ctx);
+    expect([dec.value, dec.invested]).toEqual([131_427, 126_753]);
+  });
+});

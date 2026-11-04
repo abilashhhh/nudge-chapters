@@ -5,11 +5,13 @@
 // POST { items: [{ id, kind: "stock" | "fund", code?: string | null, name: string }], history?: "1y" }
 // →    { results: [{ id, ok, code?, matched?, price?, date?, points?, error? }] }
 // With `history`, each result also carries `points`: [date, price] pairs for the last year (at most ~130).
+// An item with `on: "YYYY-MM-DD"` also gets `at`: the price / NAV on that day, or the next trading day's if markets
+// were shut (that's the NAV a SIP or purchase on that day is bought at).
 // When `code` is missing the item is matched by name (first NSE listing, or the closest fund scheme).
 
 type Kind = "stock" | "fund";
-interface Item { id: string; kind: Kind; code?: string | null; name: string }
-interface Result { id: string; ok: boolean; code?: string; matched?: string; price?: number; date?: string; points?: [string, number][]; error?: string }
+interface Item { id: string; kind: Kind; code?: string | null; name: string; on?: string }
+interface Result { id: string; ok: boolean; code?: string; matched?: string; price?: number; date?: string; points?: [string, number][]; at?: { date: string; price: number } | null; error?: string }
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -82,6 +84,29 @@ async function fundHistory(code: string): Promise<[string, number][]> {
   return thin(pts);
 }
 
+/** The NAV / closing price on `on`, or the first one after it (within a week). */
+async function priceOn(kind: Kind, code: string, on: string): Promise<{ date: string; price: number } | null> {
+  let pts: [string, number][] = [];
+  if (kind === "fund") {
+    const j = await getJson(`https://api.mfapi.in/mf/${encodeURIComponent(code)}`);
+    pts = ((j?.data ?? []) as { date: string; nav: string }[]).map((row) => {
+      const [d, m, y] = String(row.date).split("-");
+      return [`${y}-${m}-${d}`, Number(row.nav)] as [string, number];
+    });
+  } else {
+    const start = Math.floor(Date.parse(`${on}T00:00:00Z`) / 1000) - 86400;
+    const sym = /\.(NS|BO)$/i.test(code) ? code.toUpperCase() : `${code.toUpperCase()}.NS`;
+    const j = await getJson(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?period1=${start}&period2=${start + 10 * 86400}&interval=1d`);
+    const r = j?.chart?.result?.[0];
+    const ts: number[] = r?.timestamp ?? [];
+    const close: (number | null)[] = r?.indicators?.quote?.[0]?.close ?? [];
+    pts = ts.map((t, i) => [istDate(t), Number(close[i])] as [string, number]);
+  }
+  const week = new Date(Date.parse(`${on}T00:00:00Z`) + 7 * 864e5).toISOString().slice(0, 10);
+  const hit = pts.filter(([d, v]) => d >= on && d <= week && Number.isFinite(v) && v > 0).sort((a, b) => (a[0] < b[0] ? -1 : 1))[0];
+  return hit ? { date: hit[0], price: hit[1] } : null;
+}
+
 async function stockPrice(code: string): Promise<{ price: number; date: string; matched?: string }> {
   // A bare symbol is NSE; "XYZ.BO" is BSE. Fall back to BSE when NSE has nothing.
   const tries = /\.(NS|BO)$/i.test(code) ? [code.toUpperCase()] : [`${code.toUpperCase()}.NS`, `${code.toUpperCase()}.BO`];
@@ -145,11 +170,13 @@ async function one(it: Item, history: boolean): Promise<Result> {
       code = f.code;
       matched = f.matched;
     }
-    const [p, points] = await Promise.all([
+    const on = typeof it.on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(it.on) ? it.on : null;
+    const [p, points, at] = await Promise.all([
       it.kind === "fund" ? fundPrice(code) : stockPrice(code),
       history ? (it.kind === "fund" ? fundHistory(code) : stockHistory(code)).catch(() => [] as [string, number][]) : Promise.resolve(undefined),
+      on ? priceOn(it.kind, code, on).catch(() => null) : Promise.resolve(undefined),
     ]);
-    return { id: it.id, ok: true, code, matched: p.matched ?? matched, price: p.price, date: p.date, points };
+    return { id: it.id, ok: true, code, matched: p.matched ?? matched, price: p.price, date: p.date, points, ...(on ? { at } : {}) };
   } catch (e) {
     return { id: it.id, ok: false, code: it.code ?? undefined, error: e instanceof Error ? e.message : String(e) };
   }

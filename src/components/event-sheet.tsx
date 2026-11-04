@@ -62,8 +62,9 @@ function EventDetail({ e, onClose, initialMode = "view" }: { e: FinEvent; onClos
   const remove = useStore((s) => s.remove);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [amount, setAmount] = useState<number | null>(e.remaining || e.amount);
-  // If you're marking it now, it happened today (editable for back-dating or scheduled payments).
-  const [date, setDate] = useState(today);
+  // If you're marking it now, it happened today (editable for back-dating or scheduled payments). A SIP is
+  // debited on its own date, and bought at that day's NAV, so a past SIP keeps its date.
+  const [date, setDate] = useState(e.kind === "sip" && e.date <= today ? e.date : today);
   const activeAccounts = useMemo(() => ds.accounts.filter((a) => !a.archived), [ds.accounts]);
   // Bills and card bills have no fixed account, so you pick one each time (pre-filled only when there's a single account).
   const [account, setAccount] = useState<string>(e.accountId ?? (activeAccounts.length === 1 ? activeAccounts[0].id : ""));

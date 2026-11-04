@@ -3,7 +3,7 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Lightbulb, TrendingDown, TrendingUp, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addDays, addMonths, endOfMonth, formatDate, formatMonthLong, monthKey, startOfMonth } from "@/lib/dates";
 import { buildEvents, isPending, type FinEvent } from "@/lib/engine/events";
@@ -21,7 +21,7 @@ import { Money } from "../money";
 import { useMonth, useSelectedMonth } from "../ui/month-picker";
 import { MoneyInOut } from "./money-in-out";
 import { SmsBanner } from "./sms";
-import { AMOUNT_CLS, ChipGroup, StatTile, StatusText, greeting, useRangeEvents } from "./ui";
+import { AMOUNT_CLS, ChipGroup, StatusText, greeting, useRangeEvents } from "./ui";
 import { EventIcon } from "./entity-icon";
 import type { CellStatus } from "@/lib/v2/grids";
 
@@ -56,6 +56,30 @@ function rowStatus(e: FinEvent, today: string): CellStatus {
   if (e.status === "partial") return "partial";
   if (e.date <= addDays(today, 7)) return "due";
   return "upcoming";
+}
+
+/** One of Home's four main numbers. */
+function BigTile({ label, note, href, onClick, dark, children }: { label: ReactNode; note?: ReactNode; href?: string; onClick?: () => void; dark?: boolean; children: ReactNode }) {
+  const cls = cn(
+    "flex min-w-0 flex-col rounded-2xl border p-4 text-left transition-colors sm:p-5",
+    dark ? "border-transparent bg-inverse text-on-inverse hover:opacity-95" : "border-line bg-surface hover:border-line-strong",
+  );
+  const body = (
+    <>
+      <span className={cn("block truncate text-[12.5px] sm:text-[13px]", dark ? "opacity-75" : "text-ink-3")}>{label}</span>
+      <span className="display mt-1 block truncate text-[22px] font-semibold leading-tight sm:text-[28px]">{children}</span>
+      {note && <span className={cn("mt-1 block truncate text-[12px]", dark ? "opacity-70" : "text-ink-3")}>{note}</span>}
+    </>
+  );
+  return href ? (
+    <Link href={href} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={cls}>
+      {body}
+    </button>
+  );
 }
 
 export function V2Home() {
@@ -176,24 +200,28 @@ export function V2Home() {
 
       <SmsBanner />
 
-      {/* 2 · Four tiles */}
+      {/* 2 · The four numbers that matter, in order: money in bank, to pay, free to spend, total worth */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        <StatTile label={`Money in bank${when}`} value={snap.cash} projected={est} href="/my-money" />
-        <StatTile label={`People owe me${when}`} value={snap.receivables} projected={est} href="/my-money?tab=owed" />
-        <StatTile
+        <BigTile label={`Money in bank${when}`} href="/my-money">
+          <Money value={snap.cash} projected={est} className="text-inherit" />
+        </BigTile>
+        <BigTile
           label={isCurrent ? "To pay this month" : `To pay in ${formatMonthLong(monthKey(sel)).split(" ")[0]}`}
-          value={month.period === "past" ? month.committedPaid : month.unpaidAmount}
-          projected={month.period === "future"}
-          note={month.overdue.length ? `${month.overdue.length} late` : `${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"}`}
           href="/to-pay"
-        />
-        <StatTile label={`Savings value${when}`} value={savings} projected={est} href="/my-money" />
-      </div>
-
-      {/* 3 · Free to spend + 4 · Total worth */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <button
-          type="button"
+          note={
+            month.overdue.length ? (
+              <span className="text-danger">{month.overdue.length} late</span>
+            ) : (
+              `${month.unpaid.length} payment${month.unpaid.length === 1 ? "" : "s"}`
+            )
+          }
+        >
+          <Money value={month.period === "past" ? month.committedPaid : month.unpaidAmount} projected={month.period === "future"} className="text-inherit" />
+        </BigTile>
+        <BigTile
+          dark
+          label={freeLabel}
+          note="How it's worked out"
           onClick={() =>
             explain({
               title: freeLabel,
@@ -202,28 +230,36 @@ export function V2Home() {
               total: { label: "Free to spend", amount: month.spendable, projected: month.period === "future" },
             })
           }
-          className="rounded-3xl bg-inverse p-5 text-left text-on-inverse transition-opacity hover:opacity-95 sm:p-6"
         >
-          <span className="block text-[13.5px] opacity-75">{freeLabel}</span>
           <Money
             value={month.period === "past" ? month.spentThisMonth : month.spendable}
             projected={month.period === "future"}
-            className={cn("display mt-1 block text-[40px] font-semibold leading-none sm:text-[52px]", month.period !== "future" && "text-inherit", month.spendable < 0 && month.period !== "past" && "text-[#ff8a80]")}
+            className={cn("text-inherit", month.spendable < 0 && month.period !== "past" && "text-[#ff8a80]")}
           />
-          <span className="mt-2 inline-flex items-center gap-1 text-[12.5px] opacity-75">
-            Tap to see how it&apos;s worked out <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </span>
-        </button>
-        <Link href="/menu/future" className="flex flex-col justify-between rounded-3xl border border-line bg-surface p-5 transition-colors hover:border-line-strong sm:p-6">
-          <span className="text-[13.5px] text-ink-3">Total worth{when}</span>
-          <Money value={snap.netWorth} projected={est} className="display mt-1 block text-[30px] font-semibold leading-tight" tone="auto" />
-          <span className="text-[12px] text-ink-3">What you have − what you owe</span>
-          {change != null && Math.abs(change) >= 1 && (
-            <span className={cn("mt-2 inline-flex items-center gap-1 text-[13px] font-medium", change >= 0 ? "text-ok" : "text-danger")}>
-              {change >= 0 ? <TrendingUp className="h-4 w-4" aria-hidden /> : <TrendingDown className="h-4 w-4" aria-hidden />}
-              {change >= 0 ? "Up" : "Down"} {formatMoney(Math.abs(change), ctx)} since the month before
-            </span>
-          )}
+        </BigTile>
+        <BigTile
+          label={`Total worth${when}`}
+          href="/menu/future"
+          note={
+            change != null && Math.abs(change) >= 1 ? (
+              <span className={cn("inline-flex items-center gap-1", change >= 0 ? "text-ok" : "text-danger")}>
+                {change >= 0 ? <TrendingUp className="h-3.5 w-3.5" aria-hidden /> : <TrendingDown className="h-3.5 w-3.5" aria-hidden />}
+                {formatMoney(Math.abs(change), ctx)} vs last month
+              </span>
+            ) : (
+              "What you have − what you owe"
+            )
+          }
+        >
+          <Money value={snap.netWorth} projected={est} className="text-inherit" tone="auto" />
+        </BigTile>
+      </div>
+      <div className="-mt-2 flex flex-wrap gap-x-5 gap-y-1 px-1 text-[13px] text-ink-3">
+        <Link href="/my-money?tab=owed" className="hover:text-ink">
+          People owe me <Money value={snap.receivables} projected={est} className="font-semibold text-ink-2" />
+        </Link>
+        <Link href="/my-money" className="hover:text-ink">
+          Savings <Money value={savings} projected={est} className="font-semibold text-ink-2" />
         </Link>
       </div>
 

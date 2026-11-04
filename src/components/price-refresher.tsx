@@ -8,7 +8,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { getSupabase } from "@/lib/data/supabase";
-import { newCodes, priceItems, priceUpdates, type PriceResult } from "@/lib/prices";
+import { missingUnits, newCodes, priceItems, priceKind, priceUpdates, unitsAt, type PriceResult } from "@/lib/prices";
 import { useStore } from "@/lib/store";
 
 /** Don't look prices up again within this long (they only change once a trading day for funds). */
@@ -75,13 +75,44 @@ export async function refreshPrices(force = false): Promise<number> {
   }
 }
 
+/**
+ * Purchases and SIPs saved without units (e.g. a SIP marked paid): look up the NAV / price on the day of each one
+ * and save the units it bought, so invested, units and average cost all agree.
+ */
+let filling = false;
+export async function fillMissingUnits(): Promise<number> {
+  const { ds, repo } = useStore.getState();
+  if (filling || !ds || repo?.kind !== "supabase" || ds.profile.preferences.livePrices?.off) return 0;
+  const todo = missingUnits(ds.investments, ds.transactions, ds.profile.preferences.livePrices?.codes ?? {}).slice(0, 30);
+  if (!todo.length) return 0;
+  filling = true;
+  try {
+    const { data, error } = await getSupabase().functions.invoke<{ results: PriceResult[] }>("market-prices", { body: { items: todo.map(({ txId: _t, ...i }) => i) } });
+    if (error) return 0;
+    let n = 0;
+    for (const r of data?.results ?? []) {
+      const t = useStore.getState().ds?.transactions.find((x) => x.id === r.id);
+      const inv = t && useStore.getState().ds?.investments.find((i) => i.id === t.investment_id);
+      const kind = inv && priceKind(inv.type);
+      if (!t || !kind || !r.at || t.units != null || (t.type !== "invest_buy" && t.type !== "invest_sell")) continue;
+      await useStore.getState().patch("transactions", t.id, { price: r.at.price, units: unitsAt(kind, t.type, t.amount, r.at.price) });
+      n++;
+    }
+    return n;
+  } catch {
+    return 0; // offline: next time
+  } finally {
+    filling = false;
+  }
+}
+
 /** Mounted once in the app shell. */
 export function PriceRefresher() {
   const status = useStore((s) => s.status);
   const repoKind = useStore((s) => s.repo?.kind);
   useEffect(() => {
     if (status !== "ready" || repoKind !== "supabase") return;
-    const run = () => void refreshPrices().catch(() => undefined);
+    const run = () => void refreshPrices().catch(() => undefined).then(() => fillMissingUnits());
     run();
     const onVis = () => {
       if (document.visibilityState === "visible") run();

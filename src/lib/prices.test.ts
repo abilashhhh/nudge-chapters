@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { codeFromIdentifier, newCodes, priceItems, priceUpdates } from "./prices";
-import type { Investment } from "./types";
+import { codeFromIdentifier, missingUnits, newCodes, priceItems, priceUpdates, unitsAt } from "./prices";
+import type { Investment, Transaction } from "./types";
+import { investmentPosition, moneyCtx } from "./engine/ledger";
 
 const inv = (o: Partial<Investment>): Investment =>
   ({ id: "x", type: "stock", name: "X", asset_class: "equity", units: 10, current_price: 1, invested_amount: 10, sip_amount: 0, sip_active: false, track_from: "2026-01-01", employee_contribution: 0, employer_contribution: 0, pension_contribution: 0, is_international: false, currency: "INR", archived: false, ...o }) as Investment;
@@ -70,5 +71,26 @@ describe("newCodes", () => {
     ];
     expect(newCodes(items, res, {})).toEqual({ b: { code: "GTLINFRA", matched: "GTL Infrastructure Limited" } });
     expect(newCodes(items, res, { b: { code: "GTLINFRA" } })).toBeNull();
+  });
+});
+
+describe("SIPs and purchases saved without units", () => {
+  const fund = inv({ id: "f", type: "mutual_fund", name: "Bandhan Small Cap Growth Direct Plan", units: 17.79, current_price: 54.13, invested_amount: 999.94, track_from: "2026-10-12" });
+  const sip = { id: "t1", type: "invest_buy", amount: 2000, date: "2026-11-03", investment_id: "f", is_partial: false, reconciled: false, tags: [] } as unknown as Transaction;
+
+  it("are found so the NAV on their day can be looked up", () => {
+    expect(missingUnits([fund], [sip]).map((x) => [x.txId, x.kind, x.on])).toEqual([["t1", "fund", "2026-11-03"]]);
+    expect(missingUnits([fund], [{ ...sip, units: 36.9 }])).toEqual([]);
+  });
+
+  it("buy units at that NAV, after the 0.005% stamp duty on funds", () => {
+    expect(unitsAt("fund", "invest_buy", 2000, 54.13)).toBe(36.9462);
+    expect(unitsAt("stock", "invest_buy", 1000, 50)).toBe(20);
+  });
+
+  it("count at today's price until then, so the SIP isn't shown as a loss", () => {
+    const p = investmentPosition(fund, [sip], "2026-11-04", moneyCtx({ profile: { currency: "INR", locale: "en-IN", fx_rates: {} } } as never));
+    expect(p.invested).toBeCloseTo(2999.94, 2);
+    expect(p.value).toBeCloseTo(17.79 * 54.13 + 2000, 0);
   });
 });

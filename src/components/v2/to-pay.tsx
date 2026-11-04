@@ -311,6 +311,13 @@ function Loans() {
   // One view at a time: each loan with what's left, or the same loans laid out month by month.
   const [view, setView] = useState<"list" | "months">("list");
   const any = loans.length + borrowed.length > 0;
+  // Paid off / paid back: kept out of the way, one tap to see them.
+  const [showDone, setShowDone] = useState(false);
+  const isDone = (r: { kind: "loan" | "borrow"; l?: (typeof loans)[number]; b?: (typeof borrowed)[number] }) =>
+    r.kind === "loan" ? r.l!.loan.status !== "active" || r.l!.state.outstanding <= 0.5 : (r.b!.p?.outstanding ?? 0) <= 0.5;
+  const allRows = [...loans.map((l) => ({ kind: "loan" as const, id: l.loan.id, l })), ...borrowed.map((b) => ({ kind: "borrow" as const, id: b.l.id, b }))];
+  const doneCount = allRows.filter(isDone).length;
+  const rows = showDone ? allRows : allRows.filter((r) => !isDone(r));
 
   return (
     <div className="flex flex-col gap-4">
@@ -340,9 +347,11 @@ function Loans() {
           }
         />
       ) : view === "list" ? (
-        <DataTable
+        <>
+        {rows.length === 0 && <p className="rounded-2xl border border-dashed border-line-strong p-4 text-[13.5px] text-ink-2">Nothing left to pay on loans or borrowed money.</p>}
+        {rows.length > 0 && <DataTable
           label="Loans and money borrowed"
-          rows={[...loans.map((l) => ({ kind: "loan" as const, id: l.loan.id, l })), ...borrowed.map((b) => ({ kind: "borrow" as const, id: b.l.id, b }))]}
+          rows={rows}
           rowKey={(r) => r.id}
           initiallyOpen={params.get("loan")}
           rowClassName={(r) => ((r.kind === "loan" ? r.l.loan.status !== "active" : (r.b.p?.outstanding ?? 0) <= 0.5) ? "text-ink-3" : undefined)}
@@ -414,7 +423,13 @@ function Loans() {
               />
             )
           }
-        />
+        />}
+        {doneCount > 0 && (
+          <button type="button" onClick={() => setShowDone((v) => !v)} className="self-start text-[13px] font-medium text-ink-3 underline-offset-2 hover:text-ink hover:underline">
+            {showDone ? "Hide paid off" : `Show paid off (${doneCount})`}
+          </button>
+        )}
+        </>
       ) : (
         <MonthGrid
           data={data}
