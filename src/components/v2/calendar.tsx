@@ -11,7 +11,7 @@ import { useUI } from "@/lib/ui";
 import { Money } from "../money";
 import { StatusPill } from "../ui/misc";
 import { ChipGroup, useRangeEvents, V2PageHeader } from "./ui";
-import { V2_TYPE_LABEL } from "./home";
+import { V2_TYPE_LABEL } from "./upcoming";
 
 type Filter = "all" | "cards" | "emis" | "chits" | "income";
 const FILTERS: { id: Filter; label: string; test: (e: FinEvent) => boolean }[] = [

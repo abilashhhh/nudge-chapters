@@ -188,7 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="lg:pl-60">
         {/* Top bar */}
         <header className="no-print sticky top-0 z-20 border-b border-line/70 bg-paper/85 backdrop-blur-md">
-          <div className="mx-auto flex h-14 max-w-[1240px] items-center gap-1 px-4 sm:gap-2 sm:px-6">
+          <div className="flex h-14 items-center gap-1 px-4 sm:gap-2 sm:px-6 lg:px-8">
             <Link href="/" onClick={closeAllSheets} className="min-w-0 lg:hidden" aria-label={`${APP_NAME} home`}>
               <Brand size="sm" />
             </Link>
@@ -247,7 +247,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1240px] px-4 pb-32 pt-4 sm:px-6 sm:pt-6 lg:pb-16">
+        <main className="px-4 pb-32 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pb-16">
           {children}
         </main>
       </div>

@@ -519,3 +519,14 @@ describe("EPF monthly contributions", () => {
     expect([dec.value, dec.invested]).toEqual([131_427, 126_753]);
   });
 });
+
+describe("a statement date that passed without its bill recorded", () => {
+  it("puts spends up to that day on its bill (due this month) and later spends on the next", () => {
+    const ds = emptyDs();
+    const c = card({ statement_day: 3, due_day: 21, opening_date: "2026-10-04" });
+    ds.credit_cards = [c];
+    ds.transactions = [tx({ type: "card_spend", amount: 2_000, card_id: c.id, date: "2026-11-02" }), tx({ type: "card_spend", amount: 300, card_id: c.id, date: "2026-11-04" })];
+    const bills = buildEvents(ds, { from: "2026-11-01", to: "2026-12-31", today: "2026-11-05" }).filter((e) => e.kind === "card_bill" && e.remaining > 0);
+    expect(bills.map((b) => [b.date, b.remaining])).toEqual([["2026-11-21", 2_000], ["2026-12-21", 300]]);
+  });
+});

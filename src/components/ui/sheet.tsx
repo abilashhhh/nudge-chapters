@@ -158,7 +158,8 @@ export function Sheet({
   if (size !== "sm") {
     const found = v2Crumbs(window.location.pathname, window.location.search);
     const crumbs = found.length ? found : [{ label: "Home", href: "/" }];
-    const inner = size === "xl" ? "max-w-5xl" : "max-w-3xl";
+    // Full-width pages: the content uses the whole screen beside the menu.
+    const inner = "lg:px-8";
     return createPortal(
       <div
         ref={panel}

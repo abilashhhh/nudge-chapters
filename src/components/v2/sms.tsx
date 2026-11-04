@@ -506,7 +506,7 @@ export function SmsScreen() {
   return (
     <>
       <V2PageHeader title="Bank SMS" />
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <section className="rounded-2xl border border-line bg-surface">
           <div className="flex items-center justify-between px-4 py-3 sm:px-5">
             <div>

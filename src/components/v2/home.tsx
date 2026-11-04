@@ -1,16 +1,15 @@
 "use client";
 
-import { ArrowRight, ChevronLeft, ChevronRight, Lightbulb, TrendingDown, TrendingUp, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lightbulb, TrendingDown, TrendingUp, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { addDays, addMonths, endOfMonth, formatDate, formatMonthLong, monthKey, startOfMonth } from "@/lib/dates";
-import { buildEvents, isPending, type FinEvent } from "@/lib/engine/events";
+import { buildEvents, isPending } from "@/lib/engine/events";
 import { computePositions } from "@/lib/engine/ledger";
 import { project } from "@/lib/engine/projection";
 import { oneThing } from "@/lib/engine/life";
-import { isCommitment } from "@/lib/engine/metrics";
 import { useFinance, useMonthMetrics } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
 import { useStore } from "@/lib/store";
@@ -21,24 +20,8 @@ import { Money } from "../money";
 import { useMonth, useSelectedMonth } from "../ui/month-picker";
 import { MoneyInOut } from "./money-in-out";
 import { SmsBanner } from "./sms";
-import { AMOUNT_CLS, ChipGroup, StatusText, greeting, useRangeEvents } from "./ui";
-import { EventIcon } from "./entity-icon";
-import type { CellStatus } from "@/lib/v2/grids";
-
-export const V2_TYPE_LABEL: Record<FinEvent["kind"], string> = {
-  income: "Income",
-  expense: "Bill",
-  transfer: "Move money",
-  card_spend: "Card spend",
-  card_bill: "Card bill",
-  card_statement: "Card bill",
-  emi: "EMI",
-  sip: "SIP",
-  chit: "Chit",
-  chit_payout: "Chit amount",
-  lend_due: "Money back",
-  borrow_due: "Pay back",
-};
+import { greeting } from "./ui";
+import { UpcomingPayments } from "./upcoming";
 
 /** Plain words for the lines that make up "Free to spend". */
 const LINE_WORDS: Record<string, string> = {
@@ -48,15 +31,6 @@ const LINE_WORDS: Record<string, string> = {
   "Remaining spending budgets": "Budgets left this month",
   "Set aside in reserves": "Money set aside",
 };
-
-function rowStatus(e: FinEvent, today: string): CellStatus {
-  if (e.status === "skipped" || e.status === "cancelled") return "skipped";
-  if (!isPending(e) && e.status !== "partial") return "paid";
-  if (e.status === "overdue" || (e.date < today && isPending(e))) return "late";
-  if (e.status === "partial") return "partial";
-  if (e.date <= addDays(today, 7)) return "due";
-  return "upcoming";
-}
 
 /** One of Home's four main numbers. */
 function BigTile({ label, note, href, onClick, dark, children }: { label: ReactNode; note?: ReactNode; href?: string; onClick?: () => void; dark?: boolean; children: ReactNode }) {
@@ -139,44 +113,16 @@ export function V2Home() {
   );
   const change = prevSnap && period !== "future" ? snap.netWorth - prevSnap.net_worth : null;
 
-  // Payments in the month you picked and the one after (late ones on top). Past months list what was due then.
-  const selKey = monthKey(sel);
-  const nextKey = monthKey(addMonths(sel, 1));
-  const rangeEvents = useRangeEvents([selKey, nextKey]);
-  const byMonth = useMemo(() => {
-    const order = (a: FinEvent, b: FinEvent) => {
-      const la = rowStatus(a, today) === "late" ? 0 : 1;
-      const lb = rowStatus(b, today) === "late" ? 0 : 1;
-      return la - lb || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-    };
-    const inMonth = (k: string, all: boolean) =>
-      rangeEvents.filter((e) => isCommitment(e) && (all ? true : isPending(e)) && (monthKey(e.date) === k || (k === monthKey(today) && isPending(e) && e.date < startOfMonth(today)))).sort(order);
-    return { this: inMonth(selKey, period === "past"), next: inMonth(nextKey, false), thisKey: selKey, nextKey };
-  }, [rangeEvents, today, selKey, nextKey, period]);
-  // Once everything this month is paid, open on next month.
-  const [upPick, setUpMonth] = useState<"this" | "next" | null>(null);
-  const upMonth = upPick ?? (byMonth.this.length === 0 && byMonth.next.length > 0 && period !== "past" ? "next" : "this");
-  const upcoming = byMonth[upMonth];
-  const upTotal = upcoming.reduce((s2, e) => s2 + (period === "past" && upMonth === "this" ? e.amount : e.remaining), 0);
-
   const dismissed = ds.profile.preferences?.dismissedAlerts ?? {};
   const tip = oneThing(nudges.filter((n) => !dismissed[`tip:${n.key}`]));
   const isCurrent = month.period === "current";
   const freeLabel = month.period === "past" ? `Spent in ${formatMonthLong(monthKey(sel))}` : isCurrent ? "Free to spend this month" : `Free to spend in ${formatMonthLong(monthKey(sel))}`;
 
-  const acctName = (id?: string | null) => (id ? ds.accounts.find((a) => a.id === id)?.name : null);
-  // A card bill is paid from a bank account (the card's usual one); other card items are billed on the card.
-  const where = (e: FinEvent) =>
-    e.kind === "card_bill"
-      ? acctName(ds.credit_cards.find((c) => c.id === e.cardId)?.payment_account_id)
-      : e.cardId
-        ? `${ds.credit_cards.find((c) => c.id === e.cardId)?.name ?? "Card"} (card)`
-        : acctName(e.accountId);
   // Tips come from Version 1, which calls goals "chapters".
   const plain = (t?: string) => t?.replace(/chapters/g, "goals").replace(/Chapters/g, "Goals").replace(/chapter/g, "goal").replace(/Chapter/g, "Goal");
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       {/* 1 · Greeting + month */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
@@ -264,52 +210,7 @@ export function V2Home() {
       </div>
 
       {/* 5 · Upcoming payments, this month and next */}
-      <section aria-labelledby="v2-upcoming" className="rounded-2xl border border-line bg-surface">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
-          <h2 id="v2-upcoming" className="text-[16px] font-semibold">
-            {period === "past" && upMonth === "this" ? "Payments" : "Upcoming payments"}
-          </h2>
-          <ChipGroup
-            label="Month"
-            value={upMonth}
-            onChange={setUpMonth}
-            options={[
-              { id: "this", label: `${formatMonthLong(byMonth.thisKey).split(" ")[0]} · ${byMonth.this.length}` },
-              { id: "next", label: `${formatMonthLong(byMonth.nextKey).split(" ")[0]} · ${byMonth.next.length}` },
-            ]}
-          />
-        </div>
-        <p className="px-4 pt-1 text-[12.5px] text-ink-3 sm:px-5">
-          {period === "past" && upMonth === "this" ? `Due in ${formatMonthLong(byMonth.thisKey)}` : `Still to pay in ${formatMonthLong(upMonth === "this" ? byMonth.thisKey : byMonth.nextKey).split(" ")[0]}`}: <Money value={upTotal} className="font-semibold text-ink" projected={upcoming.some((e) => e.estimated)} />
-        </p>
-        {upcoming.length === 0 ? (
-          <p className="px-4 py-5 text-[14px] text-ink-2 sm:px-5">Nothing left to pay in {formatMonthLong(upMonth === "this" ? byMonth.thisKey : byMonth.nextKey)}.</p>
-        ) : (
-          <ul className="mt-2 divide-y divide-line/70 border-t border-line">
-            {upcoming.slice(0, 10).map((e, i) => (
-              <li key={`${e.key}:${i}`}>
-                <button type="button" onClick={() => useUI.getState().openEvent(e.key)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 sm:px-5">
-                  <EventIcon e={e} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-medium">{e.title.replace(/^(EMI|SIP|Chit) · /, "")}</span>
-                    <span className="block text-[12px] text-ink-3">{formatDate(e.date, "short")} · {V2_TYPE_LABEL[e.kind]}</span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <Money value={isPending(e) ? e.remaining : e.paid || e.amount} decimals projected={e.estimated && isPending(e)} className={cn("block text-[14px] font-semibold", AMOUNT_CLS[rowStatus(e, today)])} />
-                    <StatusText status={rowStatus(e, today)} className="text-[11.5px]" />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="flex items-center justify-between border-t border-line px-4 py-2.5 sm:px-5">
-          <span className="text-[12.5px] text-ink-3">{upcoming.length > 10 ? `${upcoming.length - 10} more` : "Tap one to mark it paid"}</span>
-          <Link href="/to-pay" className="inline-flex items-center gap-1 text-[13.5px] font-medium text-ink-2 hover:text-ink">
-            See all <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </div>
-      </section>
+      <UpcomingPayments month={sel} />
 
       <MoneyInOut month={monthKey(sel)} />
 
