@@ -67,3 +67,17 @@ describe("bank SMS", () => {
     expect(p).toMatchObject({ amount: 970, direction: "debit", instrument: "card", last4: "5001", date: "2026-10-18", merchant: "AMAZON PAY IN G", availableLimit: 92429.35 });
   });
 });
+
+describe("loan offers on a card", () => {
+  it("are always ignored", () => {
+    for (const b of [
+      "Access Loan of INR 30,000.00 on your YES BANK Credit Card 1725 by providing consent here: ccybl.in/YESBNK/M5aBqzKrLY - YES BANK LTD",
+      "Alert Confirm your EMI tenure to process for the loan of INR 30,000.00 on YES BANK Credit Card x1725 here: ccybl.in/YESBNK/M9WYlVropY -YES BANK LTD",
+      "Service Alert:\nFunds of INR 30,000.00 on YES BANK Credit Card ending 1725 are available and require consent to continue disbursement. ccybl.in/YESBNK/MxKhDXfORY -YES BANK LTD",
+    ]) {
+      const p = parseSms(b, "YESBNK-S", "2026-11-12");
+      expect(p.ignore).toBe("Loan offer");
+      expect(p.confidence).toBe(0);
+    }
+  });
+});

@@ -123,6 +123,10 @@ export function parseSms(body: string, sender?: string | null, today: ISODate = 
   else if (/round ?-?ups?\b/.test(low)) out.ignore = "Moved within the account (round-ups)";
   else if (/beneficiary/.test(low) && !/\b(debited|credited|sent|paid)\b/.test(low)) out.ignore = "Not a payment";
   else if (/\b(offer|cashback up to|win|apply now|pre-?approved|loan of up to|limit increase)\b/.test(low) && !/\b(debited|credited|spent)\b/.test(low)) out.ignore = "Offer";
+  // Loan offers on a card ("Access Loan of INR 30,000 … providing consent", "Confirm your EMI tenure … for the loan of …"):
+  // never money that moved, whatever the bank.
+  else if (/\b(access (?:a )?loan|avail (?:a |an )?(?:instant |insta )?loan|loan on (?:your|ur) (?:yes bank |\w+ )?credit card|providing (?:your )?consent|requires? (?:your )?consent|confirm (?:your )?emi tenure|funds of (?:inr|rs\.?) ?[\d,.]+ .{0,60}\bare available|insta ?loan|loan (?:is )?(?:ready|waiting|available))\b/.test(low) && !/\b(debited|credited|spent|disbursed to your|has been disbursed)\b/.test(low))
+    out.ignore = "Loan offer";
 
   // Bank
   const hay = `${sender ?? ""} ${text}`;
