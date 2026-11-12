@@ -151,7 +151,7 @@ function Bills() {
   const bill = (e: { kind: string; flow: string; cardId?: string | null; source: string }) => e.kind === "expense" && e.flow === "out" && !e.cardId && (e.source === "rule" || e.source === "task");
   return (
     <div className="flex flex-col gap-4">
-      <UpcomingPayments only={bill} title="Bills coming up" seeAll={false} />
+      <UpcomingPayments only={bill} title="Bills" seeAll={false} />
       <MonthGrid
         data={data}
         nameHeader="Bill"

@@ -42,7 +42,7 @@ export function rowStatus(e: FinEvent, today: string): CellStatus {
  * Everything still to pay in a month and the next — bills, card bills, EMIs, chits, SIPs — late ones first.
  * The same list on Home and in To Pay. `only` narrows it (e.g. just bills).
  */
-export function UpcomingPayments({ month, only, title = "Upcoming payments", seeAll = true, limit = 10 }: { month?: string; only?: (e: FinEvent) => boolean; title?: string; seeAll?: boolean; limit?: number }) {
+export function UpcomingPayments({ month, only, title = "Payments", seeAll = true }: { month?: string; only?: (e: FinEvent) => boolean; title?: string; seeAll?: boolean }) {
   const { today } = useFinance();
   const sel = month ?? startOfMonth(today);
   const cur = startOfMonth(today);
@@ -51,32 +51,46 @@ export function UpcomingPayments({ month, only, title = "Upcoming payments", see
   const nextKey = monthKey(addMonths(sel, 1));
   const rangeEvents = useRangeEvents([selKey, nextKey]);
   const byMonth = useMemo(() => {
-    const order = (a: FinEvent, b: FinEvent) => {
-      const la = rowStatus(a, today) === "late" ? 0 : 1;
-      const lb = rowStatus(b, today) === "late" ? 0 : 1;
-      return la - lb || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-    };
+    // Late first, then still to pay by date, then what's already paid.
+    const rank = (e: FinEvent) => (rowStatus(e, today) === "late" ? 0 : isPending(e) ? 1 : 2);
+    const order = (a: FinEvent, b: FinEvent) => rank(a) - rank(b) || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
     const inMonth = (k: string, all: boolean) =>
       rangeEvents
-        .filter((e) => isCommitment(e) && (!only || only(e)) && (all ? true : isPending(e)) && (monthKey(e.date) === k || (k === monthKey(today) && isPending(e) && e.date < startOfMonth(today))))
+        .filter(
+          (e) =>
+            isCommitment(e) &&
+            (!only || only(e)) &&
+            e.status !== "skipped" &&
+            e.status !== "cancelled" &&
+            (all ? true : isPending(e)) &&
+            (monthKey(e.date) === k || (k === monthKey(today) && isPending(e) && e.date < startOfMonth(today))),
+        )
         .sort(order);
-    return { this: inMonth(selKey, period === "past"), next: inMonth(nextKey, false) };
+    // Everything in the month: what's still to pay and what's already paid (skipped ones left out).
+    return { this: inMonth(selKey, true), next: inMonth(nextKey, true) };
   }, [rangeEvents, today, selKey, nextKey, period, only]);
   // Once everything this month is paid, open on next month.
   const [pick, setPick] = useState<"this" | "next" | null>(null);
-  const which = pick ?? (byMonth.this.length === 0 && byMonth.next.length > 0 && period !== "past" ? "next" : "this");
+  const left = (k: "this" | "next") => byMonth[k].filter(isPending);
+  const which = pick ?? (left("this").length === 0 && left("next").length > 0 && period !== "past" ? "next" : "this");
   const list = byMonth[which];
   const key = which === "this" ? selKey : nextKey;
-  const total = list.reduce((s, e) => s + (period === "past" && which === "this" ? e.amount : e.remaining), 0);
+  const total = list.reduce((s, e) => s + (isPending(e) ? e.remaining : 0), 0);
+  const paid = list.reduce((s, e) => s + (isPending(e) ? 0 : e.paid || e.amount), 0);
   const name = (k: string) => formatMonthLong(k).split(" ")[0];
 
   return (
     <section aria-label={title} className="rounded-2xl border border-line bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
         <div className="min-w-0">
-          <h2 className="text-[16px] font-semibold">{period === "past" && which === "this" ? "Payments" : title}</h2>
+          <h2 className="text-[16px] font-semibold">{title}</h2>
           <p className="text-[12.5px] text-ink-3">
-            {period === "past" && which === "this" ? `Due in ${formatMonthLong(key)}` : `Still to pay in ${name(key)}`}: <Money value={total} className="font-semibold text-ink" projected={list.some((e) => e.estimated)} />
+            Still to pay in {name(key)}: <Money value={total} className="font-semibold text-ink" projected={list.some((e) => e.estimated && isPending(e))} />
+            {paid > 0.5 && (
+              <>
+                {" · "}Paid: <Money value={paid} className="font-semibold text-ok" />
+              </>
+            )}
           </p>
         </div>
         <ChipGroup
@@ -84,16 +98,16 @@ export function UpcomingPayments({ month, only, title = "Upcoming payments", see
           value={which}
           onChange={setPick}
           options={[
-            { id: "this", label: `${name(selKey)} · ${byMonth.this.length}` },
-            { id: "next", label: `${name(nextKey)} · ${byMonth.next.length}` },
+            { id: "this", label: `${name(selKey)} · ${left("this").length} to pay` },
+            { id: "next", label: `${name(nextKey)} · ${left("next").length} to pay` },
           ]}
         />
       </div>
       {list.length === 0 ? (
-        <p className="px-4 py-5 text-[14px] text-ink-2 sm:px-5">Nothing left to pay in {formatMonthLong(key)}.</p>
+        <p className="px-4 py-5 text-[14px] text-ink-2 sm:px-5">Nothing to pay in {formatMonthLong(key)}.</p>
       ) : (
         <ul className="mt-3 divide-y divide-line/70 border-t border-line">
-          {list.slice(0, limit).map((e, i) => (
+          {list.map((e, i) => (
             <li key={`${e.key}:${i}`}>
               <button type="button" onClick={() => useUI.getState().openEvent(e.key)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 sm:px-5">
                 <EventIcon e={e} />
@@ -113,7 +127,7 @@ export function UpcomingPayments({ month, only, title = "Upcoming payments", see
         </ul>
       )}
       <div className="flex items-center justify-between border-t border-line px-4 py-2.5 sm:px-5">
-        <span className="text-[12.5px] text-ink-3">{list.length > limit ? `${list.length - limit} more` : "Tap one to mark it paid"}</span>
+        <span className="text-[12.5px] text-ink-3">Tap one to mark it paid or see it</span>
         {seeAll && (
           <Link href="/to-pay" className="inline-flex items-center gap-1 text-[13.5px] font-medium text-ink-2 hover:text-ink">
             See all <ArrowRight className="h-3.5 w-3.5" aria-hidden />
