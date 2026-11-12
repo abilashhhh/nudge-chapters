@@ -13,7 +13,7 @@ import type { SinkingFund } from "@/lib/types";
 import { Money } from "../money";
 import { Button } from "../ui/button";
 import { AmountInput, DateInput, Field, Input, Select } from "../ui/form";
-import { Sheet } from "../ui/sheet";
+import { ConfirmSheet, Sheet } from "../ui/sheet";
 import { EmptyState } from "../ui/misc";
 import { V2PageHeader } from "./ui";
 
@@ -84,14 +84,27 @@ export function SinkingScreen() {
   const savedAll = funds.reduce((s, f) => s + Math.min(f.saved, f.amount), 0);
   const m = (n: number) => formatMoney(n, ctx);
 
+  const fail = (e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't save that. Try again.");
   const putAside = async (f: SinkingFund, amt: number) => {
-    await save(funds.map((x) => (x.id === f.id ? { ...x, saved: Math.round((x.saved + amt) * 100) / 100 } : x)));
-    toast.success(`${m(amt)} put aside for ${f.name}`);
+    try {
+      await save(funds.map((x) => (x.id === f.id ? { ...x, saved: Math.round((x.saved + amt) * 100) / 100 } : x)));
+      toast.success(`${m(amt)} put aside for ${f.name}`);
+    } catch (e) {
+      fail(e);
+    }
   };
+  // Paid: a one-off fund is done (with Undo, in case of a slip); a repeating one starts its next round.
   const paid = async (f: SinkingFund) => {
-    if (!f.everyMonths) await save(funds.filter((x) => x.id !== f.id));
-    else await save(funds.map((x) => (x.id === f.id ? { ...x, saved: Math.max(0, x.saved - x.amount), due: addMonths(x.due, x.everyMonths) } : x)));
-    toast.success(f.everyMonths ? `Done — next one ${formatDate(addMonths(f.due, f.everyMonths), "short")}` : "Done");
+    const before = funds;
+    try {
+      if (!f.everyMonths) await save(funds.filter((x) => x.id !== f.id));
+      else await save(funds.map((x) => (x.id === f.id ? { ...x, saved: Math.max(0, x.saved - x.amount), due: addMonths(x.due, x.everyMonths) } : x)));
+      toast.success(f.everyMonths ? `Done — next one ${formatDate(addMonths(f.due, f.everyMonths), "short")}` : `${f.name} done`, {
+        action: { label: "Undo", onClick: () => void save(before).catch(fail) },
+      });
+    } catch (e) {
+      fail(e);
+    }
   };
 
   return (
@@ -213,10 +226,13 @@ function FundSheet({ value, onClose, funds, save }: { value: Partial<SinkingFund
       const f: SinkingFund = { id: v.id ?? newId(), name: v.name!.trim(), amount: v.amount!, due: v.due!, everyMonths: v.everyMonths ?? 12, saved: v.saved ?? 0, source: v.source ?? null };
       await save(existing ? funds.map((x) => (x.id === f.id ? f : x)) : [...funds, f]);
       onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save that. Try again.");
     } finally {
       setBusy(false);
     }
   };
+  const [confirmDelete, setConfirmDelete] = useState(false);
   return (
     <Sheet
       open
@@ -226,7 +242,7 @@ function FundSheet({ value, onClose, funds, save }: { value: Partial<SinkingFund
       footer={
         <div className="flex flex-wrap justify-between gap-2">
           {existing ? (
-            <Button variant="ghost" icon={<Trash2 className="h-4 w-4" />} onClick={() => void save(funds.filter((x) => x.id !== value.id)).then(onClose)}>
+            <Button variant="ghost" icon={<Trash2 className="h-4 w-4" />} onClick={() => setConfirmDelete(true)}>
               Delete
             </Button>
           ) : (
@@ -266,6 +282,18 @@ function FundSheet({ value, onClose, funds, save }: { value: Partial<SinkingFund
           </Field>
         </div>
       </div>
+      <ConfirmSheet
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title={`Delete ${value.name ?? "this fund"}?`}
+        body="What you've saved for it is forgotten. This can't be undone."
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => {
+          await save(funds.filter((x) => x.id !== value.id));
+          onClose();
+        }}
+      />
     </Sheet>
   );
 }

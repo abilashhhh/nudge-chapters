@@ -62,7 +62,8 @@ export function TransactionSheet() {
   const editing = useUI((s) => s.txEditing);
   const close = useUI((s) => s.closeTx);
   if (!open) return null;
-  return <TransactionForm preset={preset} editing={editing} onClose={close} />;
+  // A new key for each thing opened (e.g. Duplicate from an open entry), so the form starts fresh.
+  return <TransactionForm key={editing?.id ?? `new:${JSON.stringify(preset ?? {})}`} preset={preset} editing={editing} onClose={close} />;
 }
 
 function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transaction> | null; editing: Transaction | null; onClose: () => void }) {
@@ -248,6 +249,7 @@ function TransactionForm({ preset, editing, onClose }: { preset: Partial<Transac
         const { id, created_at: _c, updated_at: _u, user_id: _uid, ...rest } = body as Transaction;
         await patch("transactions", id, rest);
       } else {
+        delete (body as Partial<Transaction>).id; // a new entry always gets its own id
         await add("transactions", body);
         if (type === "chit_payout" && body.chit_id) await patch("chits", body.chit_id, { payout_status: "received", payout_amount: body.amount, payout_date: body.date });
       }

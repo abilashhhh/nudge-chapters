@@ -241,7 +241,7 @@ export function V2Home() {
           <button
             type="button"
             aria-label="Dismiss tip"
-            onClick={() => updatePrefs({ dismissedAlerts: { ...dismissed, [`tip:${tip.key}`]: today } })}
+            onClick={() => void updatePrefs({ dismissedAlerts: { ...dismissed, [`tip:${tip.key}`]: today } }).catch(() => undefined)}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-3 hover:bg-surface-3 hover:text-ink"
           >
             <X className="h-4 w-4" />

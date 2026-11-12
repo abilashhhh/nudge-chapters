@@ -101,7 +101,7 @@ function AccountMenu({ onSignedOut }: { onSignedOut: () => void }) {
   const [pw, setPw] = useState(false);
   return (
     <>
-      <Button size="sm" variant="ghost" icon={<KeyRound className="h-4 w-4" />} onClick={() => setPw(true)}>
+      <Button size="sm" variant="ghost" aria-label="Change password" icon={<KeyRound className="h-4 w-4" />} onClick={() => setPw(true)}>
         <span className="hidden sm:inline">Change password</span>
       </Button>
       <Button

@@ -154,7 +154,13 @@ export class LocalRepo implements Repo {
     if (idx < 0) return;
     const [old] = list.splice(idx, 1);
     // Mirror the database's ON DELETE behaviour for the most important relations.
-    if (table === "credit_cards") this.ds.card_statements = this.ds.card_statements.filter((s) => s.card_id !== id);
+    if (table === "credit_cards") {
+      this.ds.card_statements = this.ds.card_statements.filter((s) => s.card_id !== id);
+      // Like the database (ON DELETE SET NULL): loans, bills and entries on the card lose their link, not their place.
+      for (const l of this.ds.loans) if (l.card_id === id) l.card_id = null;
+      for (const r of this.ds.recurring_rules) if (r.card_id === id) r.card_id = null;
+      for (const t of this.ds.transactions) if (t.card_id === id) t.card_id = null;
+    }
     if (table === "investments") this.ds.investment_valuations = this.ds.investment_valuations.filter((v) => v.investment_id !== id);
     if (table === "habits") this.ds.habit_logs = (this.ds.habit_logs ?? []).filter((l) => l.habit_id !== id);
     if (table === "training_sessions") this.ds.training_attempts = (this.ds.training_attempts ?? []).filter((a) => a.session_id !== id);

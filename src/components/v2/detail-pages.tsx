@@ -23,6 +23,8 @@ import { initials } from "./entity-icon";
 import { AccountVisual } from "./card-visual";
 import { FlipCard, useCardBillsAhead } from "./card-flip";
 import { LoanPlanSheet } from "./loan-sheet";
+import { INVESTMENT_TYPE_LABEL } from "@/lib/engine/defaults";
+import { SAVINGS_SECTION_LABEL, savingsSection } from "@/lib/v2/savings-section";
 import { CardActions, cardDatesLabel } from "./card-actions";
 
 const tick = { fill: "var(--ink-3)", fontSize: 11.5 };
@@ -497,7 +499,7 @@ export function HoldingTile({ id, onClick, index = 0 }: { id: string; onClick?: 
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[30%] bg-white/15 text-[12px] font-bold ring-1 ring-inset ring-white/25 backdrop-blur-sm">{initials(i.name)}</span>
         <span className="min-w-0 flex-1">
           <span className="line-clamp-2 text-[15px] font-semibold leading-snug">{i.name}</span>
-          <span className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] opacity-75">{i.type === "mutual_fund" ? "Mutual fund" : i.type === "etf" ? "ETF" : "Stock"}{i.institution ? ` · ${i.institution}` : ""}</span>
+          <span className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] opacity-75">{INVESTMENT_TYPE_LABEL[i.type] ?? "Saving"}{i.institution ? ` · ${i.institution}` : ""}</span>
         </span>
         <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold shadow-sm", up ? "bg-[#16a34a]" : "bg-[#dc2626]")}>
           {up ? "▲" : "▼"} {formatPct(Math.abs(p.gainPct))}
@@ -612,10 +614,12 @@ export function HoldingDetailScreen() {
   const i = p.investment;
   const c = { ...ctx, currency: i.currency };
   const m = (n: number) => formatMoney(n, c, { decimals: true });
-  const back = i.type === "mutual_fund" ? "/my-money?tab=funds" : "/my-money?tab=stocks";
+  // Back to the tab it lives on (funds, stocks, EPF, commodities or other savings).
+  const section = savingsSection(i);
+  const back = `/my-money?tab=${section}`;
   return (
     <>
-      <Back href={back} label={i.type === "mutual_fund" ? "Mutual funds" : "Stocks"} />
+      <Back href={back} label={SAVINGS_SECTION_LABEL[section]} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
           <HoldingTile id={i.id} />
@@ -680,7 +684,7 @@ export function HoldingDetailScreen() {
         )}
       </div>
       <p className="mt-3 text-[12px] text-ink-3">
-        <button type="button" className="underline" onClick={() => router.push(back)}>Back to {i.type === "mutual_fund" ? "mutual funds" : "stocks"}</button>
+        <button type="button" className="underline" onClick={() => router.push(back)}>Back to {SAVINGS_SECTION_LABEL[section].toLowerCase()}</button>
       </p>
     </>
   );

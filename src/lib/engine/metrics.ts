@@ -99,9 +99,11 @@ export function monthMetrics(ds: Dataset, positions: Positions, today: ISODate, 
   const committedPending = committedItems.filter(isPending).reduce((s, e) => s + e.remaining, 0);
 
   const budgets = evs.filter((e) => !!e.budget && e.date <= to && e.budget.periodEnd >= from);
+  // A budget spent on a card is already in that card's bill (a commitment): not taken off a second time.
+  const cashBudgets = budgets.filter((e) => !e.cardId);
   const budgetLimit = budgets.reduce((s, e) => s + (e.budget?.limit ?? 0), 0);
   const budgetSpent = budgets.reduce((s, e) => s + (e.budget?.spent ?? 0), 0);
-  const budgetRemaining = budgets.filter(isPending).reduce((s, e) => s + e.remaining, 0);
+  const budgetRemaining = cashBudgets.filter(isPending).reduce((s, e) => s + e.remaining, 0);
 
   const unpaid = committedItems.filter(isPending);
   const overdue = unpaid.filter((e) => e.status === "overdue" || (e.status === "partial" && e.date < today));

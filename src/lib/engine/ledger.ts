@@ -226,7 +226,8 @@ export function cardOutstanding(card: CreditCard, txs: Transaction[], asOf: ISOD
 /** Allocate card payments to statements: linked payments first, then unlinked ones FIFO by date. */
 export function statementStates(card: CreditCard, statements: CardStatement[], txs: Transaction[], today: ISODate): StatementState[] {
   const own = statements.filter((s) => s.card_id === card.id).sort((a, b) => (a.statement_date < b.statement_date ? -1 : 1));
-  const payments = txs.filter((t) => t.card_id === card.id && t.type === "card_payment").sort((a, b) => (a.date < b.date ? -1 : 1));
+  // Only payments made by today: a payment dated later (scheduled) settles the bill when its day comes.
+  const payments = txs.filter((t) => t.card_id === card.id && t.type === "card_payment" && t.date <= today).sort((a, b) => (a.date < b.date ? -1 : 1));
   const paid = new Map<string, number>();
   const ids = new Map<string, string[]>();
   const add = (sid: string, amt: number, tid: string) => {
@@ -299,14 +300,19 @@ export const EPF_CREDIT_DAY = 15;
 
 /** EPF monthly credits after `from` up to and including `to`. */
 export function epfCreditsBetween(from: ISODate, to: ISODate): number {
-  let n = 0;
+  return epfCreditDates(from, to).length;
+}
+
+/** The dates of those credits. */
+export function epfCreditDates(from: ISODate, to: ISODate): ISODate[] {
+  const out: ISODate[] = [];
   const [y, m] = from.split("-").map(Number);
   for (let i = 0; i < 600; i++) {
     const d = new Date(Date.UTC(y, m - 1 + i, EPF_CREDIT_DAY)).toISOString().slice(0, 10);
     if (d > to) break;
-    if (d > from) n++;
+    if (d > from) out.push(d);
   }
-  return n;
+  return out;
 }
 
 export function investmentPosition(inv: Investment, txs: Transaction[], today: ISODate, ctx: MoneyContext): InvestmentPosition {
@@ -367,6 +373,11 @@ export function investmentPosition(inv: Investment, txs: Transaction[], today: I
   if (inv.invested_amount > 0) flows.push({ date: inv.start_date || inv.track_from, amount: -inv.invested_amount });
   for (const t of buys) if (t.date >= inv.track_from) flows.push({ date: t.date, amount: -t.amount });
   for (const t of sells) if (t.date >= inv.track_from) flows.push({ date: t.date, amount: t.amount });
+  // EPF's monthly credits are money put in too (otherwise its yearly return looks far too high).
+  if (inv.type === "epf" && !unitBased) {
+    const monthly = inv.employee_contribution + inv.employer_contribution;
+    if (monthly > 0) for (const d of epfCreditDates(inv.value_as_of ?? inv.track_from, today)) flows.push({ date: d, amount: -monthly });
+  }
   flows.push({ date: today, amount: value });
   const x = flows.length >= 2 && value > 0 ? xirr(flows) : null;
 

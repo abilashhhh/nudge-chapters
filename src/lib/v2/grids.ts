@@ -478,7 +478,7 @@ export function loanGrid(ds: Dataset, positions: Positions, events: FinEvent[], 
   if (loanRows.length) groups.push({ id: "loans", label: "Loans", total: { id: "loans-total", label: "All loans", cells: sumCells(loanRows.map((r) => r.cells), months) }, rows: loanRows });
 
   const borrowRows: GridRow[] = ds.lendings
-    .filter((l) => l.direction === "borrowed")
+    .filter((l) => l.direction === "borrowed" && !l.track_separately)
     .map((l) => ({
       id: `borrow:${l.id}`,
       label: l.person,
