@@ -29,7 +29,7 @@ export function useCardBillsAhead(): Map<string, BillAhead[]> {
   const months = useMemo(() => monthRange(startOfMonth(today), 12), [today]);
   const events = useRangeEvents(months);
   return useMemo(() => {
-    const grid = cardGrid(ds, positions, events, months, today);
+    const grid = cardGrid(ds, positions, events, months, today, { separate: true });
     const out = new Map<string, BillAhead[]>();
     for (const card of ds.credit_cards) {
       const g = grid.groups.find((x) => x.ref?.id === card.id);

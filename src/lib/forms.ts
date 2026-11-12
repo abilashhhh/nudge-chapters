@@ -70,6 +70,12 @@ export const cardFields: FieldDef<CreditCard>[] = [
     half: true,
   },
   { name: "reward_points", label: "Reward points", type: "number", half: true, optional: true },
+  {
+    name: "track_separately",
+    label: "Track separately",
+    type: "toggle",
+    help: "For a card someone else pays for: its bills stay on the card, but aren't counted in To Pay, Free to spend or your totals.",
+  },
   { name: "archived", label: "Archived (card closed)", type: "toggle" },
   { name: "notes", label: "Notes", type: "textarea", optional: true },
 ];
@@ -291,6 +297,7 @@ export const lendingFields: FieldDef<Lending>[] = [
   { name: "interest_rate", label: "Interest (yearly)", type: "percent", optional: true, half: true },
   { name: "include_in_projection", label: "Count the repayment in my projections", type: "toggle", showIf: (v) => v.direction === "lent", help: "Turn off if you're not sure you'll get it back on time." },
   { name: "written_off", label: "Written off (won't be repaid)", type: "toggle", showIf: (v) => v.direction === "lent" },
+  { name: "track_separately", label: "Track separately", type: "toggle", help: "Kept track of, but not counted in People owe me, Free to spend or your totals." },
   { name: "notes", label: "Notes", type: "textarea", optional: true },
 ];
 

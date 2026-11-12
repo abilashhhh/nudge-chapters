@@ -61,6 +61,8 @@ export interface CreditCard extends Owned {
   interest_rate_apr: number;
   reward_points: number;
   color?: string | null;
+  /** Tracked on its own (e.g. a card someone else repays): its bills aren't counted in To Pay, Free to spend or totals. */
+  track_separately?: boolean | null;
   /** Cards from one bank that share one limit carry the same group name (e.g. "Axis"). */
   shared_limit_group?: string | null;
   archived: boolean;
@@ -230,6 +232,8 @@ export interface Lending extends Owned {
   account_id?: UUID | null;
   include_in_projection: boolean;
   written_off: boolean;
+  /** Tracked on its own: not counted in "People owe me", Free to spend or totals. */
+  track_separately?: boolean | null;
   notes?: string | null;
 }
 

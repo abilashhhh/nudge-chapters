@@ -231,7 +231,7 @@ export function CardDetailScreen() {
             owed={cp.outstanding}
             card={card}
             used={cp.utilization}
-            usedLabel={mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined}
+            usedLabel={card.track_separately ? "Tracked separately · not counted" : mates.length ? `Shared limit used · ${Math.round(cp.utilization * 100)}%` : undefined}
             due={next ? `${m(next.amount)} due ${formatDate(next.due, "short")}` : "Nothing to pay"}
             dueTone={next ? (next.status === "late" ? "late" : next.due <= addDays(today, 7) ? "soon" : null) : "paid"}
           />

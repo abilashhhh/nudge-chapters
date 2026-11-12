@@ -217,10 +217,12 @@ export function rowTotal(cells: Record<string, GridCell>, months: string[]): num
  * "Spends (bill)" = bill − EMIs on that bill. EMIs sit in the month of the bill that carries them, exactly as
  * the engine bills them, so the card total is never the bill plus the EMIs again.
  */
-export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], months: string[], today: ISODate): MonthGridData {
+export function cardGrid(ds: Dataset, positions: Positions, events: FinEvent[], months: string[], today: ISODate, opts: { separate?: boolean } = {}): MonthGridData {
   const groups: GridGroup[] = [];
   for (const card of ds.credit_cards) {
     if (card.archived) continue;
+    // Cards tracked separately only show up when asked for (their own page), never in the totals.
+    if (card.track_separately && !opts.separate) continue;
     const cp = positions.cards.get(card.id);
     const bills = events.filter((e) => e.kind === "card_bill" && e.cardId === card.id);
     const emis = [
@@ -502,7 +504,7 @@ export function owedGrid(ds: Dataset, events: FinEvent[], months: string[], toda
   const people = new Map<string, { person: string; evs: FinEvent[] }>();
   const lendingPerson = new Map<string, string>();
   for (const l of ds.lendings) {
-    if (l.direction !== "lent") continue;
+    if (l.direction !== "lent" || l.track_separately) continue;
     const p = personKey(l.person);
     lendingPerson.set(l.id, p);
     if (!people.has(p.toLowerCase())) people.set(p.toLowerCase(), { person: p, evs: [] });
