@@ -81,3 +81,13 @@ describe("loan offers on a card", () => {
     }
   });
 });
+
+describe("review fixes", () => {
+  it("doesn't read a time as the year, or accept impossible dates", () => {
+    expect(parseSms("Rs 500 spent on your HDFC Bank Credit Card XX1234 at AMAZON on 16 Oct 14:22", "HDFCBK", "2026-11-12").date).toBe("2026-10-16");
+    expect(parseSms("Rs 500 debited from A/c XX1234 on 31-02-26", "HDFCBK", "2026-11-12").date).toBeNull();
+  });
+  it("reads a refund to a debit card as money in", () => {
+    expect(parseSms("Your HDFC Bank Debit Card XX1234 has been credited with a refund of Rs 450.00", "HDFCBK", "2026-11-12").direction).toBe("credit");
+  });
+});

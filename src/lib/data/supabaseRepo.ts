@@ -33,7 +33,7 @@ export class SupabaseRepo implements Repo {
   private async fetchAll<T>(table: TableName, order = "created_at"): Promise<T[]> {
     const out: T[] = [];
     for (let from = 0; ; from += PAGE) {
-      const { data, error } = await this.sb.from(table).select("*").order(order, { ascending: true }).range(from, from + PAGE - 1);
+      const { data, error } = await this.sb.from(table).select("*").order(order, { ascending: true }).order("id", { ascending: true }).range(from, from + PAGE - 1); // id: a stable order among rows saved together
       if (error) {
         // A table this server doesn't have yet (its migration hasn't been run) loads as empty.
         if (OPTIONAL_TABLES.includes(table) && (error.code === "PGRST205" || error.code === "42P01")) return [];

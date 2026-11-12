@@ -38,6 +38,13 @@ function withTable<T extends TableName>(ds: Dataset, t: T, rows: RowOf<T>[]): Da
   return next;
 }
 
+/** Errors already shown to the user (as a toast) by the store, so callers don't show them again. */
+export function markShown(e: unknown): unknown {
+  if (e && typeof e === "object") (e as { shown?: boolean }).shown = true;
+  return e;
+}
+export const wasShown = (e: unknown) => !!(e && typeof e === "object" && (e as { shown?: boolean }).shown);
+
 export const useStore = create<StoreState>((set, get) => ({
   status: "idle",
   error: null,
@@ -82,7 +89,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const cur = get().ds!;
       set({ ds: withTable(cur, table, tableRows(cur, table).filter((r) => (r as { id: string }).id !== (full as { id: string }).id)) });
       toast.error(`Couldn't save: ${message(e)}`);
-      throw e;
+      throw markShown(e);
     }
   },
 
@@ -97,7 +104,7 @@ export const useStore = create<StoreState>((set, get) => ({
       return saved;
     } catch (e) {
       toast.error(`Couldn't save: ${message(e)}`);
-      throw e;
+      throw markShown(e);
     }
   },
 
@@ -114,22 +121,24 @@ export const useStore = create<StoreState>((set, get) => ({
       const cur = get().ds!;
       if (before) set({ ds: withTable(cur, table, tableRows(cur, table).map((r) => ((r as { id: string }).id === id ? before : r))) });
       toast.error(`Couldn't save: ${message(e)}`);
-      throw e;
+      throw markShown(e);
     }
   },
 
   async remove(table, id) {
     const { repo, ds } = get();
     if (!repo || !ds) throw new Error("Not ready");
-    const before = ds;
+    const removed = tableRows(ds, table).find((r) => (r as { id: string }).id === id);
     set({ ds: withTable(ds, table, tableRows(ds, table).filter((r) => (r as { id: string }).id !== id)) });
     try {
       await repo.remove(table, id);
       if (table === "credit_cards" || table === "investments" || table === "habits") await get().load();
     } catch (e) {
-      set({ ds: before });
+      // Put back just the row (anything saved meanwhile stays).
+      const cur = get().ds!;
+      if (removed && !tableRows(cur, table).some((r) => (r as { id: string }).id === id)) set({ ds: withTable(cur, table, [...tableRows(cur, table), removed]) });
       toast.error(`Couldn't delete: ${message(e)}`);
-      throw e;
+      throw markShown(e);
     }
   },
 
@@ -144,7 +153,7 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch (e) {
       set({ ds: { ...get().ds!, profile: before } });
       toast.error(`Couldn't save settings: ${message(e)}`);
-      throw e;
+      throw markShown(e);
     }
   },
 

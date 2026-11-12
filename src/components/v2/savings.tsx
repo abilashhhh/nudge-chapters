@@ -17,6 +17,7 @@ import { EmptyState } from "../ui/misc";
 import { Sheet } from "../ui/sheet";
 import { Cell2, DataTable, Details, type Column } from "./data-table";
 import { HoldingTile } from "./detail-pages";
+import { savingsSection } from "@/lib/v2/savings-section";
 import { EntityIcon } from "./entity-icon";
 import { useRouter } from "next/navigation";
 import { refreshPrices, usePrices } from "../price-refresher";
@@ -30,12 +31,7 @@ type Tab = SavingsTab;
 const isFund = (p: InvestmentPosition) => p.investment.type === "mutual_fund";
 /** Each saving goes to exactly one section. */
 function sectionOf(p: InvestmentPosition): Exclude<Tab, "chits"> {
-  const t = p.investment.type;
-  if (t === "mutual_fund") return "funds";
-  if (t === "stock" || t === "etf") return "stocks";
-  if (t === "epf" || t === "ppf" || t === "nps") return "epf";
-  if (t === "gold" || p.investment.asset_class === "gold") return "commodities";
-  return "other";
+  return savingsSection(p.investment);
 }
 const SECTION: Record<"stocks" | "epf" | "commodities" | "other", { label: string; addType: string; empty: string; table: string }> = {
   stocks: { label: "Stocks", addType: "stock", empty: "Shares and ETFs you hold", table: "Stocks" },
@@ -192,6 +188,8 @@ function UpdateValueSheet({ list, onClose }: { list: InvestmentPosition[]; onClo
                   }
                 }
                 onClose();
+              } catch {
+                /* the store has shown what went wrong; the sheet stays open to try again */
               } finally {
                 setBusy(false);
               }

@@ -552,3 +552,40 @@ describe("tracked separately", () => {
     expect(m.unpaidAmount).toBe(0);
   });
 });
+
+describe("audit fixes", () => {
+  it("a bill paid early in part still shows what's left (payment not subtracted twice)", () => {
+    const ds = emptyDs();
+    const c = card({ statement_day: 3, due_day: 23, opening_date: "2026-11-01" });
+    ds.credit_cards = [c];
+    ds.transactions = [
+      tx({ type: "card_spend", amount: 10_000, card_id: c.id, date: "2026-11-10" }),
+      tx({ type: "card_payment", amount: 4_000, card_id: c.id, date: "2026-11-26", occurrence_date: "2026-12-23" }),
+    ];
+    const bill = buildEvents(ds, { from: "2026-11-01", to: "2026-12-31", today: "2026-11-27" }).find((e) => e.kind === "card_bill" && e.date === "2026-12-23")!;
+    expect([bill.amount, bill.paid, bill.remaining]).toEqual([10_000, 4_000, 6_000]);
+  });
+
+  it("a payment after the statement date doesn't swallow later spends", () => {
+    const ds = emptyDs();
+    const c = card({ statement_day: 3, due_day: 23, opening_date: "2026-10-04" });
+    ds.credit_cards = [c];
+    ds.transactions = [
+      tx({ type: "card_spend", amount: 10_000, card_id: c.id, date: "2026-11-01" }),
+      tx({ type: "card_spend", amount: 4_000, card_id: c.id, date: "2026-11-10" }),
+      tx({ type: "card_payment", amount: 10_000, card_id: c.id, date: "2026-11-12", occurrence_date: "2026-11-23" }),
+    ];
+    const bills = buildEvents(ds, { from: "2026-11-01", to: "2026-12-31", today: "2026-11-15" }).filter((e) => e.kind === "card_bill");
+    expect(bills.map((b) => [b.date, b.amount, b.remaining])).toEqual([["2026-11-23", 10_000, 0], ["2026-12-23", 4_000, 4_000]]);
+  });
+
+  it("a payment dated later doesn't count until its day", () => {
+    const ds = emptyDs();
+    const c = card({ statement_day: 3, due_day: 23, opening_outstanding: 10_000, opening_date: "2026-11-03" });
+    ds.credit_cards = [c];
+    ds.card_statements = [{ id: "s1", card_id: c.id, statement_date: "2026-11-03", due_date: "2026-11-23", total_due: 10_000, min_due: 0 }];
+    ds.transactions = [tx({ type: "card_payment", amount: 10_000, card_id: c.id, date: "2026-11-20" })];
+    const p = computePositions(ds, "2026-11-15").cards.get(c.id)!;
+    expect([p.billedUnpaid, p.unbilled]).toEqual([10_000, 0]);
+  });
+});

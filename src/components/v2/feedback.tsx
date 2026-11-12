@@ -167,8 +167,13 @@ export function FeedbackCard({ f, onChanged, admin }: { f: Feedback; onChanged: 
             variant="ghost"
             icon={<Trash2 className="h-3.5 w-3.5" />}
             onClick={async () => {
-              await deleteFeedback(f.id).catch((e) => toast.error(e.message));
-              onChanged();
+              if (!window.confirm(`Delete "${f.title}"?`)) return;
+              try {
+                await deleteFeedback(f.id);
+                onChanged();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Couldn't delete it.");
+              }
             }}
           >
             Delete

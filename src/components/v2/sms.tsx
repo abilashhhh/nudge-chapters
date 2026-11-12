@@ -438,6 +438,9 @@ export function SmsScreen() {
   }, [refresh]);
   const missing = [...ds.accounts.filter((a) => !a.archived && a.type !== "cash" && a.type !== "wallet" && !a.last4 && !a.card_last4).map((a) => a.name), ...ds.credit_cards.filter((c) => !c.archived && !c.last4).map((c) => c.name)];
 
+  // (Before any early return: hooks run in the same order on every render.)
+  const { list: recent, total, page, setPage, filter, setFilter, pages, loading: pageLoading } = useSmsPage(rows);
+
   if (!available) {
     return (
       <>
@@ -497,7 +500,6 @@ export function SmsScreen() {
     { t: "Let it run in the background", d: <>Android Settings → Apps → SMS to URL Forwarder → Battery → <b>Unrestricted</b>, so it still forwards when the phone is idle.</> },
   ];
 
-  const { list: recent, total, page, setPage, filter, setFilter, pages, loading: pageLoading } = useSmsPage(rows);
   const waiting = new Map(items.map((i) => [i.row.id, i]));
   const toReview = items.filter((i) => i.p.state === "ready" || i.p.state === "check").length;
   const setupOpen = !key || !rows.length;
@@ -522,7 +524,7 @@ export function SmsScreen() {
               <Button size="sm" icon={<ClipboardPaste className="h-3.5 w-3.5" />} onClick={() => setPasting(true)}>
                 Paste
               </Button>
-              <Button size="sm" variant="ghost" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void refresh()}>
+              <Button size="sm" variant="ghost" aria-label="Refresh" icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={() => void refresh()}>
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
             </div>

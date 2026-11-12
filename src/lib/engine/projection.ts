@@ -171,7 +171,8 @@ export function project(ds: Dataset, opts: ProjectionOptions): ProjectionResult 
   const WHATIF_INV = "__whatif__";
 
   const cards = new Map<string, { name: string; owed: number }>();
-  for (const [id, c] of positions.cards) if (!c.card.archived) cards.set(id, { name: c.card.name, owed: Math.max(0, c.outstanding) });
+  // Cards and lendings tracked separately aren't part of your totals (as in the positions).
+  for (const [id, c] of positions.cards) if (!c.card.archived && !c.card.track_separately) cards.set(id, { name: c.card.name, owed: Math.max(0, c.outstanding) });
 
   const loans = new Map<string, { name: string; owed: number }>();
   for (const [id, l] of positions.loans) if (l.loan.status === "active") loans.set(id, { name: l.loan.name, owed: l.state.outstanding });
@@ -192,6 +193,7 @@ export function project(ds: Dataset, opts: ProjectionOptions): ProjectionResult 
   const receivable = new Map<string, number>();
   const borrowed = new Map<string, { name: string; owed: number }>();
   for (const [id, l] of positions.lendings) {
+    if (l.lending.track_separately) continue;
     if (l.lending.direction === "lent") receivable.set(id, l.outstanding);
     else borrowed.set(id, { name: l.lending.person, owed: l.outstanding });
   }

@@ -651,7 +651,10 @@ function projectCardCycles(
   // What's owed but not billed splits at that statement date: spent up to it goes on its bill, the rest on the next.
   let carriedNext = 0;
   if (closed) {
-    const after = ds.transactions.filter((t) => t.card_id === card.id && t.date > closed && t.date <= today && t.date >= card.opening_date).reduce((a, t) => a + cardDelta(t), 0);
+    // Only what was spent after the statement date (payments are settled against bills, not counted as negative spend).
+    const after = ds.transactions
+      .filter((t) => t.card_id === card.id && t.date > closed && t.date <= today && t.date >= card.opening_date && (t.type === "card_spend" || t.type === "loan_emi"))
+      .reduce((a, t) => a + Math.max(0, cardDelta(t)), 0);
     carriedNext = round2(Math.min(unbilled, Math.max(0, after)));
   }
   const paymentsByDue = new Map<string, Transaction[]>();
@@ -662,7 +665,6 @@ function projectCardCycles(
   }
   let prev = addDays(start, -1);
   let carried = round2(unbilled - carriedNext);
-  let first = true;
   const cycleDays = 30.4375;
   for (let guard = 0; guard < 600; guard++) {
     const S = cursor;
@@ -670,7 +672,8 @@ function projectCardCycles(
     if (S > to) break;
     let expected = 0;
     if (card.expected_monthly_spend > 0) {
-      const span = first ? Math.max(0, diffDays(today, S)) : diffDays(prev, S);
+      // Only the days still to come: days up to today are already in what was actually spent.
+      const span = Math.max(0, diffDays(prev < today ? today : prev, S));
       const years = Math.floor(Math.max(0, diffMonths(today, S)) / 12);
       expected = round2(
         card.expected_monthly_spend * Math.min(1, span / cycleDays) * Math.pow(1 + sc.expenseGrowth / 100, years) * sc.variableExpenseFactor,
@@ -703,7 +706,12 @@ function projectCardCycles(
     const inCycle = spends.filter((s) => s.date > prev && s.date <= S);
     const cycleSpend = inCycle.reduce((a, s) => a + s.amount, 0);
     const cycleReimb = round2(inCycle.reduce((a, s) => a + s.reimb, 0));
-    const bill = round2(carried + cycleSpend + expected);
+    const billBase = round2(carried + cycleSpend + expected);
+    // Payments already made towards this bill (marked paid early) have already brought the balance down: add them
+    // back so the bill shows its full amount, then settle the part they cover — not subtract them twice.
+    const pays = paymentsByDue.get(due) ?? [];
+    const paidAlready = round2(pays.filter((t) => t.date <= today && t.date >= card.opening_date).reduce((a, t) => a + t.amount, 0));
+    const bill = round2(billBase + paidAlready);
     carried = carriedNext;
     carriedNext = 0;
     // Paid by the month's end: a bill recorded earlier in the month is due the same day as the month's new spends —
@@ -711,14 +719,14 @@ function projectCardCycles(
     const recorded = card.pay_by_month_end
       ? events.find((e) => e.kind === "card_bill" && e.cardId === card.id && e.statementId && e.occurrence === due && e.status !== "skipped" && e.status !== "cancelled")
       : undefined;
-    if (recorded && bill > 0.5) {
-      recorded.amount = round2(recorded.amount + bill);
-      recorded.remaining = round2(recorded.remaining + bill);
+    if (recorded && billBase > 0.5) {
+      // (Payments linked to this due date were already matched to the recorded bill.)
+      recorded.amount = round2(recorded.amount + billBase);
+      recorded.remaining = round2(recorded.remaining + billBase);
       if (recorded.status === "paid") recorded.status = recorded.paid > 0 ? (due < today ? "overdue" : "partial") : pendingStatus(due, today);
       if (cycleReimb > 0) recorded.reimbursablePart = Math.min(round2((recorded.reimbursablePart ?? 0) + cycleReimb), recorded.amount);
     } else if (bill > 0.5 && due <= to) {
       const ov = ovs.get(`card:${card.id}:${due}`);
-      const pays = paymentsByDue.get(due) ?? [];
       const ev = resolve(
         {
           key: `card:${card.id}:${due}`,
@@ -743,6 +751,12 @@ function projectCardCycles(
         (a) => a,
         true,
       );
+      if (pays.length && ov?.action !== "skip" && ov?.action !== "cancel") {
+        const paid = round2(pays.reduce((a, t) => a + t.amount, 0));
+        ev.paid = paid;
+        ev.remaining = round2(Math.max(0, ev.amount - paid));
+        ev.status = ev.remaining <= 0.5 ? "paid" : ev.date < today ? "overdue" : "partial";
+      }
       if (cycleReimb > 0) ev.reimbursablePart = Math.min(cycleReimb, ev.amount);
       if (keep(ev, from, to)) out.push(ev);
     }
@@ -770,7 +784,6 @@ function projectCardCycles(
       });
     }
     prev = S;
-    first = false;
     cursor = statementDateOnOrAfter(card, addDays(S, 1));
   }
   return out;

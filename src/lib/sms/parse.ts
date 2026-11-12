@@ -69,10 +69,13 @@ const BANKS: [RegExp, string][] = [
 function parseDate(text: string, fallbackYear: number): ISODate | null {
   const MON: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
   const y4 = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
-  const iso = (y: number, m: number, d: number) => (m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null);
+  // A real date only (no 31 Feb): the day must exist in that month.
+  const iso = (y: number, m: number, d: number) =>
+    m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate() ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null;
   let m = text.match(/\b(20\d{2})-(\d{2})-(\d{2})/);
   if (m) return iso(Number(m[1]), Number(m[2]), Number(m[3]));
-  m = text.match(/\b(\d{1,2})[-/ ]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-/ ,]*(\d{2,4})\b/i);
+  // The year after the month must not be a time ("16 Oct 14:22" is 16 Oct, not 2014).
+  m = text.match(/\b(\d{1,2})[-/ ]?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-/ ,]*(\d{4}|\d{2})\b(?![:.]\d)/i);
   if (m) return iso(y4(m[3]), MON[m[2].toLowerCase()], Number(m[1]));
   m = text.match(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b/);
   if (m) return iso(y4(m[3]), Number(m[2]), Number(m[1]));
@@ -169,8 +172,10 @@ export function parseSms(body: string, sender?: string | null, today: ISODate = 
   // Direction
   const debitWords = /\b(debited|spent|paid|sent|withdrawn|purchase|txn of|transaction of|used|dr\b|debit)\b/;
   const creditWords = /\b(credited|received|deposited|refund(?:ed)?|reversal|cr\b|added to)\b/;
-  const d = low.search(debitWords);
-  const c = low.search(creditWords);
+  // "Debit Card" names the card, not the direction ("Debit Card XX1234 has been credited with a refund").
+  const dirText = low.replace(/\bdebit card\b/g, "card");
+  const d = dirText.search(debitWords);
+  const c = dirText.search(creditWords);
   if (d >= 0 && (c < 0 || d < c)) out.direction = "debit";
   else if (c >= 0) out.direction = "credit";
   // "payment of Rs X received on your credit card" / "thank you for your payment": money towards the card's bill.

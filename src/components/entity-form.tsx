@@ -416,7 +416,7 @@ export function EntityEditor<T extends TableName>({
         footer={
           <div className="flex items-center gap-2">
             {id && deleteLabel && (
-              <Button variant="ghost" className="text-danger hover:text-danger" icon={<Trash2 className="h-4 w-4" />} onClick={() => setConfirm(true)}>
+              <Button variant="ghost" aria-label={deleteLabel} className="text-danger hover:text-danger" icon={<Trash2 className="h-4 w-4" />} onClick={() => setConfirm(true)}>
                 <span className="hidden xs:inline">{deleteLabel}</span>
               </Button>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { Children, cloneElement, forwardRef, isValidElement, useEffect, useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 import { amountInWords, currencySymbol, parseAmount } from "@/lib/money";
 
@@ -24,13 +24,18 @@ export function Field({
   className?: string;
   optional?: boolean;
 }) {
+  // No htmlFor given: tie the label to the field anyway (screen readers read the label with the input).
+  const auto = useId();
+  const only = Children.count(children) === 1 && isValidElement<{ id?: string }>(children) ? children : null;
+  const forId = htmlFor ?? (only ? only.props.id ?? auto : undefined);
+  const body = !htmlFor && only && !only.props.id ? cloneElement(only, { id: auto }) : children;
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={htmlFor} className="text-[13px] font-medium text-ink-2">
+      <label htmlFor={forId} className="text-[13px] font-medium text-ink-2">
         {label}
         {optional && <span className="font-normal text-ink-3"> (optional)</span>}
       </label>
-      {children}
+      {body}
       {error ? (
         <p className="text-[13px] text-danger" role="alert">
           {error}

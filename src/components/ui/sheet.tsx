@@ -1,10 +1,12 @@
 "use client";
 
+import { toast } from "sonner";
 import { ArrowLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { wasShown } from "@/lib/store";
 import { v2Crumbs } from "@/lib/v2/routes";
 import { Button } from "./button";
 
@@ -284,6 +286,9 @@ export function ConfirmSheet({
               try {
                 await onConfirm();
                 onClose();
+              } catch (e) {
+                // Store actions show their own message; anything else is shown here.
+                if (!wasShown(e)) toast.error(e instanceof Error ? e.message : "Couldn't do that. Try again.");
               } finally {
                 setBusy(false);
               }
