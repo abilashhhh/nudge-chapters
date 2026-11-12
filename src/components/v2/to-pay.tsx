@@ -85,7 +85,8 @@ function Cards() {
     .sort((a, b) => {
       const [ra, da] = rank(a.id);
       const [rb, db] = rank(b.id);
-      return ra - rb || da.localeCompare(db) || owed(b.id) - owed(a.id);
+      // Cards tracked separately go last.
+      return Number(!!a.track_separately) - Number(!!b.track_separately) || ra - rb || da.localeCompare(db) || owed(b.id) - owed(a.id);
     });
   const shared = (c: (typeof cards)[number]) => {
     const k = c.shared_limit_group?.trim().toLowerCase();
@@ -107,7 +108,7 @@ function Cards() {
                 card={c}
                 index={i}
                 used={positions.cards.get(c.id)?.utilization}
-                usedLabel={shared(c)}
+                usedLabel={c.track_separately ? "Tracked separately · not counted" : shared(c)}
                 due={due}
                 dueTone={tone}
                 bills={ahead.get(c.id) ?? []}

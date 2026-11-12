@@ -52,7 +52,7 @@ export function MyMoneyScreen() {
         className="mb-4"
         value={tab}
         onChange={setTab}
-        tabs={[{ id: "all", label: "All" }, { id: "accounts", label: "Bank accounts", count: ds.accounts.filter((a) => !a.archived).length }, { id: "owed", label: "People owe me", count: new Set(ds.lendings.filter((l) => l.direction === "lent" && !l.written_off && (positions.lendings.get(l.id)?.outstanding ?? 0) > 0.5).map((l) => l.person.split(/\s+[—–-]\s+/)[0].trim().toLowerCase())).size }, ...sv.tabs]}
+        tabs={[{ id: "all", label: "All" }, { id: "accounts", label: "Bank accounts", count: ds.accounts.filter((a) => !a.archived).length }, { id: "owed", label: "People owe me", count: new Set(ds.lendings.filter((l) => l.direction === "lent" && !l.written_off && !l.track_separately && (positions.lendings.get(l.id)?.outstanding ?? 0) > 0.5).map((l) => l.person.split(/\s+[—–-]\s+/)[0].trim().toLowerCase())).size }, ...sv.tabs]}
       />
       {tab === "all" ? <AllMoney /> : tab === "accounts" ? <Accounts /> : tab === "owed" ? <Owed /> : <SavingsTabBody tab={tab} />}
     </>
@@ -192,12 +192,14 @@ function Owed() {
   const months = useGridMonths();
   const events = useRangeEvents(months);
   const groups = useMemo(() => reimbursements(ds, positions, today, nearEvents), [ds, positions, today, nearEvents]);
+  // Tracked separately (e.g. someone repaying an EMI on your card): kept here, not counted in "People owe me".
+  const separate = useMemo(() => reimbursements(ds, positions, today, nearEvents, true).filter((g) => g.outstanding > 0.5 || g.loans.length), [ds, positions, today, nearEvents]);
   const data = useMemo(() => owedGrid(ds, events, months, today), [ds, events, months, today]);
   const [repay, setRepay] = useState<ReimbursementGroup | null>(null);
   const ui = useUI.getState();
   const STATUS = { active: "upcoming", completed: "paid", overdue: "late", written_off: "skipped" } as const;
 
-  if (!groups.length) {
+  if (!groups.length && !separate.length) {
     return (
       <EmptyState
         icon={Users}
@@ -331,6 +333,45 @@ function Owed() {
           footnote="An EMI on your card that someone else pays for is linked here automatically (the “For” column in Credit cards)."
         />
       </div>
+      {separate.length > 0 && (
+        <section aria-label="Tracked separately" className="rounded-2xl border border-dashed border-line-strong">
+          <div className="border-b border-line px-4 py-3">
+            <h2 className="text-[15px] font-semibold">Tracked separately</h2>
+            <p className="text-[12.5px] text-ink-3">Kept track of here, but not counted in People owe me, Free to spend or your totals.</p>
+          </div>
+          <ul className="divide-y divide-line/70">
+            {separate.map((g) => (
+              <li key={g.key} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <EntityIcon kind="person" name={g.person} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14.5px] font-medium">{g.person}</span>
+                  <span className="block text-[12px] text-ink-3">
+                    {g.description}
+                    {g.next ? ` · next ${formatMoney(g.next.amount, ctx, { decimals: true })} on ${formatDate(g.next.date, "short")}` : ""}
+                  </span>
+                </span>
+                <Money value={g.outstanding} decimals className="shrink-0 text-[15px] font-semibold text-ink-2" />
+                <span className="flex gap-1">
+                  {g.outstanding > 0.5 && (
+                    <Button size="sm" onClick={() => setRepay(g)}>
+                      Got money back
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      for (const i of g.items) await useStore.getState().patch("lendings", i.lending.id, { track_separately: false }).catch(() => undefined);
+                    }}
+                  >
+                    Count it
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {repay && <RepaySheet g={repay} onClose={() => setRepay(null)} />}
     </div>
   );

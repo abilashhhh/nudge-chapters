@@ -530,3 +530,25 @@ describe("a statement date that passed without its bill recorded", () => {
     expect(bills.map((b) => [b.date, b.remaining])).toEqual([["2026-11-21", 2_000], ["2026-12-21", 300]]);
   });
 });
+
+describe("tracked separately", () => {
+  it("keeps a card's bills and a lending on record but out of what you owe, are owed, and must pay", async () => {
+    const { monthMetrics } = await import("./metrics");
+    const ds = emptyDs();
+    const a = acc({ opening_balance: 50_000, opening_date: "2026-10-01" });
+    const c = card({ statement_day: 4, due_day: 22, opening_outstanding: 10_000, opening_date: "2026-11-05", track_separately: true });
+    ds.accounts = [a];
+    ds.credit_cards = [c];
+    ds.lendings = [{ id: "l1", direction: "lent", person: "Surya", amount: 10_000, date: "2026-11-01", expected_date: "2026-11-26", interest_rate: 0, account_id: a.id, include_in_projection: true, written_off: false, track_separately: true }];
+    const today = "2026-11-12";
+    const pos = computePositions(ds, today);
+    expect(pos.totals.cardDebt).toBe(0);
+    expect(pos.totals.receivables).toBe(0);
+    const evs = buildEvents(ds, { from: "2026-11-01", to: "2026-12-31", today, positions: pos });
+    const bill = evs.find((e) => e.kind === "card_bill");
+    expect(bill?.remaining).toBe(10_000); // still tracked on the card
+    expect(bill?.excluded).toBe(true);
+    const m = monthMetrics(ds, pos, today, evs);
+    expect(m.unpaidAmount).toBe(0);
+  });
+});

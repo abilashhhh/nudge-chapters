@@ -431,7 +431,8 @@ export function computePositions(ds: Dataset, asOf: ISODate): Positions {
       billedUnpaid,
       unbilled: round2(Math.max(0, outstanding - billedUnpaid)),
     });
-    if (!c.archived) {
+    // A card tracked separately (someone else repays it) isn't part of what you owe.
+    if (!c.archived && !c.track_separately) {
       cardDebt += Math.max(0, outstanding);
       creditLimit += c.credit_limit;
     }
@@ -494,6 +495,7 @@ export function computePositions(ds: Dataset, asOf: ISODate): Positions {
   for (const l of ds.lendings) {
     const p = lendingPosition(l, txs);
     lendings.set(l.id, p);
+    if (l.track_separately) continue; // kept track of, not counted
     if (l.direction === "lent") receivables += p.outstanding;
     else borrowed += p.outstanding;
   }

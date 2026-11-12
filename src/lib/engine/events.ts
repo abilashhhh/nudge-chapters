@@ -592,6 +592,13 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
     events.push(...projectCardCycles(card, cp.unbilled, cp.statements.map((s) => s.statement.statement_date), events, ds, ovs, today, from, to, sc));
   }
 
+  // Cards and lendings tracked separately: still listed where they're kept, but not counted anywhere (To Pay,
+  // Free to spend, forecasts).
+  const separateCards = new Set(ds.credit_cards.filter((c) => c.track_separately).map((c) => c.id));
+  const separateLendings = new Set(ds.lendings.filter((l) => l.track_separately).map((l) => l.id));
+  if (separateCards.size || separateLendings.size)
+    for (const e of events) if ((e.cardId && separateCards.has(e.cardId)) || (e.lendingId && separateLendings.has(e.lendingId))) e.excluded = true;
+
   return events.sort((a, b) => (a.date === b.date ? a.title.localeCompare(b.title) : a.date < b.date ? -1 : 1));
 }
 

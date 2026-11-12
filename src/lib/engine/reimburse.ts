@@ -39,7 +39,8 @@ export function personKey(name: string): string {
   return name.split(/\s+[—–-]\s+/)[0].trim();
 }
 
-export function reimbursements(ds: Dataset, positions: Positions, today: ISODate, events: FinEvent[] = []): ReimbursementGroup[] {
+/** People who owe you, grouped by person. `separate`: only what's tracked separately (not counted in "People owe me"). */
+export function reimbursements(ds: Dataset, positions: Positions, today: ISODate, events: FinEvent[] = [], separate = false): ReimbursementGroup[] {
   const groups = new Map<string, ReimbursementGroup>();
   const get = (person: string) => {
     const key = person.toLowerCase();
@@ -55,7 +56,7 @@ export function reimbursements(ds: Dataset, positions: Positions, today: ISODate
   };
   for (const lp of positions.lendings.values()) {
     const l: Lending = lp.lending;
-    if (l.direction !== "lent") continue;
+    if (l.direction !== "lent" || !!l.track_separately !== separate) continue;
     const g = get(personKey(l.person));
     g.items.push(lp);
     g.total += l.amount;
@@ -70,8 +71,10 @@ export function reimbursements(ds: Dataset, positions: Positions, today: ISODate
     }
     g.history.push(...ds.transactions.filter((t) => t.lending_id === l.id));
   }
+  const separateCards = new Set(ds.credit_cards.filter((c) => c.track_separately).map((c) => c.id));
   for (const loan of ds.loans) {
     if (!loan.reimbursable_person) continue;
+    if ((!!loan.card_id && separateCards.has(loan.card_id)) !== separate) continue;
     get(loan.reimbursable_person).loans.push(loan);
   }
   const cardName = new Map(ds.credit_cards.map((c) => [c.id, c.name]));
