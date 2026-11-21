@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { formatDate, monthKey, startOfMonth } from "@/lib/dates";
 import { useFinance } from "@/lib/finance";
 import { formatMoney } from "@/lib/money";
+import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
 import { useTab } from "@/lib/use-tab";
 import { billGrid, cardGrid, chitSipGrid, loanGrid, monthRange, orderForMonth, sumCells, type GridGroup } from "@/lib/v2/grids";
@@ -390,7 +391,7 @@ function Loans() {
             {
               key: "n",
               header: "Name",
-              cell: (r) => (r.kind === "loan" ? <Cell2 icon={<EntityIcon kind="loan" name={r.l.loan.name} />} main={r.l.loan.name} sub={r.l.loan.lender ?? TYPE[r.l.loan.type]} /> : <Cell2 icon={<EntityIcon kind="person" name={r.b.l.person} />} main={r.b.l.person} sub="Borrowed" />),
+              cell: (r) => (r.kind === "loan" ? <Cell2 icon={<EntityIcon kind="loan" name={r.l.loan.name} />} main={r.l.loan.name} sub={r.l.loan.lender ?? TYPE[r.l.loan.type]} /> : <Cell2 icon={<EntityIcon kind="person" name={r.b.l.person} />} main={r.b.l.person} sub={r.b.l.track_separately ? "Borrowed · not counted" : "Borrowed"} />),
             },
             { key: "m", header: "Monthly", align: "right", wide: false, cell: (r) => (r.kind === "loan" ? m(r.l.state.emi) : "–") },
             {
@@ -446,6 +447,13 @@ function Loans() {
                         Paid back
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void useStore.getState().patch("lendings", r.b.l.id, { track_separately: !r.b.l.track_separately }).catch(() => undefined)}
+                    >
+                      {r.b.l.track_separately ? "Count again" : "Don't count"}
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => ui.openEditor("lending", r.b.l.id)}>
                       Edit
                     </Button>

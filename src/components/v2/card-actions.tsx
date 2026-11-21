@@ -4,7 +4,9 @@ import { ArrowRight, MoreHorizontal, Pencil, Plus, Receipt } from "lucide-react"
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { CreditCard } from "@/lib/types";
+import { useStore } from "@/lib/store";
 import { useUI } from "@/lib/ui";
+import { toast } from "sonner";
 import { Button } from "../ui/button";
 
 /** The one row of card actions, the same on the card's page and in To Pay → Credit cards. */
@@ -36,6 +38,17 @@ export function CardActions({ card, size, open }: { card: CreditCard; size?: "sm
           </Button>
           <Button size={size} variant="ghost" onClick={() => ui.openEditor("loan", undefined, { type: "card_emi", card_id: card.id, payment_account_id: null, name: `${card.name} EMI` })}>
             Change to EMI
+          </Button>
+          <Button
+            size={size}
+            variant="ghost"
+            onClick={async () => {
+              const separate = !card.track_separately;
+              await useStore.getState().patch("credit_cards", card.id, { track_separately: separate }).catch(() => undefined);
+              toast.success(separate ? `${card.name} isn't counted any more (its bills stay on the card)` : `${card.name} is counted again`);
+            }}
+          >
+            {card.track_separately ? "Count this card again" : "Don't count this card"}
           </Button>
         </>
       ) : (
