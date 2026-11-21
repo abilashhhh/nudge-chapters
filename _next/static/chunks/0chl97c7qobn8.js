@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,73525,e=>{"use strict";var i=e.i(43476),t=e.i(85481),r=e.i(20696),n=e.i(40268);e.s(["SetupLayoutClient",0,function({children:e}){return(0,i.jsx)(t.h,{requireOnboarded:!1,children:(0,i.jsxs)(n.A,{children:[e,(0,i.jsx)(r.f,{})]})})}])}]);
