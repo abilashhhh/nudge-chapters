@@ -589,3 +589,16 @@ describe("audit fixes", () => {
     expect([p.billedUnpaid, p.unbilled]).toEqual([10_000, 0]);
   });
 });
+
+describe("money paid beyond what a card owes", () => {
+  it("covers the next bills before anything new is due", () => {
+    const ds = emptyDs();
+    const c = card({ statement_day: 4, due_day: 22, opening_date: "2026-11-01" });
+    ds.credit_cards = [c];
+    ds.transactions = [tx({ type: "card_payment", amount: 10_000, card_id: c.id, date: "2026-11-10" })];
+    ds.recurring_rules = [rule({ name: "EMI-like", kind: "expense", amount: 4_000, day_of_month: 15, card_id: c.id, start_date: "2026-11-15", track_from: "2026-11-15" })];
+    const bills = buildEvents(ds, { from: "2026-11-01", to: "2027-03-31", today: "2026-11-12" }).filter((e) => e.kind === "card_bill" && e.remaining > 0.5);
+    // ₹10,000 credit covers Nov 15 and Dec 15 (₹8,000); the Jan 15 spend leaves ₹2,000 to pay (bill due 22 Feb).
+    expect(bills.map((b) => [b.date, b.remaining])).toEqual([["2027-02-22", 2_000], ["2027-03-22", 4_000]]);
+  });
+});

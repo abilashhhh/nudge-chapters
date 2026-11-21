@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Check, Landmark, Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { formatDate, relativeDays } from "@/lib/dates";
 import { reimbursements, type ReimbursementGroup } from "@/lib/engine/reimburse";
@@ -187,6 +188,12 @@ function HistorySheet({ a, onClose }: { a: Account; onClose: () => void }) {
 
 // ---------------------------------------------------------------------------
 
+/** Kept track of but not counted in totals (or counted again). */
+async function setTracked(ids: string[], separate: boolean) {
+  for (const id of ids) await useStore.getState().patch("lendings", id, { track_separately: separate }).catch(() => undefined);
+  toast.success(separate ? "Not counted any more — it's under Tracked separately" : "Counted again in your totals");
+}
+
 function Owed() {
   const { ds, positions, today, events: nearEvents, ctx } = useFinance();
   const months = useGridMonths();
@@ -257,11 +264,16 @@ function Owed() {
                 ["Next amount", g.next ? formatMoney(g.next.amount, ctx, { decimals: true }) : "–"],
               ]}
               actions={
-                g.outstanding > 0.5 ? (
-                  <Button size="sm" variant="primary" onClick={() => setRepay(g)}>
-                    Got money back
+                <>
+                  {g.outstanding > 0.5 && (
+                    <Button size="sm" variant="primary" onClick={() => setRepay(g)}>
+                      Got money back
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => void setTracked(g.items.map((i) => i.lending.id), true)}>
+                    Don&apos;t count {g.person}
                   </Button>
-                ) : undefined
+                </>
               }
             >
               <ul className="mt-3 divide-y divide-line rounded-lg border border-line">
@@ -289,6 +301,11 @@ function Owed() {
                       <Button size="sm" variant="ghost" onClick={() => ui.openEditor("lending", i.lending.id)}>
                         Edit
                       </Button>
+                      {left && (
+                        <Button size="sm" variant="ghost" className="text-ink-3" onClick={() => void setTracked([i.lending.id], true)}>
+                          Don&apos;t count
+                        </Button>
+                      )}
                       {i.lending.written_off ? (
                         <Button size="sm" variant="ghost" onClick={() => void useStore.getState().patch("lendings", i.lending.id, { written_off: false }).catch(() => undefined)}>
                           Count again
@@ -357,14 +374,8 @@ function Owed() {
                       Got money back
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={async () => {
-                      for (const i of g.items) await useStore.getState().patch("lendings", i.lending.id, { track_separately: false }).catch(() => undefined);
-                    }}
-                  >
-                    Count it
+                  <Button size="sm" variant="ghost" onClick={() => void setTracked(g.items.map((i) => i.lending.id), false)}>
+                    Count again in totals
                   </Button>
                 </span>
               </li>

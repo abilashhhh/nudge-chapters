@@ -589,7 +589,8 @@ export function buildEvents(ds: Dataset, opts: BuildOptions): FinEvent[] {
     if (card.archived) continue;
     const cp = positions.cards.get(card.id);
     if (!cp) continue;
-    events.push(...projectCardCycles(card, cp.unbilled, cp.statements.map((s) => s.statement.statement_date), events, ds, ovs, today, from, to, sc));
+    // Signed: paid more than owed leaves a credit (below zero) that covers the next bills.
+    events.push(...projectCardCycles(card, round2(cp.outstanding - cp.billedUnpaid > 0 ? cp.unbilled : cp.outstanding - cp.billedUnpaid), cp.statements.map((s) => s.statement.statement_date), events, ds, ovs, today, from, to, sc));
   }
 
   // Cards and lendings tracked separately: still listed where they're kept, but not counted anywhere (To Pay,
@@ -655,7 +656,7 @@ function projectCardCycles(
     const after = ds.transactions
       .filter((t) => t.card_id === card.id && t.date > closed && t.date <= today && t.date >= card.opening_date && (t.type === "card_spend" || t.type === "loan_emi"))
       .reduce((a, t) => a + Math.max(0, cardDelta(t)), 0);
-    carriedNext = round2(Math.min(unbilled, Math.max(0, after)));
+    carriedNext = unbilled > 0 ? round2(Math.min(unbilled, Math.max(0, after))) : 0;
   }
   const paymentsByDue = new Map<string, Transaction[]>();
   for (const t of ds.transactions) {
@@ -706,13 +707,16 @@ function projectCardCycles(
     const inCycle = spends.filter((s) => s.date > prev && s.date <= S);
     const cycleSpend = inCycle.reduce((a, s) => a + s.amount, 0);
     const cycleReimb = round2(inCycle.reduce((a, s) => a + s.reimb, 0));
-    const billBase = round2(carried + cycleSpend + expected);
+    // A credit on the card (paid more than owed) goes against this bill; whatever's left over waits for the next one.
+    const net = round2(carried + cycleSpend + expected);
+    const credit = net < 0 ? net : 0;
+    const billBase = Math.max(0, net);
     // Payments already made towards this bill (marked paid early) have already brought the balance down: add them
     // back so the bill shows its full amount, then settle the part they cover — not subtract them twice.
     const pays = paymentsByDue.get(due) ?? [];
     const paidAlready = round2(pays.filter((t) => t.date <= today && t.date >= card.opening_date).reduce((a, t) => a + t.amount, 0));
     const bill = round2(billBase + paidAlready);
-    carried = carriedNext;
+    carried = round2(carriedNext + credit);
     carriedNext = 0;
     // Paid by the month's end: a bill recorded earlier in the month is due the same day as the month's new spends —
     // one bill for that day, not two.
