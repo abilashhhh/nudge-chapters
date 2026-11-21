@@ -62,18 +62,24 @@ async function addItem({ row, p }: Item, matchBalance: boolean, latestForAccount
   const delta = (list: Transaction[]) => list.flatMap((t) => cashDeltas(t)).reduce((sum, [id, d]) => sum + (id === p.balance?.accountId ? d : 0), 0);
   let change = 0;
   let tx: Transaction;
+  // Every message this entry comes from (a pair merged into one is tagged with both).
+  const rows = [row, ...(p.merged ?? [])];
+  const smsTags = rows.map((r) => `sms:${r.id}`);
   if (p.replaces) {
-    // This message completes one already recorded (e.g. the wallet's "paid" + this account's "received"): that entry
-    // becomes the transfer between the two, instead of a second entry.
+    // This message completes one already recorded: the wallet's "paid" + this account's "received" becomes the
+    // transfer between the two; the card's "payment received" + the bank's "debited … CRED" gets the bank account.
+    // Either way it's the same entry, not a second one.
     const old = p.replaces;
-    const next = { ...old, type: "transfer" as const, to_account_id: p.tx.to_account_id ?? null, description: "Self transfer", category: null, tags: [...(old.tags ?? []), `sms:${row.id}`] };
-    await useStore.getState().patch("transactions", old.id, { type: next.type, to_account_id: next.to_account_id, description: next.description, category: null, tags: next.tags });
-    tx = next as Transaction;
-    change = delta([next as Transaction]) - delta([old]);
+    const tags = [...new Set([...(old.tags ?? []), ...smsTags])];
+    const fields: Partial<Transaction> =
+      p.tx.type === "card_payment" ? { account_id: p.tx.account_id ?? null, tags } : { type: "transfer", to_account_id: p.tx.to_account_id ?? null, description: "Self transfer", category: null, tags };
+    await useStore.getState().patch("transactions", old.id, fields);
+    tx = { ...old, ...fields } as Transaction;
+    change = delta([tx]) - delta([old]);
   } else {
-    tx = await add("transactions", { ...p.tx, tags: [...(p.tx.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>);
+    tx = await add("transactions", { ...p.tx, tags: [...(p.tx.tags ?? []), ...smsTags] } as Partial<Transaction>);
   }
-  await useSms.getState().mark(row.id, "added", tx.id);
+  for (const r of rows) await useSms.getState().mark(r.id, "added", tx.id);
   const more: Transaction[] = [];
   for (const extra of p.also ?? []) more.push(await add("transactions", { ...extra, tags: [...(extra.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>));
   if (!p.replaces) change = delta([tx, ...more]);
@@ -155,7 +161,8 @@ export function SmsSync() {
     // One payment often sends two messages a few seconds apart (wallet "paid" + bank "received"). Give a new message
     // a moment for its partner to arrive, so the pair is read together and becomes one transfer.
     const young = (i: Item) => Date.now() - Date.parse(i.row.received_at) < SETTLE_MS;
-    const ready = items.filter((i) => !tried.current.has(i.row.id) && (i.p.state === "ignore" || i.p.state === "duplicate" || (prefs?.autoAdd && i.p.state === "ready")));
+    // A message merged into another waiting one is marked when that one is added, not on its own.
+    const ready = items.filter((i) => !tried.current.has(i.row.id) && (i.p.state === "ignore" || (i.p.state === "duplicate" && !i.p.mergedInto) || (prefs?.autoAdd && i.p.state === "ready")));
     const todo = ready.filter((i) => !young(i));
     if (todo.length < ready.length) {
       const wait = Math.max(500, ...ready.filter(young).map((i) => SETTLE_MS - (Date.now() - Date.parse(i.row.received_at))));
@@ -300,7 +307,8 @@ function SmsInboxSheet() {
                       Ignore — nothing to add
                     </Button>
                   )}
-                  {p.state !== "ignore" && tx && (p.account || p.card) && (
+                  {/* A card bill with no card yet (paid via CRED, waiting for the card's SMS): pick the card in the form. */}
+                  {p.state !== "ignore" && tx && (p.account || p.card) && !(tx.type === "card_payment" && !tx.card_id) && (
                     <Button size="sm" variant="primary" loading={busy === row.id} icon={<Check className="h-3.5 w-3.5" />} onClick={() => run(row.id, () => addItem(it, matchBalance, true))}>
                       Add
                     </Button>
@@ -309,7 +317,7 @@ function SmsInboxSheet() {
                     size="sm"
                     onClick={() => {
                       close();
-                      useUI.getState().openTx({ ...(tx ?? { type: "expense", amount: p.parsed.amount ?? undefined, date: row.received_at.slice(0, 10) }), tags: [...(tx?.tags ?? []), `sms:${row.id}`] } as Partial<Transaction>);
+                      useUI.getState().openTx({ ...(tx ?? { type: "expense", amount: p.parsed.amount ?? undefined, date: row.received_at.slice(0, 10) }), tags: [...(tx?.tags ?? []), ...[row, ...(p.merged ?? [])].map((r) => `sms:${r.id}`)] } as Partial<Transaction>);
                     }}
                   >
                     Change & add

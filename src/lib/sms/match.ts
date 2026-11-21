@@ -34,6 +34,13 @@ export interface SmsProposal {
    * wallet (saved as spending) followed by "₹5,000 received from you" in Slice → that entry becomes the transfer.
    */
   replaces?: Transaction;
+  /**
+   * Other waiting messages for this same payment, merged into this one (the bank's "debited … CRED" + the card's
+   * "payment received"): they're marked as added to the same entry.
+   */
+  merged?: SmsRow[];
+  /** This message was merged into another waiting message (by row id): it's marked when that one is added. */
+  mergedInto?: string;
   /** More entries to add with this one (e.g. loading a wallet with a card: the wallet's side and the card's fee). */
   also?: (Partial<Transaction> & { type: TxType; amount: number; date: ISODate })[];
   parsed: ParsedSms;
@@ -206,6 +213,25 @@ export function proposeFromSms(row: SmsRow, p: ParsedSms, ds: Dataset, positions
     };
   }
 
+  // A card bill paid through CRED / BillDesk / BBPS: the bank's message doesn't say which card (the UPI handle is the
+  // app's bank, not the card's), so the card comes from the card's own "payment received" SMS — never from a guess.
+  if (p.direction === "debit" && p.cardBillPayee) {
+    const tx = { ...base, type: "card_payment" as const, account_id: account.id, card_id: null, description: `Card bill via ${p.cardBillPayee}`, category: null };
+    if (dup) return { state: "duplicate", tx, account, duplicateOf: dup, balance, parsed: p };
+    // The card's SMS came first and is already recorded (with no account, or the card's usual one): this message
+    // completes that entry with the account the money really left.
+    const fromCard = ds.transactions.filter(
+      (t) =>
+        t.type === "card_payment" && t.card_id && !t.tags?.includes("refund") && t.account_id !== account.id && (!t.account_id || t.tags?.some((g) => g.startsWith("sms:"))) && Math.abs(t.amount - amount) <= 1 && Math.abs(diffDays(t.date, date)) <= 2,
+    );
+    if (fromCard.length === 1) {
+      const old = fromCard[0];
+      const card = ds.credit_cards.find((c) => c.id === old.card_id);
+      return { state: "ready", tx: { ...tx, card_id: old.card_id, description: old.description || tx.description }, account, card, balance, replaces: old, parsed: p };
+    }
+    return { state: "check", reason: `Card bill paid via ${p.cardBillPayee} — waiting for the card's own SMS to say which card`, tx, account, balance, parsed: p };
+  }
+
   if (p.direction === "debit") {
     // Paying something planned from this account: a card bill, an EMI, rent, a chit or SIP.
     const ev = plannedMatch(events, amount, date, "out", (e) => !e.accountId || e.accountId === account.id || e.kind === "card_bill");
@@ -254,7 +280,9 @@ const near = (a: Item, b: Item, days: number) => Math.abs(diffDays(a.p.tx!.date,
  * - the same UPI reference twice (the bank's two messages for one credit) → one entry;
  * - "sent to yourself" from one account + "received from yourself" in another → one transfer between them;
  * - a card spend at CRED / Dreamplug + "credited to your CRED wallet" → loading the wallet with the card
- *   (not spending), with the small difference as the card's fee.
+ *   (not spending), with the small difference as the card's fee;
+ * - a bank debit to CRED / BillDesk (card unknown) + the card's "payment received" → one card bill payment: the card
+ *   from the card's message, the account from the bank's.
  */
 export function pairSms(items: Item[], ds: Dataset): Item[] {
   const out = items.map((i) => ({ row: i.row, p: { ...i.p } }));
@@ -311,6 +339,27 @@ export function pairSms(items: Item[], ds: Dataset): Item[] {
       balance: w.p.balance ?? c.p.balance,
     };
     dupOf(w, "Wallet top-up from your card");
+  }
+  // 4. A card bill paid through CRED / BillDesk: the bank says which account, the card says which card.
+  for (const b of out) {
+    if (!open(b) || b.p.tx?.type !== "card_payment" || b.p.tx.card_id || !b.p.parsed.cardBillPayee || !b.p.account) continue;
+    const c = out
+      .filter((x) => x !== b && open(x) && x.p.parsed.cardPayment && x.p.card && x.p.tx?.type === "card_payment" && Math.abs(x.p.tx.amount - b.p.tx!.amount) <= 1 && near(b, x, 2))
+      .sort((x, y) => Math.abs(diffDays(x.p.tx!.date, b.p.tx!.date)) - Math.abs(diffDays(y.p.tx!.date, b.p.tx!.date)))[0];
+    if (!c) continue;
+    const sure = ends(c.p.card!.last4, c.p.parsed.last4);
+    const notes = [...new Set([b.p.tx.notes, c.p.tx!.notes].flatMap((n) => (n ?? "").split(" · ")).filter(Boolean))].join(" · ");
+    c.p = {
+      ...c.p,
+      state: sure ? "ready" : "check",
+      reason: sure ? undefined : "Check the card",
+      // The money left on the bank's date; the card may post it a day later.
+      tx: { ...c.p.tx!, account_id: b.p.account.id, date: b.p.tx.date, notes },
+      account: b.p.account,
+      balance: b.p.balance ?? c.p.balance,
+      merged: [...(c.p.merged ?? []), b.row],
+    };
+    b.p = { ...b.p, state: "duplicate", reason: `The same card bill as the ${c.p.card!.name} message`, mergedInto: c.row.id };
   }
   return out;
 }

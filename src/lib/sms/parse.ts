@@ -28,6 +28,12 @@ export interface ParsedSms {
   availableLimit: number | null;
   /** A payment towards a credit card bill (as the card reports it). */
   cardPayment: boolean;
+  /**
+   * A bank debit paid to a card-bill app or gateway (CRED, BillDesk card pay, BBPS…), by its name. The message
+   * doesn't say which card: the UPI handle is the app's own bank (cred.club@axisb is CRED's, not an Axis card), so the
+   * card comes only from the card's own "payment received" SMS.
+   */
+  cardBillPayee: string | null;
   /** Not a transaction at all (OTP, offer, reminder, failed or declined payment). */
   ignore: string | null;
   /** 0–1: how sure we are about amount, direction and where. */
@@ -114,10 +120,21 @@ function merchantOf(text: string): string | null {
   return null;
 }
 
+/** Card-bill apps and gateways, as they show up in a bank's debit SMS. */
+const BILL_PAYEES: [RegExp, string][] = [
+  [/cred\.club@|\bcred ?club\b|payment on cred\b|\bcred\b.{0,30}\b(?:credit card|cc) (?:bill|payment)/i, "CRED"],
+  [/billdesk.{0,40}(?:credit ?card|\bcc\b|card ?pay)|(?:credit ?card|\bcc\b|card ?pay).{0,40}billdesk/i, "BillDesk"],
+  [/\bbbps\b.{0,40}credit ?card|credit ?card.{0,40}\bbbps\b/i, "BBPS"],
+  [/\b(?:ccpay|ccbill|cc\.?payment|cardbillpay|creditcardbill)[\w.-]*@/i, "card bill pay"],
+];
+
+/** UPI handles ("cred.club@axisb", "swiggy@icici") and IFSC codes ("AXIS0000001") name the payee's bank, not yours. */
+const PAYEE_BANK = /[A-Za-z0-9._-]+@[A-Za-z][A-Za-z0-9.-]*|\b[A-Z]{4}0[A-Z0-9]{6}\b/g;
+
 export function parseSms(body: string, sender?: string | null, today: ISODate = new Date().toISOString().slice(0, 10)): ParsedSms {
   const text = body.replace(/\s+/g, " ").trim();
   const low = text.toLowerCase();
-  const out: ParsedSms = { amount: null, direction: null, instrument: null, last4: null, bank: null, merchant: null, ref: null, counterLast4: null, date: null, balance: null, availableLimit: null, cardPayment: false, ignore: null, confidence: 0 };
+  const out: ParsedSms = { amount: null, direction: null, instrument: null, last4: null, bank: null, merchant: null, ref: null, counterLast4: null, date: null, balance: null, availableLimit: null, cardPayment: false, cardBillPayee: null, ignore: null, confidence: 0 };
 
   if (/\botp\b|one[ -]time password|verification code/.test(low)) out.ignore = "OTP";
   else if (/\b(declined|failed|unsuccessful|could not be processed|reversed? (?:of|for)?\s*failed)\b/.test(low) && !/refund|reversal of/.test(low)) out.ignore = "Failed or declined";
@@ -131,9 +148,10 @@ export function parseSms(body: string, sender?: string | null, today: ISODate = 
   else if (/\b(access (?:a )?loan|avail (?:a |an )?(?:instant |insta )?loan|loan on (?:your|ur) (?:yes bank |\w+ )?credit card|providing (?:your )?consent|requires? (?:your )?consent|confirm (?:your )?emi tenure|funds of (?:inr|rs\.?) ?[\d,.]+ .{0,60}\bare available|insta ?loan|loan (?:is )?(?:ready|waiting|available))\b/.test(low) && !/\b(debited|credited|spent|disbursed to your|has been disbursed)\b/.test(low))
     out.ignore = "Loan offer";
 
-  // Bank
-  const hay = `${sender ?? ""} ${text}`;
-  out.bank = BANKS.find(([re]) => re.test(hay))?.[1] ?? null;
+  // Bank: the sender first ("VM-DHANBK-S"), then the text without UPI handles or IFSC codes — "cred.club@axisb" in a
+  // Dhanlaxmi message is CRED's bank, not yours.
+  const hay = text.replace(PAYEE_BANK, " ");
+  out.bank = (sender ? BANKS.find(([re]) => re.test(sender)) : undefined)?.[1] ?? BANKS.find(([re]) => re.test(hay))?.[1] ?? null;
 
   // Amount: the first money figure that isn't the balance or limit.
   const stripped = text.replace(new RegExp(String.raw`(?:avl|avbl|available|aval)\.?\s*(?:bal(?:ance)?|lmt|limit|cr(?:edit)? ?lim(?:it)?)\.?\s*(?:is|:)?\s*(?:${CUR})?\s*-?${NUM}`, "gi"), " ").replace(new RegExp(String.raw`\bbal(?:ance)?\.?\s*(?:is|:)?\s*${CUR}\s*-?${NUM}`, "gi"), " ");
@@ -183,6 +201,9 @@ export function parseSms(body: string, sender?: string | null, today: ISODate = 
     out.cardPayment = true;
     out.direction = "credit";
   }
+
+  // A bank debit to a card-bill app: a card bill paid, card unknown until the card's own SMS.
+  if (out.instrument === "account" && out.direction === "debit") out.cardBillPayee = BILL_PAYEES.find(([re]) => re.test(text))?.[1] ?? null;
 
   // Reference
   const ref = text.match(/\bupi\s*txn\s*:?\s*\/?\s*(\d{9,22})/i) ?? text.match(/\b(?:upi\s*ref(?:erence)?(?:\s*no)?|ref(?:erence)?\s*(?:no|number|id)?|refno|rrn|utr|txn\s*(?:id|no)|imps\s*ref)\s*[.:#-]?\s*([A-Za-z0-9]{6,22})\b/i);

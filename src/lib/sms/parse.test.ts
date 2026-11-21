@@ -91,3 +91,28 @@ describe("review fixes", () => {
     expect(parseSms("Your HDFC Bank Debit Card XX1234 has been credited with a refund of Rs 450.00", "HDFCBK", "2026-11-12").direction).toBe("credit");
   });
 });
+
+// Nov 2026: one card bill paid through CRED sent two messages and was recorded twice, once on the wrong Axis card.
+const CRED_DEBIT = 'INR 5,387.00 is debited from A/c XXXX1766 on 18-NOV-2026 - "UPI TXN: /668814606006-CRED Club/payment on CRED/cred.club@axisb/AXIS0000001/4172120261118000101119339". Aval Bal is INR 12,000.00 -DhanlaxmiBank';
+const AXIS_RECEIVED = "Payment of INR 5387 has been received towards your Axis Bank Credit Card XX1811 on 18-11-26";
+
+describe("card bills paid through CRED", () => {
+  it("the bank's debit to CRED is a card bill with no card, and the bank is the sender's, not the UPI handle's", () => {
+    const r = parseSms(CRED_DEBIT, "VM-DHANBK-S", "2026-11-21");
+    expect(r).toMatchObject({ amount: 5387, direction: "debit", instrument: "account", last4: "1766", bank: "Dhanalaxmi Bank", cardBillPayee: "CRED", ref: "668814606006", date: "2026-11-18", cardPayment: false });
+    // Without a sender too: "@axisb" is CRED's bank, never yours.
+    expect(parseSms(CRED_DEBIT, null, "2026-11-21").bank).toBe("Dhanalaxmi Bank");
+  });
+  it("the card's own message says which card", () => {
+    const r = parseSms(AXIS_RECEIVED, "AX-AXISBK-S", "2026-11-21");
+    expect(r).toMatchObject({ amount: 5387, direction: "credit", instrument: "card", last4: "1811", bank: "Axis Bank", cardPayment: true, cardBillPayee: null, date: "2026-11-18" });
+  });
+  it("other card-bill gateways too, but not a plain UPI payment or money from CRED", () => {
+    expect(parseSms("Rs.4,200.00 debited from A/c XX9012 on 16-11-26 to BILLDESK CREDIT CARD PAYMENT. Ref 112233445566 -Kotak", "VM-KOTAKB", "2026-11-21").cardBillPayee).toBe("BillDesk");
+    expect(parseSms("Rs.4,200.00 debited from A/c XX9012 on 16-11-26 via BBPS for Credit Card bill. Ref 112233445566 -Kotak", "VM-KOTAKB", "2026-11-21").cardBillPayee).toBe("BBPS");
+    const swiggy = parseSms("Rs.215.00 debited from A/c XX9012 on 16-11-26 to VPA swiggy@axisb. Ref 628912345678 -Kotak", "VM-KOTAKB", "2026-11-21");
+    expect(swiggy).toMatchObject({ cardBillPayee: null, bank: "Kotak Bank" });
+    const fromCred = 'INR 100.00 is credited to A/c XXXX1766 on 17-OCT-2026 - "UPI TXN: /665621449834-Abilash N/Paid via CRED/7902253958@yescred/917902253958/4172120261016000101119339". Aval Bal is INR 2,937.91 -DhanlaxmiBank';
+    expect(parseSms(fromCred, "VM-DHANBK-S", "2026-11-21").cardBillPayee).toBeNull();
+  });
+});
